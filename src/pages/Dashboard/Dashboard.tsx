@@ -1,77 +1,141 @@
 import { useWebSocket } from '@/hooks/useWebSocket'
 import { DashboardData } from '@/types/parameter'
 import { formatNumber } from '@/utils/formatters'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Badge } from '@/components/ui/badge'
+import { Activity, Database, Network } from 'lucide-react'
 
 export default function Dashboard() {
   const { data: dashboardData, connected } = useWebSocket()
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'online':
-        return 'bg-green-500'
-      case 'error':
-        return 'bg-red-500'
-      default:
-        return 'bg-gray-500'
-    }
-  }
-
   // Convert Map to Array for rendering
   const dataArray = Array.from(dashboardData.values())
 
+  // Group by device
+  const groupedByDevice = dataArray.reduce((acc, item) => {
+    if (!acc[item.device_nama]) {
+      acc[item.device_nama] = []
+    }
+    acc[item.device_nama].push(item)
+    return acc
+  }, {} as Record<string, DashboardData[]>)
+
+  const totalMetrics = dataArray.length
+  const latestUpdate = dataArray.length > 0 ? new Date(dataArray[0].timestamp) : null
+  const onlineCount = dataArray.filter(item => item.status === 'online').length
+  const successRate = dataArray.length > 0 ? (onlineCount / dataArray.length) * 100 : 0
+
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold text-gray-800">Dashboard</h1>
-        <div className="flex items-center space-x-2">
-          <div className={`w-3 h-3 rounded-full ${connected ? 'bg-green-500' : 'bg-red-500'}`} />
-          <span className="text-sm text-gray-600">
-            {connected ? 'Connected' : 'Disconnected'}
-          </span>
-        </div>
+      <div>
+        <h2 className="text-2xl font-bold text-foreground">Dashboard</h2>
+        <p className="text-sm text-muted-foreground mt-1">Monitor your mapped data values</p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {dataArray.map((item, index) => (
-          <div key={`${item.device_nama}_${item.parameter_nama}_${index}`} className="bg-white rounded-lg shadow p-6">
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <h3 className="text-lg font-semibold text-gray-800">{item.parameter_nama}</h3>
-                <p className="text-sm text-gray-500">{item.device_nama}</p>
-              </div>
-              <div className={`w-3 h-3 rounded-full ${getStatusColor(item.status || 'offline')}`} />
-            </div>
-            <div className="space-y-2">
-              {item.value !== null && item.value !== undefined ? (
-                <>
-                  <div className="text-center py-4">
-                    <span className="text-3xl font-bold text-blue-600">
-                      {formatNumber(item.value)}
-                    </span>
-                  </div>
-                  <div className="text-xs text-gray-500 text-center">
-                    Updated: {new Date(item.timestamp).toLocaleTimeString()}
-                  </div>
-                </>
-              ) : (
-                <div className="text-sm text-gray-400 text-center py-4">
-                  {item.status === 'error' ? 'Error reading data' : 'No data available'}
-                </div>
-              )}
-            </div>
+      {dataArray.length === 0 ? (
+        <Card>
+          <CardContent className="flex flex-col items-center justify-center p-12 text-center">
+            <Database className="h-12 w-12 text-muted-foreground mb-4" />
+            <p className="font-medium text-foreground">No data available yet</p>
+            <p className="text-sm text-muted-foreground mt-2">
+              Configure parameters and start polling to see data here
+            </p>
+          </CardContent>
+        </Card>
+      ) : (
+        <>
+          <div className="grid gap-4 md:grid-cols-3">
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between pb-2">
+                <CardTitle className="text-sm font-medium">Total Metrics</CardTitle>
+                <Activity className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{totalMetrics}</div>
+                <p className="text-xs text-muted-foreground">Active parameters</p>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between pb-2">
+                <CardTitle className="text-sm font-medium">Connection Status</CardTitle>
+                <div className={`w-3 h-3 rounded-full ${connected ? 'bg-green-500' : 'bg-red-500'}`} />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{connected ? 'Connected' : 'Disconnected'}</div>
+                <p className="text-xs text-muted-foreground">
+                  {latestUpdate ? latestUpdate.toLocaleTimeString() : 'No updates yet'}
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between pb-2">
+                <CardTitle className="text-sm font-medium">Success Rate</CardTitle>
+                <Activity className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{successRate.toFixed(0)}%</div>
+                <p className="text-xs text-muted-foreground">Parameters online</p>
+              </CardContent>
+            </Card>
           </div>
-        ))}
-      </div>
 
-      {dataArray.length === 0 && (
-        <div className="bg-white rounded-lg shadow p-12 text-center">
-          <p className="text-gray-500">No data available yet.</p>
-          <p className="text-sm text-gray-400 mt-2">
-            Data will appear here once parameters are configured and polling starts.
-          </p>
-        </div>
+          <div className="space-y-6">
+            {Object.entries(groupedByDevice).map(([deviceName, items]) => {
+              const latestItem = items[0]
+              return (
+                <div key={deviceName} className="space-y-4">
+                  <div className="flex items-center gap-2 pb-2 border-b border-border">
+                    <Network className="h-5 w-5 text-primary" />
+                    <h3 className="text-lg font-semibold text-foreground">{deviceName}</h3>
+                    <Badge 
+                      variant={latestItem.status === 'online' ? 'default' : 'destructive'}
+                      className="ml-auto"
+                    >
+                      {latestItem.status || 'offline'}
+                    </Badge>
+                  </div>
+
+                  <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                    {items.map((item, index) => (
+                      <Card key={`${item.device_nama}_${item.parameter_nama}_${index}`}>
+                        <CardHeader>
+                          <CardTitle className="text-base">{item.parameter_nama}</CardTitle>
+                          <CardDescription className="text-xs">
+                            {item.device_nama}
+                          </CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                          {item.value !== null && item.value !== undefined ? (
+                            <div>
+                              <p className="text-3xl font-bold text-primary">
+                                {formatNumber(item.value, 2)}
+                              </p>
+                              <div className="mt-3 pt-3 border-t border-border">
+                                <p className="text-xs text-muted-foreground">
+                                  Updated: {new Date(item.timestamp).toLocaleTimeString()}
+                                </p>
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="text-destructive">
+                              <p className="text-sm font-medium">Error</p>
+                              <p className="text-xs">
+                                {item.status === 'error' ? 'Error reading data' : 'No data available'}
+                              </p>
+                            </div>
+                          )}
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </>
       )}
     </div>
   )
 }
-

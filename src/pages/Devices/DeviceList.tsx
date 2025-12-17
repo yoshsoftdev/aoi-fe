@@ -1,7 +1,11 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { deviceService } from '@/services/deviceService'
 import { useNavigate } from 'react-router-dom'
-import { Plus, Edit, Trash2 } from 'lucide-react'
+import { Plus, Edit, Trash2, Server } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { StatusBadge } from '@/components/status-badge'
+import { Badge } from '@/components/ui/badge'
 
 export default function DeviceList() {
   const navigate = useNavigate()
@@ -20,116 +24,102 @@ export default function DeviceList() {
   })
 
   const handleDelete = async (id: number) => {
-    if (confirm('Are you sure you want to delete this device? All associated parameters will also be deleted.')) {
+    if (confirm('Are you sure you want to delete this koneksi? All associated parameters will also be deleted.')) {
       await deleteMutation.mutateAsync(id)
     }
   }
 
   if (isLoading) {
-    return <div className="p-6">Loading devices...</div>
+    return (
+      <div className="flex items-center justify-center p-12">
+        <p className="text-muted-foreground">Loading koneksi...</p>
+      </div>
+    )
   }
 
   return (
     <div className="space-y-6">
+      <div>
+        <h2 className="text-2xl font-bold text-foreground">Koneksi</h2>
+        <p className="text-sm text-muted-foreground mt-1">Manage connection configurations</p>
+      </div>
+
       <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold text-gray-800">Devices</h1>
-        <button
-          onClick={() => navigate('/devices/new')}
-          className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 flex items-center space-x-2"
-        >
-          <Plus className="w-5 h-5" />
-          <span>Add Device</span>
-        </button>
+        <div className="text-sm text-muted-foreground">
+          {devices?.length || 0} {devices?.length === 1 ? 'connection' : 'connections'}
+        </div>
+        <Button onClick={() => navigate('/devices/new')}>
+          <Plus className="h-4 w-4 mr-2" />
+          New Connection
+        </Button>
       </div>
 
       {devices && devices.length === 0 ? (
-        <div className="bg-white rounded-lg shadow p-8 text-center">
-          <p className="text-gray-500 mb-4">No devices found.</p>
-          <button
-            onClick={() => navigate('/devices/new')}
-            className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
-          >
-            Create First Device
-          </button>
-        </div>
+        <Card>
+          <CardContent className="flex flex-col items-center justify-center p-12 text-center">
+            <Server className="h-12 w-12 text-muted-foreground mb-4" />
+            <p className="font-medium text-foreground">No connections configured</p>
+            <p className="text-sm text-muted-foreground mt-2">
+              Click "New Connection" to create your first connection
+            </p>
+            <Button className="mt-4" onClick={() => navigate('/devices/new')}>
+              Create First Connection
+            </Button>
+          </CardContent>
+        </Card>
       ) : (
-        <div className="bg-white rounded-lg shadow overflow-hidden">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  ID
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Name
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Type
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Status
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Polling (ms)
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Parameters
-                </th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Actions
-                </th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {devices?.map((device) => (
-                <tr key={device.id}>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                    {device.id}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                    {device.nama}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {device.type}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span
-                      className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                        device.enabled
-                          ? 'bg-green-100 text-green-800'
-                          : 'bg-gray-100 text-gray-800'
-                      }`}
-                    >
-                      {device.enabled ? 'Enabled' : 'Disabled'}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {device.polling_ms}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {device.parameters?.length || 0}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                    <button
-                      onClick={() => navigate(`/devices/${device.id}/edit`)}
-                      className="text-blue-600 hover:text-blue-900 mr-4"
-                    >
-                      <Edit className="w-4 h-4 inline" />
-                    </button>
-                    <button
-                      onClick={() => handleDelete(device.id)}
-                      className="text-red-600 hover:text-red-900"
-                    >
-                      <Trash2 className="w-4 h-4 inline" />
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          {devices?.map((device) => (
+            <Card key={device.id} className="hover:border-primary/50 transition-colors">
+              <CardHeader>
+                <div className="flex items-start justify-between">
+                  <div className="flex-1 min-w-0">
+                    <CardTitle className="text-base truncate">{device.nama}</CardTitle>
+                    <CardDescription className="mt-1">
+                      <Badge variant="outline" className="text-xs">
+                        {device.type}
+                      </Badge>
+                    </CardDescription>
+                  </div>
+                  <StatusBadge status={device.enabled ? 'online' : 'offline'} />
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2 text-sm">
+                  <div className="flex items-center justify-between">
+                    <span className="text-muted-foreground">Polling:</span>
+                    <span className="font-medium">{device.polling_ms}ms</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-muted-foreground">Parameters:</span>
+                    <span className="font-medium">{device.parameters?.length || 0}</span>
+                  </div>
+                </div>
+                <div className="flex gap-2 mt-4 pt-4 border-t border-border">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="flex-1"
+                    onClick={() => navigate(`/devices/${device.id}/edit`)}
+                  >
+                    <Edit className="h-3 w-3 mr-1" />
+                    Edit
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="flex-1"
+                    onClick={() => handleDelete(device.id)}
+                  >
+                    <Trash2 className="h-3 w-3 mr-1" />
+                    Delete
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
         </div>
       )}
     </div>
   )
 }
-

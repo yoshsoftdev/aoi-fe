@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { DashboardData } from '@/types/parameter'
+import type { DashboardData } from '@/types'
 
 const WS_URL = import.meta.env.VITE_WS_URL || 'ws://localhost:8080/api/v1/ws'
 
