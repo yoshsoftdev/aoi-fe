@@ -26,17 +26,46 @@ export const useWebSocket = () => {
       const message = JSON.parse(event.data)
       
       if (message.type === 'data_update' && message.data) {
+        // Backend sends DashboardData format with device_nama and parameter_nama
         const dashboardData: DashboardData = message.data
-        // Use parameter_nama as key (or device_nama + parameter_nama for uniqueness)
-        const key = `${dashboardData.device_nama}_${dashboardData.parameter_nama}`
+        
+        // Ensure parameter_nama is not empty
+        if (!dashboardData.parameter_nama || dashboardData.parameter_nama === '') {
+          dashboardData.parameter_nama = `Parameter ${dashboardData.parameter_id}`
+        }
+        
+        // Ensure device_nama is not empty
+        if (!dashboardData.device_nama || dashboardData.device_nama === '') {
+          dashboardData.device_nama = 'All Devices'
+        }
+        
+        // Ensure timestamp is string format
+        const timestampStr = typeof dashboardData.timestamp === 'string' 
+          ? dashboardData.timestamp 
+          : new Date(dashboardData.timestamp).toISOString()
+        
+        // Use parameter_id as key (more reliable than name)
+        const key = `param_${dashboardData.parameter_id}`
         setData(prev => {
           const newMap = new Map(prev)
-          newMap.set(key, dashboardData)
+          newMap.set(key, {
+            ...dashboardData,
+            timestamp: timestampStr,
+          })
           return newMap
         })
       } else if (message.type === 'error' && message.data) {
-        const dashboardData: DashboardData = message.data
-        const key = `${dashboardData.device_nama}_${dashboardData.parameter_nama}`
+        // Handle error format (if backend sends error in clean format)
+        const errorData = message.data
+        const dashboardData: DashboardData = {
+          parameter_id: errorData.parameter_id || 0,
+          device_nama: errorData.device_nama || '',
+          parameter_nama: errorData.name || errorData.parameter_nama || 'Unknown',
+          value: 0,
+          timestamp: errorData.timestamp || new Date().toISOString(),
+          status: 'error',
+        }
+        const key = `param_${dashboardData.parameter_id}`
         setData(prev => {
           const newMap = new Map(prev)
           newMap.set(key, dashboardData)

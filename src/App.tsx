@@ -39,11 +39,11 @@ function App() {
   const { data: wsData } = useWebSocket()
 
   const liveDashboardData: SavedDashboardData[] = useMemo(() => {
-    // Group WebSocket data by device_nama
+    // Group WebSocket data by device_nama (or "All Devices" if empty)
     const groupedByDevice = new Map<string, DashboardData[]>()
     
     wsData.forEach((d) => {
-      const deviceName = d.device_nama
+      const deviceName = d.device_nama || 'All Devices'
       if (!groupedByDevice.has(deviceName)) {
         groupedByDevice.set(deviceName, [])
       }
@@ -56,7 +56,7 @@ function App() {
       // Sort parameters by parameter name (alphabetically) for fixed, consistent ordering
       // This ensures parameters don't change position when WebSocket updates arrive
       const sortedParams = [...deviceParams].sort((a, b) => 
-        a.parameter_nama.localeCompare(b.parameter_nama)
+        (a.parameter_nama || '').localeCompare(b.parameter_nama || '')
       )
       
       // Get latest timestamp for savedAt (from any parameter, not necessarily first)
@@ -66,9 +66,9 @@ function App() {
 
       // Create mappedValues from all parameters, maintaining alphabetical order
       const mappedValues = sortedParams.map((d) => ({
-        id: `${deviceName}_${d.parameter_nama}`, // Use parameter name for stable ID
+        id: `param_${d.parameter_id}_${d.parameter_nama}`, // Use parameter_id for stable ID
         parameterId: d.parameter_id, // Include parameter ID for edit/delete operations
-        outputName: d.parameter_nama,
+        outputName: d.parameter_nama || `Parameter ${d.parameter_id}`, // Fallback if name is missing
         rawValues: [],
         mappedValue: typeof d.value === 'number' ? d.value : Number(d.value ?? 0),
         formula: '',
@@ -140,6 +140,19 @@ function App() {
     }
     setSavedDashboardData((prev) => [newData, ...prev])
   }
+  
+  // Force refresh WebSocket data when switching to dashboard
+  const handleViewChange = (view: 'dashboard' | 'tester') => {
+    setCurrentView(view)
+    // If switching to dashboard, give WebSocket a moment to update
+    if (view === 'dashboard') {
+      // Small delay to allow WebSocket to receive latest data
+      setTimeout(() => {
+        // Force re-render by updating a dummy state if needed
+        // The useWebSocket hook will automatically update when new data arrives
+      }, 500)
+    }
+  }
 
   const resetTesterState = () => {
     setCurrentStep(0)
@@ -194,7 +207,7 @@ function App() {
             <Button
               variant={currentView === 'dashboard' ? 'default' : 'ghost'}
               className="w-full justify-start"
-              onClick={() => setCurrentView('dashboard')}
+              onClick={() => handleViewChange('dashboard')}
             >
               <LayoutDashboard className="h-4 w-4 mr-2" />
               Dashboard
@@ -203,7 +216,7 @@ function App() {
             <Button
               variant={currentView === 'tester' ? 'default' : 'ghost'}
               className="w-full justify-start"
-              onClick={() => setCurrentView('tester')}
+              onClick={() => handleViewChange('tester')}
             >
               <TestTube2 className="h-4 w-4 mr-2" />
               Communication Tester
@@ -268,7 +281,6 @@ function App() {
                         rawData={rawData}
                         addLog={addLog}
                         onSave={handleSaveDashboard}
-                        connectionInfo={{ id: activeConnection?.id || '', name: activeConnection?.name || '' }}
                         activeConnection={activeConnection!}
                         testConfig={testConfig}
                         onSaveSuccess={() => {

@@ -11,12 +11,14 @@ export default function Dashboard() {
   // Convert Map to Array for rendering
   const dataArray = Array.from(dashboardData.values())
 
-  // Group by device
+  // Group by device (use parameter_nama as fallback if device_nama is empty)
   const groupedByDevice = dataArray.reduce((acc, item) => {
-    if (!acc[item.device_nama]) {
-      acc[item.device_nama] = []
+    // Use device_nama if available, otherwise group by "All Devices" or use parameter name prefix
+    const deviceKey = item.device_nama || 'All Devices'
+    if (!acc[deviceKey]) {
+      acc[deviceKey] = []
     }
-    acc[item.device_nama].push(item)
+    acc[deviceKey].push(item)
     return acc
   }, {} as Record<string, DashboardData[]>)
 
@@ -99,11 +101,11 @@ export default function Dashboard() {
 
                   <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                     {items.map((item, index) => (
-                      <Card key={`${item.device_nama}_${item.parameter_nama}_${index}`}>
+                      <Card key={`${item.parameter_id}_${item.parameter_nama}_${index}`}>
                         <CardHeader>
-                          <CardTitle className="text-base">{item.parameter_nama}</CardTitle>
+                          <CardTitle className="text-base">{item.parameter_nama || `Parameter ${item.parameter_id}`}</CardTitle>
                           <CardDescription className="text-xs">
-                            {item.device_nama}
+                            {item.device_nama || 'Device'}
                           </CardDescription>
                         </CardHeader>
                         <CardContent>

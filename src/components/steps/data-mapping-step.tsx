@@ -12,7 +12,6 @@ interface DataMappingStepProps {
   rawData: RawDataField[]
   addLog: (message: string, type?: 'info' | 'error' | 'success' | 'warning') => void
   onSave: (mappedValues: MappedValue[]) => void
-  connectionInfo?: { id: string; name: string }
   activeConnection: Connection
   testConfig?: {
     slaveId?: number
@@ -30,7 +29,6 @@ export function DataMappingStep({
   rawData,
   addLog,
   onSave,
-  connectionInfo,
   activeConnection,
   testConfig,
   onSaveSuccess,
@@ -151,6 +149,48 @@ export function DataMappingStep({
     setMappedValues(results)
   }
 
+  // Helper function to detect if formula contains field references like "Slave X Addr Y"
+  const containsFieldReference = (formula: string): boolean => {
+    if (!formula) return false
+    const re = /slave\s+\d+.*?(?:addr|address)\s+\d+/i
+    return re.test(formula)
+  }
+
+  // Helper function to extract field references from formula
+  const extractFieldReferences = (formula: string): string[] => {
+    if (!formula) return []
+    const re = /slave\s+\d+.*?(?:addr|address)\s+\d+/gi
+    const matches = formula.match(re) || []
+    // Get unique field references
+    return [...new Set(matches.map(m => m.trim()))]
+  }
+
+  // Helper function to normalize formula expression
+  // Replace field references with variable names (a, b, c, ...)
+  const normalizeExpression = (formula: string, fieldRefs: string[]): { expression: string; variables: Array<{ name: string; fieldRef: string }> } => {
+    let expression = formula
+    const variables: Array<{ name: string; fieldRef: string }> = []
+    const varNames = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z']
+    
+    // Get unique field references
+    const uniqueFieldRefs = [...new Set(fieldRefs)]
+    
+    uniqueFieldRefs.forEach((fieldRef, index) => {
+      const varName = varNames[index % varNames.length]
+      // Escape special regex characters
+      const escaped = fieldRef.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+      const regex = new RegExp(escaped, 'gi')
+      expression = expression.replace(regex, varName)
+      
+      variables.push({
+        name: varName,
+        fieldRef: fieldRef
+      })
+    })
+    
+    return { expression, variables }
+  }
+
   const saveMappings = async () => {
     if (mappedValues.length === 0) {
       addLog('No mapped values to save', 'warning')
@@ -165,12 +205,125 @@ export function DataMappingStep({
     setIsSaving(true)
     try {
       // Check if connection.id is numeric (from DB) or string (local)
-      // If numeric, it means connection already exists in DB
       const koneksiId = typeof activeConnection.id === 'string' && /^\d+$/.test(activeConnection.id)
         ? parseInt(activeConnection.id, 10)
         : typeof activeConnection.id === 'number'
           ? activeConnection.id
           : undefined
+
+      // Build mappings array with new format
+      const mappings: Array<{
+        type?: 'raw' | 'formula'
+        outputName: string
+        formula?: string
+        expression?: string
+        variables?: Array<{ name: string; source_parameter_name: string }>
+        slaveId?: number
+        functionCode?: number
+        registerAddress?: number
+        quantity?: number
+        dataType?: string
+        byteOrder?: string
+        oid?: string
+      }> = []
+
+      // Track created raw parameters: fieldRef -> parameterName
+      const fieldRefToParamName: Map<string, string> = new Map()
+
+      // First pass: Create RAW parameters
+      for (const mv of mappedValues) {
+        const hasModbusConfig = testConfig && (
+          (testConfig.slaveId !== undefined && testConfig.registerAddress !== undefined) ||
+          testConfig.oid !== undefined
+        )
+        const hasFieldRef = containsFieldReference(mv.formula)
+
+        if (hasModbusConfig && hasFieldRef) {
+          // This mapping has both Modbus config AND formula with field reference
+          // Create RAW parameter first, then FORMULA parameter will reference it
+          const fieldRefs = extractFieldReferences(mv.formula)
+          
+          // Create RAW parameter for each unique field reference
+          for (const fieldRef of fieldRefs) {
+            if (!fieldRefToParamName.has(fieldRef)) {
+              // Generate parameter name from field reference
+              // e.g., "Slave 4 Addr 10" -> "slave_4_addr_10"
+              const rawParamName = `${mv.outputName}_raw_${fieldRef.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '')}`
+              fieldRefToParamName.set(fieldRef, rawParamName)
+
+              mappings.push({
+                type: 'raw',
+                outputName: rawParamName,
+                ...(testConfig.slaveId !== undefined && { slaveId: testConfig.slaveId }),
+                ...(testConfig.functionCode !== undefined && { functionCode: testConfig.functionCode }),
+                ...(testConfig.registerAddress !== undefined && { registerAddress: testConfig.registerAddress }),
+                ...(testConfig.quantity !== undefined && { quantity: testConfig.quantity }),
+                ...(testConfig.dataType && { dataType: testConfig.dataType }),
+                ...(testConfig.byteOrder && { byteOrder: testConfig.byteOrder }),
+                ...(testConfig.oid && { oid: testConfig.oid }),
+              })
+            }
+          }
+        } else if (hasModbusConfig && !hasFieldRef) {
+          // RAW parameter without field reference (simple formula or no formula)
+          mappings.push({
+            type: 'raw',
+            outputName: mv.outputName,
+            ...(mv.formula && { formula: mv.formula }), // Simple formula like "value * 2"
+            ...(testConfig.slaveId !== undefined && { slaveId: testConfig.slaveId }),
+            ...(testConfig.functionCode !== undefined && { functionCode: testConfig.functionCode }),
+            ...(testConfig.registerAddress !== undefined && { registerAddress: testConfig.registerAddress }),
+            ...(testConfig.quantity !== undefined && { quantity: testConfig.quantity }),
+            ...(testConfig.dataType && { dataType: testConfig.dataType }),
+            ...(testConfig.byteOrder && { byteOrder: testConfig.byteOrder }),
+            ...(testConfig.oid && { oid: testConfig.oid }),
+          })
+        }
+      }
+
+      // Second pass: Create FORMULA parameters
+      for (const mv of mappedValues) {
+        const hasFieldRef = containsFieldReference(mv.formula)
+        const hasModbusConfig = testConfig && (
+          (testConfig.slaveId !== undefined && testConfig.registerAddress !== undefined) ||
+          testConfig.oid !== undefined
+        )
+
+        if (hasFieldRef) {
+          // This is a FORMULA parameter
+          const fieldRefs = extractFieldReferences(mv.formula)
+          const { expression, variables } = normalizeExpression(mv.formula, fieldRefs)
+
+          // Update variables to use the correct parameter names from fieldRefToParamName map
+          const updatedVariables = variables.map(v => {
+            const paramName = fieldRefToParamName.get(v.fieldRef)
+            if (paramName) {
+              return {
+                name: v.name,
+                source_parameter_name: paramName
+              }
+            }
+            
+            // Fallback: generate parameter name from field reference
+            const fallbackParamName = v.fieldRef.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '')
+            return {
+              name: v.name,
+              source_parameter_name: fallbackParamName
+            }
+          })
+
+          mappings.push({
+            type: 'formula',
+            outputName: mv.outputName,
+            expression: expression,
+            variables: updatedVariables
+          })
+        } else if (!hasModbusConfig && mv.formula) {
+          // Formula without Modbus config - this might reference existing parameters
+          // For now, we'll skip it or show a warning
+          addLog(`Warning: Formula "${mv.formula}" without Modbus config - skipping. Please ensure referenced parameters exist.`, 'warning')
+        }
+      }
 
       // Build request payload
       const request = {
@@ -179,19 +332,8 @@ export function DataMappingStep({
           protocol: activeConnection.protocol,
           config: activeConnection.config,
         },
-        ...(koneksiId && { koneksi_id: koneksiId }), // Include koneksi_id if connection exists in DB
-        mappings: mappedValues.map((mv) => ({
-          outputName: mv.outputName,
-          formula: mv.formula,
-          // Include test config if available
-          ...(testConfig?.slaveId && { slaveId: testConfig.slaveId }),
-          ...(testConfig?.functionCode && { functionCode: testConfig.functionCode }),
-          ...(testConfig?.registerAddress && { registerAddress: testConfig.registerAddress }),
-          ...(testConfig?.quantity && { quantity: testConfig.quantity }),
-          ...(testConfig?.dataType && { dataType: testConfig.dataType }),
-          ...(testConfig?.byteOrder && { byteOrder: testConfig.byteOrder }),
-          ...(testConfig?.oid && { oid: testConfig.oid }),
-        })),
+        ...(koneksiId && { koneksi_id: koneksiId }),
+        mappings: mappings,
       }
 
       const response = await mappingService.save(request)
@@ -203,8 +345,10 @@ export function DataMappingStep({
         )
         // Update local state for immediate UI feedback
         onSave(mappedValues)
-        // Call success callback to reset form and redirect
-        onSaveSuccess()
+        // Wait a moment for backend to process and WebSocket to update
+        setTimeout(() => {
+          onSaveSuccess()
+        }, 1000)
       } else {
         addLog('Failed to save mappings', 'error')
       }

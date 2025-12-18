@@ -126,6 +126,16 @@ export interface SavedDashboardData {
 }
 
 // Dashboard data untuk real-time dari backend
+// Format baru: Clean Data dari backend
+export interface CleanData {
+  parameter_id: number
+  name: string        // Logical parameter name (not raw naming)
+  value: number
+  unit: string
+  timestamp: string   // RFC3339 format
+}
+
+// DashboardData untuk backward compatibility dan internal use
 export interface DashboardData {
   parameter_id: number  // Parameter ID for edit/delete operations
   device_nama: string
