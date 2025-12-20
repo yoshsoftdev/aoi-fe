@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useState, useEffect } from 'react'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query'
 import { parameterService } from '@/services/parameterService'
 import { modbusService } from '@/services/modbusService'
@@ -9,16 +9,61 @@ import { testConnectionService } from '@/services/testConnectionService'
 import { Parameter } from '@/types/parameter'
 import { ArrowLeft, CheckCircle, XCircle, Loader } from 'lucide-react'
 
-export default function ParameterForm() {
+interface ParameterFormProps {
+  mode?: 'create' | 'edit'
+  paramId?: number | null
+  queryParams?: string
+  onCancel?: () => void
+  onSuccess?: () => void
+}
+
+export default function ParameterForm({ mode = 'create', paramId = null, queryParams = '', onCancel, onSuccess }: ParameterFormProps = {}) {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const [formData, setFormData] = useState<Omit<Parameter, 'id' | 'created_at' | 'updated_at'>>({
     device_id: 0,
     nama: '',
     type: 'modbus_rtu',
+    direction: 'READ', // Default to READ (polling/scheduler)
     read_write: false,
     custom_rumus: '',
   })
+
+  // Initialize form from URL parameters or props
+  useEffect(() => {
+    // Use provided queryParams if available, otherwise use URL searchParams
+    const effectiveQueryParams = queryParams || (searchParams.toString() ? `?${searchParams.toString()}` : '')
+    
+    // Parse queryParams if provided as string
+    const params = effectiveQueryParams ? new URLSearchParams(effectiveQueryParams.replace(/^\?/, '')) : searchParams
+    const deviceIdParam = params.get('device_id')
+    const readWriteParam = params.get('read_write')
+    const directionParam = params.get('direction')
+    const typeParam = params.get('type')
+
+    if (deviceIdParam) {
+      const deviceId = parseInt(deviceIdParam, 10)
+      if (!isNaN(deviceId)) {
+        setFormData(prev => ({ ...prev, device_id: deviceId }))
+      }
+    }
+
+    // Handle direction parameter (new) or read_write (legacy)
+    if (directionParam === 'WRITE' || directionParam === 'READ') {
+      setFormData(prev => ({
+        ...prev,
+        direction: directionParam as 'READ' | 'WRITE',
+        read_write: directionParam === 'WRITE',
+      }))
+    } else if (readWriteParam === 'true') {
+      // Legacy support: read_write=true means WRITE
+      setFormData(prev => ({ ...prev, read_write: true, direction: 'WRITE' }))
+    }
+
+    if (typeParam && ['modbus_rtu', 'modbus_tcp', 'analog_input', 'analog_output', 'digital_input', 'digital_output', 'snmp'].includes(typeParam)) {
+      setFormData(prev => ({ ...prev, type: typeParam as any }))
+    }
+  }, [searchParams, queryParams])
 
   // Fetch devices for selection
   const { data: devices } = useQuery({
@@ -28,10 +73,25 @@ export default function ParameterForm() {
 
   // Configuration form data based on type
   const [configData, setConfigData] = useState<any>({
-    function_code: 3, // Default function code
+    function_code: 3, // Default function code for READ (Read Holding Registers)
     byte_order: 'ABCD', // Default byte order
     scaling: 1.0, // Default scaling factor
   })
+
+  // Update function_code default when direction changes
+  useEffect(() => {
+    if (formData.direction === 'WRITE') {
+      // For WRITE, default to 6 (Write Single Register)
+      if (!configData.function_code || (configData.function_code >= 1 && configData.function_code <= 4)) {
+        setConfigData((prev: any) => ({ ...prev, function_code: 6 }))
+      }
+    } else {
+      // For READ, default to 3 (Read Holding Registers)
+      if (!configData.function_code || (configData.function_code >= 5 && configData.function_code <= 16)) {
+        setConfigData((prev: any) => ({ ...prev, function_code: 3 }))
+      }
+    }
+  }, [formData.direction])
   
   // Modpoll command state
   const [modpollCommand, setModpollCommand] = useState('')
@@ -174,7 +234,11 @@ export default function ParameterForm() {
         queryClient.invalidateQueries({ queryKey: ['modbus-rtu'] })
         queryClient.invalidateQueries({ queryKey: ['modbus-tcp'] })
         queryClient.invalidateQueries({ queryKey: ['snmp'] })
-        navigate('/parameters')
+        if (onSuccess) {
+          onSuccess()
+        } else {
+          navigate('/parameters')
+        }
       } catch (error) {
         console.error('Failed to create configuration:', error)
       }
@@ -735,7 +799,7 @@ export default function ParameterForm() {
                 <label className="block text-sm font-medium text-gray-700 mb-1">Function Code *</label>
                 <select
                   required
-                  value={configData.function_code ?? 3}
+                  value={configData.function_code ?? (formData.direction === 'WRITE' ? 6 : 3)}
                   onChange={(e) => {
                     const value = parseInt(e.target.value, 10)
                     if (!isNaN(value)) {
@@ -744,11 +808,26 @@ export default function ParameterForm() {
                   }}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
-                  <option value="1">1 - Read Coils</option>
-                  <option value="2">2 - Read Discrete Inputs</option>
-                  <option value="3">3 - Read Holding Registers</option>
-                  <option value="4">4 - Read Input Registers</option>
+                  {formData.direction === 'WRITE' ? (
+                    <>
+                      <option value="5">5 - Write Single Coil</option>
+                      <option value="6">6 - Write Single Register</option>
+                      <option value="16">16 - Write Multiple Registers</option>
+                    </>
+                  ) : (
+                    <>
+                      <option value="1">1 - Read Coils</option>
+                      <option value="2">2 - Read Discrete Inputs</option>
+                      <option value="3">3 - Read Holding Registers</option>
+                      <option value="4">4 - Read Input Registers</option>
+                    </>
+                  )}
                 </select>
+                <p className="text-xs text-gray-500 mt-1">
+                  {formData.direction === 'WRITE'
+                    ? 'Select write function code based on your Modbus device requirements'
+                    : 'Select read function code based on your Modbus device requirements'}
+                </p>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Register Address *</label>
@@ -902,7 +981,7 @@ export default function ParameterForm() {
                 <label className="block text-sm font-medium text-gray-700 mb-1">Function Code *</label>
                 <select
                   required
-                  value={configData.function_code ?? 3}
+                  value={configData.function_code ?? (formData.direction === 'WRITE' ? 6 : 3)}
                   onChange={(e) => {
                     const value = parseInt(e.target.value, 10)
                     if (!isNaN(value)) {
@@ -911,11 +990,26 @@ export default function ParameterForm() {
                   }}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
-                  <option value="1">1 - Read Coils</option>
-                  <option value="2">2 - Read Discrete Inputs</option>
-                  <option value="3">3 - Read Holding Registers</option>
-                  <option value="4">4 - Read Input Registers</option>
+                  {formData.direction === 'WRITE' ? (
+                    <>
+                      <option value="5">5 - Write Single Coil</option>
+                      <option value="6">6 - Write Single Register</option>
+                      <option value="16">16 - Write Multiple Registers</option>
+                    </>
+                  ) : (
+                    <>
+                      <option value="1">1 - Read Coils</option>
+                      <option value="2">2 - Read Discrete Inputs</option>
+                      <option value="3">3 - Read Holding Registers</option>
+                      <option value="4">4 - Read Input Registers</option>
+                    </>
+                  )}
                 </select>
+                <p className="text-xs text-gray-500 mt-1">
+                  {formData.direction === 'WRITE'
+                    ? 'Select write function code based on your Modbus device requirements'
+                    : 'Select read function code based on your Modbus device requirements'}
+                </p>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Register Address *</label>
@@ -1097,7 +1191,13 @@ export default function ParameterForm() {
     <div className="space-y-6">
       <div className="flex items-center space-x-4">
         <button
-          onClick={() => navigate('/parameters')}
+          onClick={() => {
+            if (onCancel) {
+              onCancel()
+            } else {
+              navigate('/parameters')
+            }
+          }}
           className="text-gray-600 hover:text-gray-900"
         >
           <ArrowLeft className="w-5 h-5" />
@@ -1245,30 +1345,35 @@ export default function ParameterForm() {
 
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">
-            Access Mode *
+            Parameter Direction *
           </label>
           <div className="flex space-x-6">
             <label className="flex items-center cursor-pointer">
               <input
                 type="radio"
-                name="read_write"
-                checked={!formData.read_write}
-                onChange={() => setFormData({ ...formData, read_write: false })}
+                name="direction"
+                checked={formData.direction === 'READ'}
+                onChange={() => setFormData({ ...formData, direction: 'READ', read_write: false })}
                 className="mr-2 w-4 h-4 text-blue-600 border-gray-300 focus:ring-blue-500"
               />
-              <span className="text-gray-700 font-medium">Read Only</span>
+              <span className="text-gray-700 font-medium">READ (Polling/Scheduler)</span>
+              <span className="text-xs text-gray-500 ml-2">- For data collection</span>
             </label>
             <label className="flex items-center cursor-pointer">
               <input
                 type="radio"
-                name="read_write"
-                checked={formData.read_write}
-                onChange={() => setFormData({ ...formData, read_write: true })}
+                name="direction"
+                checked={formData.direction === 'WRITE'}
+                onChange={() => setFormData({ ...formData, direction: 'WRITE', read_write: true })}
                 className="mr-2 w-4 h-4 text-blue-600 border-gray-300 focus:ring-blue-500"
               />
-              <span className="text-gray-700 font-medium">Read/Write</span>
+              <span className="text-gray-700 font-medium">WRITE (Command/On-Demand)</span>
+              <span className="text-xs text-gray-500 ml-2">- For control operations</span>
             </label>
           </div>
+          <p className="text-xs text-gray-500 mt-2">
+            READ parameters are scheduled for polling. WRITE parameters are command-based and executed on-demand.
+          </p>
         </div>
 
         {renderConfigFields()}
@@ -1358,7 +1463,13 @@ export default function ParameterForm() {
         <div className="flex justify-end space-x-4 border-t pt-4">
           <button
             type="button"
-            onClick={() => navigate('/parameters')}
+            onClick={() => {
+              if (onCancel) {
+                onCancel()
+              } else {
+                navigate('/parameters')
+              }
+            }}
             className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
           >
             Cancel

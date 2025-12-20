@@ -185,33 +185,6 @@ export function TestStep({ activeConnection, addLog, onRawDataReceived, onNext }
         const resultLines: string[] = []
 
         if (result.raw_value !== undefined && result.raw_value !== null) {
-          // Backend returns single converted value (all registers converted to one value based on data_type)
-          let value = typeof result.raw_value === 'number' ? result.raw_value : parseFloat(String(result.raw_value))
-          
-          // Round to exactly 3 decimal places for processing in data mapping
-          // For very large numbers, we need to handle precision carefully
-          if (isFinite(value) && !isNaN(value)) {
-            // Round to 3 decimal places: multiply by 1000, round, divide by 1000
-            // This ensures exact 3 decimal places without precision loss
-            value = Math.round(value * 1000) / 1000
-          } else {
-            value = 0
-          }
-          
-          // Create one field with the converted value
-          // For quantity > 1, backend reads multiple registers but converts them to one value (e.g., float from 2 registers)
-          const fieldName = testData.quantity > 1 
-            ? `Slave ${testData.slaveId} Addr ${testData.startAddress}-${testData.startAddress + testData.quantity - 1}`
-            : `Slave ${testData.slaveId} Addr ${testData.startAddress}`
-          
-          rawDataFields.push({
-            id: `${activeConnection.id}-${testData.slaveId}-${testData.startAddress}`,
-            name: fieldName,
-            value,
-            timestamp: new Date(),
-            source: `${activeConnection.name} (Slave ${testData.slaveId})`,
-          })
-
           // Format result display with 3 decimal places (without exponent)
           const formatValue = (val: number): string => {
             const fixedStr = val.toFixed(3)
@@ -232,11 +205,60 @@ export function TestStep({ activeConnection, addLog, onRawDataReceived, onNext }
             return fixedStr.replace(/\.?0+$/, '') || '0'
           }
 
-          if (testData.quantity > 1) {
-            resultLines.push(`[${testData.startAddress}-${testData.startAddress + testData.quantity - 1}]: ${formatValue(value)}`)
+          // Check if raw_value is an array (for multiple registers with uint16)
+          if (Array.isArray(result.raw_value)) {
+            // Display each register individually
+            const registerValues = result.raw_value as number[]
+            registerValues.forEach((val, index) => {
+              const registerAddr = testData.startAddress + index
+              const roundedVal = isFinite(val) && !isNaN(val) ? Math.round(val * 1000) / 1000 : 0
+              
+              resultLines.push(`[${registerAddr}]: ${formatValue(roundedVal)}`)
+              
+              // Create individual field for each register
+              rawDataFields.push({
+                id: `${activeConnection.id}-${testData.slaveId}-${registerAddr}`,
+                name: `Slave ${testData.slaveId} Addr ${registerAddr}`,
+                value: roundedVal,
+                timestamp: new Date(),
+                source: `${activeConnection.name} (Slave ${testData.slaveId})`,
+              })
+            })
             resultLines.push(`(Read ${testData.quantity} registers, converted to ${testData.dataType})`)
           } else {
-            resultLines.push(`[${testData.startAddress}]: ${formatValue(value)}`)
+            // Single value (for single register or merged multi-register values)
+            let value = typeof result.raw_value === 'number' ? result.raw_value : parseFloat(String(result.raw_value))
+            
+            // Round to exactly 3 decimal places for processing in data mapping
+            // For very large numbers, we need to handle precision carefully
+            if (isFinite(value) && !isNaN(value)) {
+              // Round to 3 decimal places: multiply by 1000, round, divide by 1000
+              // This ensures exact 3 decimal places without precision loss
+              value = Math.round(value * 1000) / 1000
+            } else {
+              value = 0
+            }
+            
+            // Create one field with the converted value
+            // For quantity > 1, backend reads multiple registers but converts them to one value (e.g., float from 2 registers)
+            const fieldName = testData.quantity > 1 
+              ? `Slave ${testData.slaveId} Addr ${testData.startAddress}-${testData.startAddress + testData.quantity - 1}`
+              : `Slave ${testData.slaveId} Addr ${testData.startAddress}`
+            
+            rawDataFields.push({
+              id: `${activeConnection.id}-${testData.slaveId}-${testData.startAddress}`,
+              name: fieldName,
+              value,
+              timestamp: new Date(),
+              source: `${activeConnection.name} (Slave ${testData.slaveId})`,
+            })
+
+            if (testData.quantity > 1) {
+              resultLines.push(`[${testData.startAddress}-${testData.startAddress + testData.quantity - 1}]: ${formatValue(value)}`)
+              resultLines.push(`(Read ${testData.quantity} registers, converted to ${testData.dataType})`)
+            } else {
+              resultLines.push(`[${testData.startAddress}]: ${formatValue(value)}`)
+            }
           }
         } else {
           // No raw_value but connection OK (read failed but connection works)

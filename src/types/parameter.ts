@@ -3,7 +3,8 @@ export interface Parameter {
   device_id: number
   nama: string
   type: 'modbus_rtu' | 'modbus_tcp' | 'analog_input' | 'analog_output' | 'digital_input' | 'digital_output' | 'snmp'
-  read_write: boolean
+  direction: 'READ' | 'WRITE' // READ (polling/scheduler) or WRITE (command/on-demand)
+  read_write: boolean // Deprecated: use direction instead
   unit?: string
   custom_rumus?: string
   description?: string

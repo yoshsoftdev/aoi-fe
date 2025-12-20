@@ -7,7 +7,9 @@ import { TestStep } from '@/components/steps/test-step'
 import { DataMappingStep } from '@/components/steps/data-mapping-step'
 import { DashboardView } from '@/components/dashboard/dashboard-view'
 import { LogsPanel } from '@/components/tester/logs-panel'
-import { Activity, LayoutDashboard, TestTube2, Menu, X } from 'lucide-react'
+import { WriteControlView } from '@/components/write/write-control-view'
+import { WriteControlViewStepper } from '@/components/write/write-control-stepper'
+import { Activity, LayoutDashboard, TestTube2, PenTool, Menu, X } from 'lucide-react'
 import type { Connection, LogEntry, RawDataField, SavedDashboardData, MappedValue, DashboardData } from '@/types'
 import { cn } from '@/lib/utils'
 import { useWebSocket } from '@/hooks/useWebSocket'
@@ -15,9 +17,10 @@ import { useWebSocket } from '@/hooks/useWebSocket'
 const queryClient = new QueryClient()
 
 function App() {
-  const [currentView, setCurrentView] = useState<'dashboard' | 'tester'>('dashboard')
+  const [currentView, setCurrentView] = useState<'dashboard' | 'tester' | 'write'>('dashboard')
   const [isSidebarOpen, setIsSidebarOpen] = useState(true)
 
+  // Tester state
   const [currentStep, setCurrentStep] = useState(0)
   const [connections, setConnections] = useState<Connection[]>([])
   const [activeConnection, setActiveConnection] = useState<Connection | null>(null)
@@ -34,6 +37,12 @@ function App() {
     byteOrder?: string
     oid?: string
   } | null>(null)
+
+  // Write Control state
+  const [writeStep, setWriteStep] = useState(0)
+  const [writeActiveConnection, setWriteActiveConnection] = useState<Connection | null>(null)
+  const [writeSelectedParameter, setWriteSelectedParameter] = useState<any>(null)
+  const [writeValueReady, setWriteValueReady] = useState(false)
 
   // Live data from backend via WebSocket
   const { data: wsData } = useWebSocket()
@@ -142,7 +151,7 @@ function App() {
   }
   
   // Force refresh WebSocket data when switching to dashboard
-  const handleViewChange = (view: 'dashboard' | 'tester') => {
+  const handleViewChange = (view: 'dashboard' | 'tester' | 'write') => {
     setCurrentView(view)
     // If switching to dashboard, give WebSocket a moment to update
     if (view === 'dashboard') {
@@ -151,6 +160,10 @@ function App() {
         // Force re-render by updating a dummy state if needed
         // The useWebSocket hook will automatically update when new data arrives
       }, 500)
+    }
+    // Reset write step when switching to write view
+    if (view === 'write') {
+      setWriteStep(0)
     }
   }
 
@@ -221,6 +234,15 @@ function App() {
               <TestTube2 className="h-4 w-4 mr-2" />
               Communication Tester
             </Button>
+
+            <Button
+              variant={currentView === 'write' ? 'default' : 'ghost'}
+              className="w-full justify-start"
+              onClick={() => handleViewChange('write')}
+            >
+              <PenTool className="h-4 w-4 mr-2" />
+              Write / Control
+            </Button>
           </div>
         </aside>
 
@@ -237,10 +259,18 @@ function App() {
               </Button>
               <div>
                 <h1 className="text-lg font-semibold text-foreground">
-                  {currentView === 'dashboard' ? 'Dashboard' : 'Communication Tester'}
+                  {currentView === 'dashboard'
+                    ? 'Dashboard'
+                    : currentView === 'tester'
+                      ? 'Communication Tester'
+                      : 'Write / Control'}
                 </h1>
                 <p className="text-xs text-muted-foreground">
-                  {currentView === 'dashboard' ? 'Monitor mapped data values' : 'Test → Map → Transform'}
+                  {currentView === 'dashboard'
+                    ? 'Monitor mapped data values'
+                    : currentView === 'tester'
+                      ? 'Test → Map → Transform'
+                      : 'Write values to Modbus devices'}
                 </p>
               </div>
             </div>
@@ -249,55 +279,100 @@ function App() {
                 <Stepper steps={steps} currentStep={currentStep} onStepClick={setCurrentStep} />
               </div>
             )}
+            {currentView === 'write' && (
+              <div className="border-t border-border px-6 py-4">
+                <WriteControlViewStepper
+                  currentStep={writeStep}
+                  onStepClick={setWriteStep}
+                  canProceedToStep2={writeActiveConnection?.status === 'connected'}
+                  canProceedToStep3={!!writeSelectedParameter}
+                  canProceedToStep4={writeValueReady}
+                />
+              </div>
+            )}
           </header>
 
           <div className="flex flex-1 h-[calc(100vh-4rem)]">
-            <main className="flex-1 overflow-y-auto">
-              <div className="p-6">
-                {currentView === 'dashboard' ? (
-                  <DashboardView savedData={liveDashboardData.length > 0 ? liveDashboardData : savedDashboardData} />
-                ) : (
-                  <>
-                    {currentStep === 0 && (
-                      <ConnectionStep
-                        connections={connections}
-                        setConnections={setConnections}
-                        activeConnection={activeConnection}
-                        setActiveConnection={setActiveConnection}
-                        addLog={addLog}
-                        onProceed={() => setCurrentStep(1)}
+            {currentView === 'write' ? (
+              <WriteControlView
+                currentStep={writeStep}
+                setCurrentStep={setWriteStep}
+                onStepChange={(step) => {
+                  setWriteStep(step)
+                  // Reset dependent states when step changes
+                  if (step === 0) {
+                    setWriteActiveConnection(null)
+                    setWriteSelectedParameter(null)
+                    setWriteValueReady(false)
+                  } else if (step === 1) {
+                    setWriteSelectedParameter(null)
+                    setWriteValueReady(false)
+                  } else if (step === 2) {
+                    setWriteValueReady(false)
+                  }
+                }}
+                onConnectionChange={(connection) => {
+                  setWriteActiveConnection(connection)
+                }}
+                onParameterSelected={(parameter) => {
+                  setWriteSelectedParameter(parameter)
+                }}
+                onValueReady={() => {
+                  setWriteValueReady(true)
+                }}
+              />
+            ) : (
+              <>
+                <main className="flex-1 overflow-y-auto">
+                  <div className="p-6">
+                    {currentView === 'dashboard' ? (
+                      <DashboardView
+                        savedData={liveDashboardData.length > 0 ? liveDashboardData : savedDashboardData}
                       />
+                    ) : (
+                      <>
+                        {currentStep === 0 && (
+                          <ConnectionStep
+                            connections={connections}
+                            setConnections={setConnections}
+                            activeConnection={activeConnection}
+                            setActiveConnection={setActiveConnection}
+                            addLog={addLog}
+                            onProceed={() => setCurrentStep(1)}
+                          />
+                        )}
+                        {currentStep === 1 && (
+                          <TestStep
+                            activeConnection={activeConnection!}
+                            addLog={addLog}
+                            onRawDataReceived={handleRawDataReceived}
+                            onNext={() => setCurrentStep(2)}
+                          />
+                        )}
+                        {currentStep === 2 && (
+                          <DataMappingStep
+                            rawData={rawData}
+                            addLog={addLog}
+                            onSave={handleSaveDashboard}
+                            activeConnection={activeConnection!}
+                            testConfig={testConfig}
+                            onSaveSuccess={() => {
+                              resetTesterState()
+                              setCurrentView('dashboard')
+                            }}
+                          />
+                        )}
+                      </>
                     )}
-                    {currentStep === 1 && (
-                      <TestStep
-                        activeConnection={activeConnection!}
-                        addLog={addLog}
-                        onRawDataReceived={handleRawDataReceived}
-                        onNext={() => setCurrentStep(2)}
-                      />
-                    )}
-                    {currentStep === 2 && (
-                      <DataMappingStep
-                        rawData={rawData}
-                        addLog={addLog}
-                        onSave={handleSaveDashboard}
-                        activeConnection={activeConnection!}
-                        testConfig={testConfig}
-                        onSaveSuccess={() => {
-                          resetTesterState()
-                          setCurrentView('dashboard')
-                        }}
-                      />
-                    )}
-                  </>
-                )}
-              </div>
-            </main>
+                  </div>
+                </main>
 
-            {currentView === 'tester' && (
-              <aside className="w-96 border-l border-border bg-card overflow-y-auto">
-                <LogsPanel logs={logs} onClear={() => setLogs([])} />
-              </aside>
+                {currentView === 'tester' && (
+                  <aside className="w-96 border-l border-border bg-card overflow-y-auto">
+                    <LogsPanel logs={logs} onClear={() => setLogs([])} />
+                  </aside>
+                )}
+              </>
             )}
           </div>
         </div>
