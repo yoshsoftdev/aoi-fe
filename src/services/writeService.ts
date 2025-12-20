@@ -41,7 +41,7 @@ export const writeService = {
   },
 
   // Execute write (new endpoint matching requirement)
-  execute: async (parameterId: number, mode: 'preset' | 'manual', presetId?: number, registerValues?: number[]): Promise<WriteResponse> => {
+  execute: async (parameterId: number, mode: 'preset' | 'manual' | 'test', presetId?: number, registerValues?: number[]): Promise<WriteResponse> => {
     const payload: any = {
       parameter_id: parameterId,
       mode: mode,
@@ -49,7 +49,7 @@ export const writeService = {
     if (mode === 'preset' && presetId) {
       payload.preset_id = presetId
     }
-    if (mode === 'manual' && registerValues) {
+    if ((mode === 'manual' || mode === 'test') && registerValues) {
       payload.register_values = registerValues
     }
 

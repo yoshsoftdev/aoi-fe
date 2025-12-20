@@ -9,6 +9,7 @@ import { Badge } from '@/components/ui/badge'
 import { AlertCircle, ArrowRight, Info, Plus, X } from 'lucide-react'
 import { parameterService } from '@/services/parameterService'
 import { modbusService } from '@/services/modbusService'
+import { writeService } from '@/services/writeService'
 import type { Connection } from '@/types'
 import type { Parameter, ModbusRTU, ModbusTCP } from '@/types/parameter'
 
@@ -47,7 +48,15 @@ export function WriteTestStep({ activeConnection, addLog, onParameterSelected, o
     quantity: 1,
     data_type: 'uint16',
     byte_order: 'ABCD',
+    test_value: '', // Value untuk test write
   })
+  const [testWriteResult, setTestWriteResult] = useState<{
+    success: boolean
+    message: string
+  } | null>(null)
+  const [isTestingWrite, setIsTestingWrite] = useState(false)
+  const [testWritePassed, setTestWritePassed] = useState(false)
+  const [tempParameterId, setTempParameterId] = useState<number | null>(null) // Store temporary parameter ID
 
   // Fetch all parameters
   const { data: allParameters = [], refetch: refetchParameters } = useQuery({
@@ -161,7 +170,8 @@ export function WriteTestStep({ activeConnection, addLog, onParameterSelected, o
     },
   })
 
-  const handleCreateParameter = async () => {
+  // Test write before saving parameter
+  const handleTestWrite = async () => {
     if (!createFormData.nama.trim()) {
       addLog('Please enter parameter name', 'error', activeConnection.id)
       return
@@ -172,24 +182,184 @@ export function WriteTestStep({ activeConnection, addLog, onParameterSelected, o
       return
     }
 
+    if (!createFormData.test_value.trim()) {
+      addLog('Please enter a test value', 'error', activeConnection.id)
+      return
+    }
+
+    setIsTestingWrite(true)
+    setTestWriteResult(null)
+    setTestWritePassed(false)
+
     // Determine parameter type from connection
     const paramType = activeConnection.protocol === 'Modbus TCP' ? 'modbus_tcp' : 'modbus_rtu'
 
+    let tempParameterId: number | null = null
+
     try {
-      await createParameterMutation.mutateAsync({
+      addLog('Creating temporary parameter for test write...', 'info', activeConnection.id)
+      
+      // Step 1: Create parameter temporary
+      const param = await parameterService.create({
         nama: createFormData.nama,
         device_id: parseInt(activeConnection.id, 10),
         type: paramType,
         direction: 'WRITE',
-        slave_id: createFormData.slave_id,
-        function_code: createFormData.function_code,
-        register_address: createFormData.register_address,
-        quantity: createFormData.quantity,
-        data_type: createFormData.data_type,
-        byte_order: createFormData.byte_order,
+        is_formula: false,
+        read_write: true,
       })
+      tempParameterId = param.id
+
+      // Step 2: Create Modbus config
+      if (paramType === 'modbus_rtu') {
+        await modbusService.createRTU({
+          id_parameter: param.id,
+          slave_id: createFormData.slave_id,
+          function_code: createFormData.function_code,
+          register_address: createFormData.register_address,
+          quantity: createFormData.quantity,
+          data_type: createFormData.data_type,
+          byte_order: createFormData.byte_order,
+          read_write: true,
+          scaling: 1.0,
+        })
+      } else if (paramType === 'modbus_tcp') {
+        await modbusService.createTCP({
+          id_parameter: param.id,
+          slave_id: createFormData.slave_id,
+          function_code: createFormData.function_code,
+          register_address: createFormData.register_address,
+          quantity: createFormData.quantity,
+          data_type: createFormData.data_type,
+          byte_order: createFormData.byte_order,
+          read_write: true,
+          scaling: 1.0,
+        })
+      }
+
+      addLog('Testing write operation...', 'info', activeConnection.id)
+
+      // Step 3: Parse and encode test value to register values
+      let testRegisterValues: number[] = []
+      if (createFormData.test_value.trim()) {
+        // Parse test value - support single value or comma-separated values for multiple registers
+        if (createFormData.quantity > 1) {
+          // Multiple registers: parse comma-separated values
+          const values = createFormData.test_value.split(',').map(v => parseFloat(v.trim())).filter(v => !isNaN(v))
+          if (values.length === createFormData.quantity) {
+            testRegisterValues = values.map(v => Math.round(v))
+          } else {
+            throw new Error(`Please provide ${createFormData.quantity} comma-separated values for ${createFormData.quantity} registers`)
+          }
+        } else {
+          // Single register: parse single value
+          const value = parseFloat(createFormData.test_value.trim())
+          if (isNaN(value)) {
+            throw new Error('Invalid test value. Please enter a valid number.')
+          }
+          testRegisterValues = [Math.round(value)]
+        }
+      } else {
+        // Default: use 0 for test
+        testRegisterValues = createFormData.quantity === 1 ? [0] : new Array(createFormData.quantity).fill(0)
+      }
+
+      // Step 4: Test write with TEST mode (doesn't update cache, just validates write capability)
+      const writeResult = await writeService.execute(param.id, 'test', undefined, testRegisterValues)
+
+      if (writeResult.success) {
+        setTestWriteResult({
+          success: true,
+          message: writeResult.message || 'Test write successful',
+        })
+        setTestWritePassed(true)
+        setTempParameterId(param.id) // Store temp parameter ID for saving later
+        addLog(`Test write successful: ${writeResult.message}`, 'success', activeConnection.id)
+      } else {
+        throw new Error(writeResult.error || writeResult.message || 'Test write failed')
+      }
     } catch (error: any) {
-      // Error already handled in onError
+      setTestWriteResult({
+        success: false,
+        message: error.message || 'Test write failed',
+      })
+      setTestWritePassed(false)
+      addLog(`Test write failed: ${error.message}`, 'error', activeConnection.id)
+      
+      // Delete temporary parameter if created
+      if (tempParameterId) {
+        try {
+          await parameterService.delete(tempParameterId)
+          addLog('Deleted temporary parameter due to test write failure', 'info', activeConnection.id)
+        } catch (deleteError: any) {
+          addLog(`Failed to delete temporary parameter: ${deleteError.message}`, 'warning', activeConnection.id)
+        }
+      }
+    } finally {
+      setIsTestingWrite(false)
+    }
+  }
+
+  // Save parameter after successful test write
+  const handleSaveParameter = async () => {
+    if (!tempParameterId) {
+      addLog('No parameter to save. Please test write first.', 'error', activeConnection.id)
+      return
+    }
+
+    try {
+      addLog('Saving parameter...', 'info', activeConnection.id)
+      
+      // Parameter already exists (created during test write), just refresh and select it
+      await refetchParameters()
+      queryClient.invalidateQueries({ queryKey: ['parameters'] })
+      queryClient.invalidateQueries({ queryKey: ['modbus-rtu'] })
+      queryClient.invalidateQueries({ queryKey: ['modbus-tcp'] })
+      
+      // Auto-select the created parameter
+      setTimeout(async () => {
+        setSelectedParameterId(tempParameterId)
+        
+        // Load Modbus config
+        try {
+          const paramType = activeConnection.protocol === 'Modbus TCP' ? 'modbus_tcp' : 'modbus_rtu'
+          if (paramType === 'modbus_rtu') {
+            const rtuConfigs = await modbusService.getAllRTU()
+            const config = rtuConfigs.find((c) => c.id_parameter === tempParameterId)
+            if (config) {
+              setModbusConfig(config)
+            }
+          } else {
+            const tcpConfigs = await modbusService.getAllTCP()
+            const config = tcpConfigs.find((c) => c.id_parameter === tempParameterId)
+            if (config) {
+              setModbusConfig(config)
+            }
+          }
+        } catch (error: any) {
+          addLog(`Failed to load Modbus config: ${error.message}`, 'error')
+        }
+        
+        // Reset form and close
+        setCreateFormData({
+          nama: '',
+          slave_id: 1,
+          function_code: 6,
+          register_address: 0,
+          quantity: 1,
+          data_type: 'uint16',
+          byte_order: 'ABCD',
+          test_value: '',
+        })
+        setShowCreateForm(false)
+        setTestWriteResult(null)
+        setTestWritePassed(false)
+        setTempParameterId(null)
+      }, 500)
+      
+      addLog('Parameter saved successfully', 'success', activeConnection.id)
+    } catch (error: any) {
+      addLog(`Failed to save parameter: ${error.message}`, 'error', activeConnection.id)
     }
   }
 
@@ -293,7 +463,9 @@ export function WriteTestStep({ activeConnection, addLog, onParameterSelected, o
             <div className="flex items-center justify-between">
               <div>
                 <CardTitle className="text-base">Create Write Parameter</CardTitle>
-                <CardDescription>Create a new writable parameter for this connection</CardDescription>
+                <CardDescription>
+                  Create a new writable parameter. <strong>Test write is required</strong> before parameter can be saved.
+                </CardDescription>
               </div>
               <Button
                 variant="ghost"
@@ -432,31 +604,130 @@ export function WriteTestStep({ activeConnection, addLog, onParameterSelected, o
               </div>
             </div>
 
+            {/* Test Value Field */}
+            <div className="space-y-2">
+              <Label htmlFor="test-value">
+                Test Value * {createFormData.quantity > 1 && `(Enter ${createFormData.quantity} comma-separated values)`}
+              </Label>
+              <Input
+                id="test-value"
+                type="text"
+                value={createFormData.test_value}
+                onChange={(e) => setCreateFormData({ ...createFormData, test_value: e.target.value })}
+                placeholder={
+                  createFormData.quantity > 1
+                    ? `e.g., 100, 200, 300 (for ${createFormData.quantity} registers)`
+                    : 'e.g., 100 (single register value)'
+                }
+              />
+              <p className="text-xs text-muted-foreground">
+                Enter the value(s) to test write. For multiple registers, use comma-separated values.
+              </p>
+            </div>
+
+            {/* Test Write Result */}
+            {testWriteResult && (
+              <div
+                className={`rounded-lg border p-4 ${
+                  testWriteResult.success
+                    ? 'border-green-500 bg-green-50 dark:bg-green-950 text-green-900 dark:text-green-100'
+                    : 'border-red-500 bg-red-50 dark:bg-red-950 text-red-900 dark:text-red-100'
+                }`}
+              >
+                <div className="flex items-start gap-2">
+                  {testWriteResult.success ? (
+                    <Info className="h-5 w-5 mt-0.5 flex-shrink-0" />
+                  ) : (
+                    <AlertCircle className="h-5 w-5 mt-0.5 flex-shrink-0" />
+                  )}
+                  <div className="flex-1">
+                    <p className="text-sm font-medium">
+                      {testWriteResult.success ? 'Test Write Successful' : 'Test Write Failed'}
+                    </p>
+                    <p className="text-xs mt-1">{testWriteResult.message}</p>
+                    {testWriteResult.success && (
+                      <p className="text-xs mt-2 font-medium">
+                        Test write successful! Click "Save Parameter" to confirm and save the parameter.
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+
             <div className="flex gap-2">
-              <Button
-                onClick={handleCreateParameter}
-                disabled={createParameterMutation.isPending}
-                className="flex-1"
-              >
-                {createParameterMutation.isPending ? 'Creating...' : 'Create Parameter'}
-              </Button>
-              <Button
-                variant="outline"
-                onClick={() => {
-                  setShowCreateForm(false)
-                  setCreateFormData({
-                    nama: '',
-                    slave_id: 1,
-                    function_code: 6,
-                    register_address: 0,
-                    quantity: 1,
-                    data_type: 'uint16',
-                    byte_order: 'ABCD',
-                  })
-                }}
-              >
-                Cancel
-              </Button>
+              {!testWritePassed ? (
+                <>
+                  <Button
+                    onClick={handleTestWrite}
+                    disabled={isTestingWrite || !createFormData.nama.trim() || !createFormData.test_value.trim()}
+                    className="flex-1"
+                  >
+                    {isTestingWrite ? 'Testing Write...' : 'Test Write'}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setShowCreateForm(false)
+                      setCreateFormData({
+                        nama: '',
+                        slave_id: 1,
+                        function_code: 6,
+                        register_address: 0,
+                        quantity: 1,
+                        data_type: 'uint16',
+                        byte_order: 'ABCD',
+                        test_value: '',
+                      })
+                      setTestWriteResult(null)
+                      setTestWritePassed(false)
+                      setTempParameterId(null)
+                    }}
+                    disabled={isTestingWrite}
+                  >
+                    Cancel
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <Button
+                    onClick={handleSaveParameter}
+                    className="flex-1"
+                    variant="default"
+                  >
+                    Save Parameter
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={async () => {
+                      // Reset everything and delete temp parameter
+                      if (tempParameterId) {
+                        try {
+                          await parameterService.delete(tempParameterId)
+                        } catch (error) {
+                          // Ignore delete errors
+                        }
+                      }
+                      setShowCreateForm(false)
+                      setCreateFormData({
+                        nama: '',
+                        slave_id: 1,
+                        function_code: 6,
+                        register_address: 0,
+                        quantity: 1,
+                        data_type: 'uint16',
+                        byte_order: 'ABCD',
+                        test_value: '',
+                      })
+                      setTestWriteResult(null)
+                      setTestWritePassed(false)
+                      setTempParameterId(null)
+                    }}
+                  >
+                    Cancel
+                  </Button>
+                </>
+              )}
             </div>
           </CardContent>
         </Card>
