@@ -9,7 +9,8 @@ import { DashboardView } from '@/components/dashboard/dashboard-view'
 import { LogsPanel } from '@/components/tester/logs-panel'
 import { WriteControlView } from '@/components/write/write-control-view'
 import { WriteControlViewStepper } from '@/components/write/write-control-stepper'
-import { Activity, LayoutDashboard, TestTube2, PenTool, Menu, X } from 'lucide-react'
+import { WorkflowView } from '@/components/workflow/workflow-view'
+import { Activity, LayoutDashboard, TestTube2, PenTool, Menu, X, Workflow } from 'lucide-react'
 import type { Connection, LogEntry, RawDataField, SavedDashboardData, MappedValue, DashboardData } from '@/types'
 import { cn } from '@/lib/utils'
 import { useWebSocket } from '@/hooks/useWebSocket'
@@ -17,7 +18,7 @@ import { useWebSocket } from '@/hooks/useWebSocket'
 const queryClient = new QueryClient()
 
 function App() {
-  const [currentView, setCurrentView] = useState<'dashboard' | 'tester' | 'write'>('dashboard')
+  const [currentView, setCurrentView] = useState<'dashboard' | 'tester' | 'write' | 'workflow'>('dashboard')
   const [isSidebarOpen, setIsSidebarOpen] = useState(true)
 
   // Tester state
@@ -151,7 +152,7 @@ function App() {
   }
   
   // Force refresh WebSocket data when switching to dashboard
-  const handleViewChange = (view: 'dashboard' | 'tester' | 'write') => {
+  const handleViewChange = (view: 'dashboard' | 'tester' | 'write' | 'workflow') => {
     setCurrentView(view)
     // If switching to dashboard, give WebSocket a moment to update
     if (view === 'dashboard') {
@@ -243,6 +244,15 @@ function App() {
               <PenTool className="h-4 w-4 mr-2" />
               Write / Control
             </Button>
+
+            <Button
+              variant={currentView === 'workflow' ? 'default' : 'ghost'}
+              className="w-full justify-start"
+              onClick={() => handleViewChange('workflow')}
+            >
+              <Workflow className="h-4 w-4 mr-2" />
+              Workflow
+            </Button>
           </div>
         </aside>
 
@@ -263,14 +273,18 @@ function App() {
                     ? 'Dashboard'
                     : currentView === 'tester'
                       ? 'Communication Tester'
-                      : 'Write / Control'}
+                      : currentView === 'write'
+                        ? 'Write / Control'
+                        : 'Workflow'}
                 </h1>
                 <p className="text-xs text-muted-foreground">
                   {currentView === 'dashboard'
                     ? 'Monitor mapped data values'
                     : currentView === 'tester'
                       ? 'Test → Map → Transform'
-                      : 'Write values to Modbus devices'}
+                      : currentView === 'write'
+                        ? 'Write values to Modbus devices'
+                        : 'IF condition THEN action'}
                 </p>
               </div>
             </div>
@@ -321,6 +335,12 @@ function App() {
                   setWriteValueReady(true)
                 }}
               />
+            ) : currentView === 'workflow' ? (
+              <main className="flex-1 overflow-y-auto">
+                <div className="p-6">
+                  <WorkflowView />
+                </div>
+              </main>
             ) : (
               <>
                 <main className="flex-1 overflow-y-auto">
