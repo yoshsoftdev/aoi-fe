@@ -11,6 +11,7 @@ export type ModbusFunction =
   | 'Read Input Registers'
   | 'Write Single Coil'
   | 'Write Single Register'
+  | 'Write Multiple Coils'
   | 'Write Multiple Registers'
 
 export type DataType = 'uint16' | 'int16' | 'uint32' | 'int32' | 'float32' | 'float'

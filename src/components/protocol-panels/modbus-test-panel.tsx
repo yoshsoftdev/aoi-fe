@@ -69,6 +69,7 @@ export function ModbusTestPanel({ connection, addLog }: ModbusTestPanelProps) {
                   <SelectItem value="Read Input Registers">Read Input Registers (FC 04)</SelectItem>
                   <SelectItem value="Write Single Coil">Write Single Coil (FC 05)</SelectItem>
                   <SelectItem value="Write Single Register">Write Single Register (FC 06)</SelectItem>
+                  <SelectItem value="Write Multiple Coils">Write Multiple Coils (FC 15)</SelectItem>
                   <SelectItem value="Write Multiple Registers">Write Multiple Registers (FC 16)</SelectItem>
                 </SelectContent>
               </Select>

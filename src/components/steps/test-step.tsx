@@ -78,6 +78,7 @@ export function TestStep({ activeConnection, addLog, onRawDataReceived, onNext }
       'Read Input Registers': 4,
       'Write Single Coil': 5,
       'Write Single Register': 6,
+      'Write Multiple Coils': 15,
       'Write Multiple Registers': 16,
     }
     return functionMap[func] || 3
@@ -401,6 +402,7 @@ export function TestStep({ activeConnection, addLog, onRawDataReceived, onNext }
                     <SelectItem value="Read Input Registers">Read Input Registers (0x04)</SelectItem>
                     <SelectItem value="Write Single Coil">Write Single Coil (0x05)</SelectItem>
                     <SelectItem value="Write Single Register">Write Single Register (0x06)</SelectItem>
+                    <SelectItem value="Write Multiple Coils">Write Multiple Coils (0x0F)</SelectItem>
                     <SelectItem value="Write Multiple Registers">Write Multiple Registers (0x10)</SelectItem>
                   </SelectContent>
                 </Select>

@@ -812,6 +812,7 @@ export default function ParameterForm({ mode = 'create', paramId = null, queryPa
                     <>
                       <option value="5">5 - Write Single Coil</option>
                       <option value="6">6 - Write Single Register</option>
+                      <option value="15">15 - Write Multiple Coils</option>
                       <option value="16">16 - Write Multiple Registers</option>
                     </>
                   ) : (
@@ -994,6 +995,7 @@ export default function ParameterForm({ mode = 'create', paramId = null, queryPa
                     <>
                       <option value="5">5 - Write Single Coil</option>
                       <option value="6">6 - Write Single Register</option>
+                      <option value="15">15 - Write Multiple Coils</option>
                       <option value="16">16 - Write Multiple Registers</option>
                     </>
                   ) : (

@@ -74,5 +74,26 @@ export const writeService = {
       return []
     }
   },
+
+  // Test write without creating parameter in database
+  testWrite: async (config: {
+    device_id: number
+    protocol: 'modbus_rtu' | 'modbus_tcp'
+    slave_id: number
+    function_code: number
+    register_address: number
+    quantity: number
+    data_type?: string
+    byte_order?: string
+    register_values: number[]
+  }): Promise<WriteResponse> => {
+    const response = await api.post('/write/test', config)
+    return {
+      success: response.data.success,
+      message: response.data.message || '',
+      data: response.data.read_back_value !== undefined ? { read_back_value: response.data.read_back_value } : undefined,
+      error: response.data.error,
+    }
+  },
 }
 
