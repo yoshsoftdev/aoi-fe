@@ -1,7 +1,37 @@
 import { useEffect, useRef, useState } from 'react'
 import type { DashboardData } from '@/types'
 
-const WS_URL = import.meta.env.VITE_WS_URL || 'ws://localhost:8080/api/v1/ws'
+// Detect WebSocket URL - use relative path in production (embedded)
+const getWebSocketURL = (): string => {
+  // Check if VITE_WS_URL is explicitly set (development)
+  if (import.meta.env.VITE_WS_URL && import.meta.env.VITE_WS_URL !== '') {
+    return import.meta.env.VITE_WS_URL
+  }
+  
+  // In production (embedded), use relative WebSocket URL
+  // Detect protocol (ws or wss) based on current page protocol
+  const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+  const host = window.location.host
+  
+  // Check both MODE and DEV/PROD flags
+  const isProduction = import.meta.env.MODE === 'production' || 
+                       import.meta.env.PROD === true ||
+                       (!import.meta.env.DEV && window.location.hostname !== 'localhost')
+  
+  if (isProduction) {
+    return `${protocol}//${host}/api/v1/ws`
+  }
+  
+  // Development fallback
+  return 'ws://localhost:8080/api/v1/ws'
+}
+
+const WS_URL = getWebSocketURL()
+
+// Log for debugging (remove in production if needed)
+if (import.meta.env.DEV) {
+  console.log('[WebSocket] URL:', WS_URL)
+}
 
 export const useWebSocket = () => {
   // Store dashboard data by parameter_nama (or use a unique key)
