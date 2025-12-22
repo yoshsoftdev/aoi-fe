@@ -83,13 +83,24 @@ export function WriteConfigStep({ activeConnection, addLog, onParameterCreated }
       data_type: string
       byte_order: string
     }) => {
+      // Validate and convert direction
+      const direction: 'READ' | 'WRITE' = (data.direction === 'READ' || data.direction === 'WRITE') 
+        ? data.direction 
+        : 'WRITE' // Default to WRITE for write parameters
+      
+      // Validate and convert type
+      const type: 'modbus_rtu' | 'modbus_tcp' | 'analog_input' | 'analog_output' | 'digital_input' | 'digital_output' | 'snmp' = 
+        (['modbus_rtu', 'modbus_tcp', 'analog_input', 'analog_output', 'digital_input', 'digital_output', 'snmp'].includes(data.type))
+          ? data.type as 'modbus_rtu' | 'modbus_tcp' | 'analog_input' | 'analog_output' | 'digital_input' | 'digital_output' | 'snmp'
+          : 'modbus_rtu' // Default fallback
+      
       // First create the parameter
       const param = await parameterService.create({
         nama: data.nama,
         device_id: data.device_id,
-        type: data.type,
-        direction: data.direction,
-        is_formula: false,
+        type,
+        direction,
+        read_write: direction === 'WRITE', // Required field, derived from direction
       })
 
       // Then create Modbus config
@@ -102,6 +113,8 @@ export function WriteConfigStep({ activeConnection, addLog, onParameterCreated }
           quantity: data.quantity,
           data_type: data.data_type,
           byte_order: data.byte_order,
+          read_write: data.direction === 'WRITE',
+          scaling: 1,
         })
       } else if (data.type === 'modbus_tcp') {
         await modbusService.createTCP({
@@ -112,6 +125,8 @@ export function WriteConfigStep({ activeConnection, addLog, onParameterCreated }
           quantity: data.quantity,
           data_type: data.data_type,
           byte_order: data.byte_order,
+          read_write: data.direction === 'WRITE',
+          scaling: 1,
         })
       }
 
@@ -127,7 +142,7 @@ export function WriteConfigStep({ activeConnection, addLog, onParameterCreated }
     },
   })
 
-  const writeFunctions: ModbusFunction[] = ['Write Single Coil', 'Write Single Register', 'Write Multiple Registers']
+  // const writeFunctions: ModbusFunction[] = ['Write Single Coil', 'Write Single Register', 'Write Multiple Registers']
 
   const handleCreate = async () => {
     if (!formData.name) {

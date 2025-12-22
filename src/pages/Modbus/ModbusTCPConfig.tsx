@@ -35,11 +35,11 @@ export default function ModbusTCPConfig() {
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
               <div>
                 <span className="text-gray-600">IP Address:</span>
-                <span className="ml-2 font-medium">{config.ip_address}</span>
+                <span className="ml-2 font-medium">{(config as any).ip_address || 'N/A'}</span>
               </div>
               <div>
                 <span className="text-gray-600">Port:</span>
-                <span className="ml-2 font-medium">{config.port}</span>
+                <span className="ml-2 font-medium">{(config as any).port || 'N/A'}</span>
               </div>
               <div>
                 <span className="text-gray-600">Slave ID:</span>

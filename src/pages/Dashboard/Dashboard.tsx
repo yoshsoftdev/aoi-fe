@@ -101,9 +101,9 @@ export default function Dashboard() {
 
                   <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                     {items.map((item, index) => (
-                      <Card key={`${item.parameter_id}_${item.parameter_nama}_${index}`}>
+                      <Card key={`${(item as any).parameter_id || index}_${item.parameter_nama}_${index}`}>
                         <CardHeader>
-                          <CardTitle className="text-base">{item.parameter_nama || `Parameter ${item.parameter_id}`}</CardTitle>
+                          <CardTitle className="text-base">{item.parameter_nama || `Parameter ${(item as any).parameter_id || index}`}</CardTitle>
                           <CardDescription className="text-xs">
                             {item.device_nama || 'Device'}
                           </CardDescription>

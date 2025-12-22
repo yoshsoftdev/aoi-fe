@@ -5,7 +5,6 @@ import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { AlertCircle, Edit3, CheckCircle2 } from 'lucide-react'
-import { writeService } from '@/services/writeService'
 import type { Connection, ModbusFunction, DataType, ByteOrder } from '@/types'
 
 interface WriteTesterViewProps {
@@ -36,8 +35,6 @@ export function WriteTesterView({ connections, addLog }: WriteTesterViewProps) {
   )
 
   const selectedConnection = modbusConnections.find((c) => c.id === selectedConnectionId)
-
-  const writeFunctions: ModbusFunction[] = ['Write Single Coil', 'Write Single Register', 'Write Multiple Registers']
 
   const handleWrite = async () => {
     if (!selectedConnection) {

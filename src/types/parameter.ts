@@ -83,10 +83,11 @@ export interface RealtimeData {
 
 // Simplified dashboard data structure (only device name, parameter name, and final value)
 export interface DashboardData {
+  parameter_id?: number  // Optional parameter ID for edit/delete operations
   device_nama: string
   parameter_nama: string
   value: any // Final processed value
   timestamp: string
-  status: 'online' | 'offline' | 'error'
+  status: 'online' | 'offline' | 'error' | string  // Allow string for backward compatibility
 }
 

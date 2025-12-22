@@ -1,12 +1,9 @@
 import { useEffect, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Label } from '@/components/ui/label'
-import { Input } from '@/components/ui/input'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Badge } from '@/components/ui/badge'
 import { Plus, Plug, PlugZap, Trash2, TestTube } from 'lucide-react'
-import type { Connection, ProtocolType, ConnectionStatus } from '@/types'
+import type { Connection, ConnectionStatus } from '@/types'
 import { ConnectionForm } from '@/components/tester/connection-form'
 import { connectionService } from '@/services/connectionService'
 
@@ -295,18 +292,24 @@ export function ConnectionStep({
                   )}
                 {connection.protocol === 'SNMP' && 'host' in connection.config && (
                   <>
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Host:</span>
-                      <span className="font-mono">{connection.config.host}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Version:</span>
-                      <span className="font-mono">{connection.config.version}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Community:</span>
-                      <span className="font-mono">{connection.config.community}</span>
-                    </div>
+                    {'host' in connection.config && (
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Host:</span>
+                        <span className="font-mono">{connection.config.host}</span>
+                      </div>
+                    )}
+                    {'version' in connection.config && (
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Version:</span>
+                        <span className="font-mono">{connection.config.version}</span>
+                      </div>
+                    )}
+                    {'community' in connection.config && (
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Community:</span>
+                        <span className="font-mono">{connection.config.community}</span>
+                      </div>
+                    )}
                   </>
                 )}
               </div>

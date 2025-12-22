@@ -12,7 +12,7 @@ interface ModbusTestPanelProps {
   addLog: (message: string, type?: 'info' | 'error' | 'success') => void
 }
 
-export function ModbusTestPanel({ connection, addLog }: ModbusTestPanelProps) {
+export function ModbusTestPanel({ addLog }: ModbusTestPanelProps) {
   const [functionCode, setFunctionCode] = useState('Read Holding Registers')
   const [startAddress, setStartAddress] = useState('0')
   const [quantity, setQuantity] = useState('1')
@@ -27,7 +27,7 @@ export function ModbusTestPanel({ connection, addLog }: ModbusTestPanelProps) {
     addLog(`Reading ${functionCode} from address ${startAddress}, quantity: ${quantity}`, 'info')
 
     setTimeout(() => {
-      const mockData = Array.from({ length: parseInt(quantity) }, (_, i) => Math.floor(Math.random() * 65535))
+      const mockData = Array.from({ length: parseInt(quantity) }, () => Math.floor(Math.random() * 65535))
       const hexData = mockData.map((v) => v.toString(16).padStart(4, '0')).join(' ')
       setResponse(`HEX: ${hexData}\nDEC: ${mockData.join(', ')}\nData Type: ${dataType}`)
       addLog(`Successfully read ${quantity} register(s)`, 'success')

@@ -112,9 +112,10 @@ function mapBackendKoneksiToConnection(koneksi: any): Connection {
       }
       break
     case 'analog':
-      protocol = 'Analog Input'
+      protocol = 'Digital Input' // Fallback to Digital Input for now
       config = {
-        // Placeholder, analog config belum dipakai di tester saat ini
+        pins: [],
+        mode: 'input',
       }
       break
     default:

@@ -35,11 +35,11 @@ export default function ModbusRTUConfig() {
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
               <div>
                 <span className="text-gray-600">Port:</span>
-                <span className="ml-2 font-medium">{config.port}</span>
+                <span className="ml-2 font-medium">{(config as any).port || 'N/A'}</span>
               </div>
               <div>
                 <span className="text-gray-600">Baud:</span>
-                <span className="ml-2 font-medium">{config.baud}</span>
+                <span className="ml-2 font-medium">{(config as any).baud || 'N/A'}</span>
               </div>
               <div>
                 <span className="text-gray-600">Slave ID:</span>

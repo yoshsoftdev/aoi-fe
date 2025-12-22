@@ -6,10 +6,9 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Plus, Edit, Trash2, Settings, AlertCircle, CheckCircle2, XCircle } from 'lucide-react'
+import { Plus, Edit, Trash2, Settings, AlertCircle, CheckCircle2 } from 'lucide-react'
 import { parameterService } from '@/services/parameterService'
 import { deviceService } from '@/services/deviceService'
-import { modbusService } from '@/services/modbusService'
 import type { Parameter } from '@/types/parameter'
 
 export default function WritableParameterList() {
@@ -51,18 +50,6 @@ export default function WritableParameterList() {
     const isModbus = p.type === 'modbus_rtu' || p.type === 'modbus_tcp'
     const result = isWriteDirection && isNotFormula && isModbus
     
-    // Debug each parameter that doesn't pass filter
-    if (!result && isReadWrite && isModbus) {
-      console.log('Parameter filtered out:', {
-        id: p.id,
-        nama: p.nama,
-        read_write: p.read_write,
-        is_formula: (p as any).is_formula,
-        type: p.type,
-        reason: !isReadWrite ? 'not read_write' : !isModbus ? 'not modbus' : 'is formula',
-      })
-    }
-    
     return result
   })
 
@@ -103,19 +90,11 @@ export default function WritableParameterList() {
   }
 
   const handleCreate = () => {
-    if (onCreateClick) {
-      onCreateClick()
-    } else {
-      navigate('/parameters?direction=WRITE')
-    }
+    navigate('/parameters?direction=WRITE')
   }
 
   const handleEdit = (param: Parameter) => {
-    if (onEditClick) {
-      onEditClick(param.id)
-    } else {
-      navigate(`/parameters/${param.id}?direction=WRITE`)
-    }
+    navigate(`/parameters/${param.id}?direction=WRITE`)
   }
 
   if (isLoading) {
@@ -237,7 +216,7 @@ export default function WritableParameterList() {
       </div>
 
       {/* Debug Info (Development Only) */}
-      {process.env.NODE_ENV === 'development' && (
+      {import.meta.env.DEV && (
         <Card className="bg-yellow-50 dark:bg-yellow-950 border-yellow-200 dark:border-yellow-800">
           <CardContent className="pt-6">
             <p className="text-xs font-mono text-yellow-900 dark:text-yellow-100">
@@ -291,7 +270,7 @@ export default function WritableParameterList() {
                     <div className="flex-1">
                       <CardTitle className="text-base">{param.nama}</CardTitle>
                       <CardDescription className="mt-1">
-                        {device?.nama || device?.name || `Device ID: ${param.device_id}`}
+                        {device?.nama || `Device ID: ${param.device_id}`}
                       </CardDescription>
                     </div>
                     <Badge variant={param.read_write ? 'default' : 'secondary'} className="ml-2">

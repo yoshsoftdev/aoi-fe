@@ -7,7 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Separator } from '@/components/ui/separator'
 import { Activity, AlertCircle, ArrowRight } from 'lucide-react'
 import type { Connection, ModbusFunction, DataType, ByteOrder, RawDataField } from '@/types'
-import { ModbusTestPanel } from '@/components/protocol-panels/modbus-test-panel'
+// import { ModbusTestPanel } from '@/components/protocol-panels/modbus-test-panel'
 import { DigitalIOTestPanel } from '@/components/protocol-panels/digital-io-test-panel'
 import { SNMPTestPanel } from '@/components/protocol-panels/snmp-test-panel'
 import { testConnectionService } from '@/services/testConnectionService'
@@ -55,8 +55,6 @@ export function TestStep({ activeConnection, addLog, onRawDataReceived, onNext }
       case 'float32':
       case 'float':
         return 2 // float32 requires 2 registers
-      case 'float64':
-        return 4 // float64 requires 4 registers
       case 'int32':
       case 'uint32':
         return 2 // 32-bit integers require 2 registers
@@ -136,7 +134,7 @@ export function TestStep({ activeConnection, addLog, onRawDataReceived, onNext }
       // Build config based on protocol
       let config: any = {}
 
-      if (activeConnection.protocol === 'Modbus TCP') {
+      if (activeConnection.protocol === 'Modbus TCP' && 'host' in activeConnection.config) {
         config = {
           ip_address: activeConnection.config.host,
           port: activeConnection.config.port || 502,
@@ -147,7 +145,7 @@ export function TestStep({ activeConnection, addLog, onRawDataReceived, onNext }
           byte_order: byteOrder,
           data_type: testData.dataType === 'float' ? 'float' : testData.dataType,
         }
-      } else if (activeConnection.protocol === 'Modbus RTU') {
+      } else if (activeConnection.protocol === 'Modbus RTU' && 'serialPort' in activeConnection.config) {
         config = {
           port: activeConnection.config.serialPort,
           baud: activeConnection.config.baudRate || 9600,
@@ -166,7 +164,7 @@ export function TestStep({ activeConnection, addLog, onRawDataReceived, onNext }
           byte_order: byteOrder,
           data_type: testData.dataType === 'float' ? 'float' : testData.dataType,
         }
-      } else if (activeConnection.protocol === 'SNMP') {
+      } else if (activeConnection.protocol === 'SNMP' && 'host' in activeConnection.config && 'community' in activeConnection.config && 'version' in activeConnection.config) {
         config = {
           ip_address: activeConnection.config.host,
           port: activeConnection.config.port || 161,

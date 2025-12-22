@@ -19,6 +19,7 @@ interface ParameterFormProps {
 
 export default function ParameterForm({ mode = 'create', paramId = null, queryParams = '', onCancel, onSuccess }: ParameterFormProps = {}) {
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
   const queryClient = useQueryClient()
   const [formData, setFormData] = useState<Omit<Parameter, 'id' | 'created_at' | 'updated_at'>>({
     device_id: 0,

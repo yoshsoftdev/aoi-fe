@@ -31,8 +31,8 @@ export default function ParameterList() {
         <div className="text-sm text-muted-foreground">
           {parameters?.length || 0} {parameters?.length === 1 ? 'parameter' : 'parameters'}
         </div>
-        <Button asChild>
-          <Link to="/parameters/new">
+        <Button>
+          <Link to="/parameters/new" className="flex items-center">
             <Plus className="h-4 w-4 mr-2" />
             New Parameter
           </Link>
@@ -47,7 +47,7 @@ export default function ParameterList() {
             <p className="text-sm text-muted-foreground mt-2">
               Click "New Parameter" to create your first parameter
             </p>
-            <Button className="mt-4" asChild>
+            <Button className="mt-4">
               <Link to="/parameters/new">Create First Parameter</Link>
             </Button>
           </CardContent>
