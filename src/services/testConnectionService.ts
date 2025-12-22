@@ -8,6 +8,8 @@ export interface TestConnectionRequest {
 export interface TestConnectionResponse {
   connected: boolean
   raw_value?: any
+  raw_hex?: string
+  raw_bytes?: number[]
   message: string
   details?: string
 }

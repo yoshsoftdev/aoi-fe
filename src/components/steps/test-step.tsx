@@ -11,6 +11,7 @@ import { ModbusTestPanel } from '@/components/protocol-panels/modbus-test-panel'
 import { DigitalIOTestPanel } from '@/components/protocol-panels/digital-io-test-panel'
 import { SNMPTestPanel } from '@/components/protocol-panels/snmp-test-panel'
 import { testConnectionService } from '@/services/testConnectionService'
+import { HexPreview } from '@/components/hex-preview'
 
 interface TestStepProps {
   activeConnection: Connection
@@ -184,6 +185,13 @@ export function TestStep({ activeConnection, addLog, onRawDataReceived, onNext }
         const rawDataFields: RawDataField[] = []
         const resultLines: string[] = []
 
+        // Always show raw hex data if available
+        if (result.raw_hex) {
+          resultLines.push(`Raw Hex: ${result.raw_hex}`)
+          resultLines.push(`Raw Bytes: [${result.raw_bytes?.join(', ') || 'N/A'}] (${result.raw_bytes?.length || 0} bytes)`)
+          resultLines.push('')
+        }
+
         if (result.raw_value !== undefined && result.raw_value !== null) {
           // Format result display with 3 decimal places (without exponent)
           const formatValue = (val: number): string => {
@@ -205,26 +213,45 @@ export function TestStep({ activeConnection, addLog, onRawDataReceived, onNext }
             return fixedStr.replace(/\.?0+$/, '') || '0'
           }
 
-          // Check if raw_value is an array (for multiple registers with uint16)
+          // Check if raw_value is an array
           if (Array.isArray(result.raw_value)) {
-            // Display each register individually
-            const registerValues = result.raw_value as number[]
-            registerValues.forEach((val, index) => {
-              const registerAddr = testData.startAddress + index
-              const roundedVal = isFinite(val) && !isNaN(val) ? Math.round(val * 1000) / 1000 : 0
-              
-              resultLines.push(`[${registerAddr}]: ${formatValue(roundedVal)}`)
-              
-              // Create individual field for each register
-              rawDataFields.push({
-                id: `${activeConnection.id}-${testData.slaveId}-${registerAddr}`,
-                name: `Slave ${testData.slaveId} Addr ${registerAddr}`,
-                value: roundedVal,
-                timestamp: new Date(),
-                source: `${activeConnection.name} (Slave ${testData.slaveId})`,
+            const values = result.raw_value as number[]
+            const functionCode = getFunctionCode(testData.function)
+            
+            // Function code 1 (Read Coils) and 2 (Read Discrete Inputs) return bits (0/1)
+            if (functionCode === 1 || functionCode === 2) {
+              values.forEach((bit, index) => {
+                const bitAddr = testData.startAddress + index
+                resultLines.push(`Bit [${bitAddr}]: ${bit === 1 ? 'ON' : 'OFF'} (${bit})`)
+                
+                rawDataFields.push({
+                  id: `${activeConnection.id}-${testData.slaveId}-${bitAddr}`,
+                  name: `Slave ${testData.slaveId} Bit ${bitAddr}`,
+                  value: bit,
+                  timestamp: new Date(),
+                  source: `${activeConnection.name} (Slave ${testData.slaveId})`,
+                })
               })
-            })
-            resultLines.push(`(Read ${testData.quantity} registers, converted to ${testData.dataType})`)
+              resultLines.push(`(Read ${testData.quantity} ${functionCode === 1 ? 'coils' : 'discrete inputs'})`)
+            } else {
+              // Display each register individually (for registers)
+              values.forEach((val, index) => {
+                const registerAddr = testData.startAddress + index
+                const roundedVal = isFinite(val) && !isNaN(val) ? Math.round(val * 1000) / 1000 : 0
+                
+                resultLines.push(`[${registerAddr}]: ${formatValue(roundedVal)}`)
+                
+                // Create individual field for each register
+                rawDataFields.push({
+                  id: `${activeConnection.id}-${testData.slaveId}-${registerAddr}`,
+                  name: `Slave ${testData.slaveId} Addr ${registerAddr}`,
+                  value: roundedVal,
+                  timestamp: new Date(),
+                  source: `${activeConnection.name} (Slave ${testData.slaveId})`,
+                })
+              })
+              resultLines.push(`(Read ${testData.quantity} registers, converted to ${testData.dataType})`)
+            }
           } else {
             // Single value (for single register or merged multi-register values)
             let value = typeof result.raw_value === 'number' ? result.raw_value : parseFloat(String(result.raw_value))
@@ -265,6 +292,12 @@ export function TestStep({ activeConnection, addLog, onRawDataReceived, onNext }
           resultLines.push(`Connection OK`)
           if (result.details) {
             resultLines.push(`Details: ${result.details}`)
+          }
+          // Still show raw hex if available even if conversion failed
+          if (result.raw_hex) {
+            resultLines.push('')
+            resultLines.push(`Raw Hex: ${result.raw_hex}`)
+            resultLines.push(`Raw Bytes: [${result.raw_bytes?.join(', ') || 'N/A'}] (${result.raw_bytes?.length || 0} bytes)`)
           }
         }
 
@@ -457,6 +490,22 @@ export function TestStep({ activeConnection, addLog, onRawDataReceived, onNext }
                   </Select>
                 </div>
               </div>
+
+              {/* Hex Preview */}
+              {isModbus && (
+                <div className="space-y-2">
+                  <Label>Hex Preview (Request Frame)</Label>
+                  <div className="rounded-lg border border-border bg-muted/30 p-3">
+                    <HexPreview
+                      protocol={activeConnection.protocol}
+                      slaveId={testData.slaveId}
+                      functionCode={getFunctionCode(testData.function)}
+                      address={testData.startAddress}
+                      quantity={testData.quantity}
+                    />
+                  </div>
+                </div>
+              )}
 
               <div className="flex gap-2">
                 <Button onClick={handleTest} className="w-full" disabled={isConnectionBusy}>
