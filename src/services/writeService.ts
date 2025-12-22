@@ -63,16 +63,13 @@ export const writeService = {
   },
 
   // Get presets for a parameter
+  // NOTE: This endpoint is deprecated. For PRESET mode parameters, use preset_value from parameter itself.
+  // This is kept for backward compatibility with write-value-step component.
   getPresets: async (parameterId: number): Promise<ParameterPreset[]> => {
-    // Note: This endpoint needs to be created in backend
-    // For now, we'll use a placeholder
-    try {
-      const response = await api.get(`/parameters/${parameterId}/presets`)
-      return response.data.data || []
-    } catch (error) {
-      // If endpoint doesn't exist yet, return empty array
-      return []
-    }
+    // Endpoint doesn't exist - presets are now stored in parameter.preset_value
+    // Return empty array to avoid 404 errors
+    console.warn(`getPresets called for parameter ${parameterId}, but presets are now stored in parameter.preset_value`)
+    return []
   },
 
   // Test write without creating parameter in database

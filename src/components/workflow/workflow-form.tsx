@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import React, { useState, useEffect, useMemo, useCallback } from 'react'
 import { useQuery, useMutation } from '@tanstack/react-query'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -10,7 +10,6 @@ import { Badge } from '@/components/ui/badge'
 import { X, Plus, Trash2 } from 'lucide-react'
 import { workflowService, type Workflow, type WorkflowCondition, type WorkflowAction } from '@/services/workflowService'
 import { parameterService } from '@/services/parameterService'
-import type { Parameter } from '@/types/parameter'
 
 interface WorkflowFormProps {
   workflow?: Workflow | null
@@ -27,27 +26,34 @@ export function WorkflowForm({ workflow, onCancel, onSuccess }: WorkflowFormProp
   const [conditions, setConditions] = useState<Omit<WorkflowCondition, 'id' | 'workflow_id' | 'created_at' | 'parameter'>[]>([])
   const [actions, setActions] = useState<Omit<WorkflowAction, 'id' | 'workflow_id' | 'created_at' | 'parameter'>[]>([])
 
-  // Fetch all parameters (READ parameters for conditions, WRITE parameters for write actions)
+  // Fetch all parameters
   const { data: allParameters = [] } = useQuery({
     queryKey: ['parameters'],
     queryFn: () => parameterService.getAll(),
   })
 
-  // Filter CLEAN parameters for conditions (only formula/output parameters)
-  // Workflow hanya bekerja pada parameter yang sudah clean (bukan raw)
-  const cleanParameters = allParameters.filter(
-    (p) => {
-      // Only include formula parameters (is_formula = true)
-      // These are the "clean data" parameters that are broadcast to frontend
-      return (p as any).is_formula === true || (p as any).isFormula === true
-    }
+  // ✅ 1. SIMPLIFIKASI PARAMETER FILTER
+  const cleanParameters = useMemo(
+    () => allParameters.filter(p => (p as any).is_formula === true || (p as any).isFormula === true),
+    [allParameters]
   )
 
-  // Filter WRITE parameters for write actions
-  const writeParameters = allParameters.filter(
-    (p) => p.direction === 'WRITE' || (p.direction === undefined && p.read_write)
+  const writeParameters = useMemo(
+    () => allParameters.filter(p => p.direction === 'WRITE' || (p.direction === undefined && p.read_write)),
+    [allParameters]
   )
 
+  const presetParameters = useMemo(
+    () => writeParameters.filter(p => (p as any).write_mode === 'PRESET'),
+    [writeParameters]
+  )
+
+  const dynamicParameters = useMemo(
+    () => writeParameters.filter(p => (p as any).write_mode === 'DYNAMIC'),
+    [writeParameters]
+  )
+
+  // Load workflow data
   useEffect(() => {
     if (workflow) {
       setFormData({
@@ -84,6 +90,87 @@ export function WorkflowForm({ workflow, onCancel, onSuccess }: WorkflowFormProp
     onSuccess,
   })
 
+  // ✅ 2. ACTION STATE HANDLER (AMAN)
+  // Update satu field
+  const updateActionField = useCallback(
+    (index: number, field: keyof WorkflowAction, value: any) => {
+      setActions(prev => {
+        const next = [...prev]
+        next[index] = { ...next[index], [field]: value }
+        return next
+      })
+    },
+    []
+  )
+
+  // Replace action object (PENTING)
+  const replaceAction = useCallback((index: number, action: any) => {
+    setActions(prev => {
+      const next = [...prev]
+      next[index] = action
+      return next
+    })
+  }, [])
+
+  const updateCondition = useCallback((index: number, field: string, value: any) => {
+    setConditions(prev => {
+      const next = [...prev]
+      next[index] = { ...next[index], [field]: value }
+      return next
+    })
+  }, [])
+
+  // ✅ 6. ADD ACTION (GUARD)
+  const addAction = () => {
+    if (writeParameters.length === 0) {
+      alert('No WRITE parameters available')
+      return
+    }
+
+    setActions(prev => [
+      ...prev,
+      {
+        action_type: 'WRITE_WITH_VALUE',
+        parameter_id: dynamicParameters[0]?.id || writeParameters[0].id,
+        value: 0,
+      },
+    ])
+  }
+
+  const addCondition = () => {
+    if (cleanParameters.length === 0) {
+      alert('No clean parameters available. Create formula parameters first.')
+      return
+    }
+
+    setConditions(prev => [
+      ...prev,
+      {
+        parameter_id: cleanParameters[0].id,
+        operator: '>',
+        threshold: 0,
+      },
+    ])
+  }
+
+  const removeCondition = (index: number) => {
+    setConditions(prev => prev.filter((_, i) => i !== index))
+  }
+
+  const removeAction = (index: number) => {
+    setActions(prev => prev.filter((_, i) => i !== index))
+  }
+
+  // ✅ 7. SANITASI PAYLOAD (WAJIB)
+  const sanitizeActions = (actions: any[]) =>
+    actions.map(a => {
+      const clean = { ...a }
+      Object.keys(clean).forEach(
+        k => clean[k] === undefined && delete clean[k]
+      )
+      return clean
+    })
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
 
@@ -100,7 +187,7 @@ export function WorkflowForm({ workflow, onCancel, onSuccess }: WorkflowFormProp
     const payload = {
       ...formData,
       conditions,
-      actions,
+      actions: sanitizeActions(actions),
     }
 
     if (workflow) {
@@ -108,48 +195,6 @@ export function WorkflowForm({ workflow, onCancel, onSuccess }: WorkflowFormProp
     } else {
       createMutation.mutate(payload)
     }
-  }
-
-  const addCondition = () => {
-    setConditions([
-      ...conditions,
-      {
-        parameter_id: cleanParameters[0]?.id || 0,
-        operator: '>',
-        threshold: 0,
-      },
-    ])
-  }
-
-  const removeCondition = (index: number) => {
-    setConditions(conditions.filter((_, i) => i !== index))
-  }
-
-  const updateCondition = (index: number, field: string, value: any) => {
-    const updated = [...conditions]
-    updated[index] = { ...updated[index], [field]: value }
-    setConditions(updated)
-  }
-
-  const addAction = () => {
-    setActions([
-      ...actions,
-      {
-        action_type: 'write',
-        parameter_id: writeParameters[0]?.id,
-        value: 0,
-      },
-    ])
-  }
-
-  const removeAction = (index: number) => {
-    setActions(actions.filter((_, i) => i !== index))
-  }
-
-  const updateAction = (index: number, field: string, value: any) => {
-    const updated = [...actions]
-    updated[index] = { ...updated[index], [field]: value }
-    setActions(updated)
   }
 
   return (
@@ -243,7 +288,7 @@ export function WorkflowForm({ workflow, onCancel, onSuccess }: WorkflowFormProp
                   <div className="space-y-2">
                     <Label>Parameter (Clean Data) *</Label>
                     <Select
-                      value={condition.parameter_id.toString()}
+                      value={condition.parameter_id ? String(condition.parameter_id) : ''}
                       onValueChange={(value) =>
                         updateCondition(index, 'parameter_id', parseInt(value, 10))
                       }
@@ -257,19 +302,14 @@ export function WorkflowForm({ workflow, onCancel, onSuccess }: WorkflowFormProp
                             No clean parameters available. Create formula parameters first.
                           </div>
                         ) : (
-                          cleanParameters.map((param) => (
-                            <SelectItem key={param.id} value={param.id.toString()}>
-                              {param.nama} {param.unit && `(${param.unit})`}
+                          cleanParameters.map(p => (
+                            <SelectItem key={p.id} value={String(p.id)}>
+                              {p.nama} {p.unit && `(${p.unit})`}
                             </SelectItem>
                           ))
                         )}
                       </SelectContent>
                     </Select>
-                    {cleanParameters.length === 0 && (
-                      <p className="text-xs text-muted-foreground">
-                        Only formula parameters (clean data) can be used in workflow conditions.
-                      </p>
-                    )}
                   </div>
                   <div className="space-y-2">
                     <Label>Operator *</Label>
@@ -344,71 +384,123 @@ export function WorkflowForm({ workflow, onCancel, onSuccess }: WorkflowFormProp
                 <div className="space-y-3">
                   <div className="space-y-2">
                     <Label>Action Type *</Label>
+                    {/* ✅ 3. ACTION TYPE CHANGE (BUG FIX UTAMA) */}
                     <Select
                       value={action.action_type}
                       onValueChange={(value) => {
-                        const updated = { ...action, action_type: value as any }
-                        // Reset fields based on action type
-                        if (value === 'write') {
-                          updated.parameter_id = writeParameters[0]?.id
-                          updated.value = 0
-                          updated.event_name = undefined
-                          updated.delay_ms = undefined
-                        } else if (value === 'event') {
-                          updated.event_name = ''
-                          updated.parameter_id = undefined
-                          updated.value = undefined
-                          updated.delay_ms = undefined
-                        } else if (value === 'delay') {
-                          updated.delay_ms = 1000
-                          updated.parameter_id = undefined
-                          updated.value = undefined
-                          updated.event_name = undefined
+                        if (value === 'TRIGGER_WRITE') {
+                          replaceAction(index, {
+                            action_type: 'TRIGGER_WRITE',
+                            parameter_id: presetParameters[0]?.id,
+                          })
                         }
-                        updateAction(index, 'action_type', updated)
+
+                        if (value === 'WRITE_WITH_VALUE') {
+                          replaceAction(index, {
+                            action_type: 'WRITE_WITH_VALUE',
+                            parameter_id: dynamicParameters[0]?.id || writeParameters[0]?.id,
+                            value: 0,
+                          })
+                        }
+
+                        if (value === 'event') {
+                          replaceAction(index, {
+                            action_type: 'event',
+                            event_name: '',
+                          })
+                        }
+
+                        if (value === 'delay') {
+                          replaceAction(index, {
+                            action_type: 'delay',
+                            delay_ms: 1000,
+                          })
+                        }
                       }}
                     >
                       <SelectTrigger>
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="write">Write Parameter</SelectItem>
+                        <SelectItem value="TRIGGER_WRITE">Trigger Write (PRESET)</SelectItem>
+                        <SelectItem value="WRITE_WITH_VALUE">Write with Value (DYNAMIC)</SelectItem>
                         <SelectItem value="event">Emit Event</SelectItem>
                         <SelectItem value="delay">Delay</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
 
-                  {action.action_type === 'write' && (
+                  {action.action_type === 'TRIGGER_WRITE' && (
+                    <div className="space-y-2">
+                      <Label>Parameter (PRESET) *</Label>
+                      <Select
+                        value={action.parameter_id ? String(action.parameter_id) : ''}
+                        onValueChange={(value) => {
+                          updateActionField(index, 'parameter_id', parseInt(value, 10))
+                          updateActionField(index, 'value', undefined)
+                        }}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select PRESET parameter" />
+                        </SelectTrigger>
+                        {/* ✅ 5. RENDER SELECT TANPA STATE */}
+                        <SelectContent>
+                          {presetParameters.length === 0 ? (
+                            <div className="px-2 py-1.5 text-sm text-muted-foreground">
+                              No PRESET parameters available. Create WRITE parameters with write_mode=PRESET first.
+                            </div>
+                          ) : (
+                            presetParameters.map(p => (
+                              <SelectItem key={p.id} value={String(p.id)}>
+                                {p.nama} {p.unit && `(${p.unit})`} [PRESET]
+                              </SelectItem>
+                            ))
+                          )}
+                        </SelectContent>
+                      </Select>
+                      <p className="text-xs text-muted-foreground">
+                        TRIGGER_WRITE: Triggers PRESET parameter using its stored preset_value. No value input required.
+                      </p>
+                    </div>
+                  )}
+
+                  {action.action_type === 'WRITE_WITH_VALUE' && (
                     <div className="grid gap-4 md:grid-cols-2">
                       <div className="space-y-2">
-                        <Label>Parameter (WRITE) *</Label>
+                        <Label>Parameter (DYNAMIC) *</Label>
                         <Select
-                          value={action.parameter_id?.toString() || ''}
+                          value={action.parameter_id ? String(action.parameter_id) : ''}
                           onValueChange={(value) =>
-                            updateAction(index, 'parameter_id', parseInt(value, 10))
+                            updateActionField(index, 'parameter_id', parseInt(value, 10))
                           }
                         >
                           <SelectTrigger>
-                            <SelectValue placeholder="Select WRITE parameter" />
+                            <SelectValue placeholder="Select DYNAMIC parameter" />
                           </SelectTrigger>
                           <SelectContent>
-                            {writeParameters.map((param) => (
-                              <SelectItem key={param.id} value={param.id.toString()}>
-                                {param.nama} {param.unit && `(${param.unit})`}
-                              </SelectItem>
-                            ))}
+                            {dynamicParameters.length === 0 ? (
+                              <div className="px-2 py-1.5 text-sm text-muted-foreground">
+                                No DYNAMIC parameters available. Create WRITE parameters with write_mode=DYNAMIC first.
+                              </div>
+                            ) : (
+                              dynamicParameters.map(p => (
+                                <SelectItem key={p.id} value={String(p.id)}>
+                                  {p.nama} {p.unit && `(${p.unit})`} [DYNAMIC]
+                                </SelectItem>
+                              ))
+                            )}
                           </SelectContent>
                         </Select>
                       </div>
                       <div className="space-y-2">
                         <Label>Value *</Label>
+                        {/* ✅ 4. INPUT NUMBER YANG BENAR */}
                         <Input
                           type="number"
                           step="any"
-                          value={action.value || ''}
+                          value={action.value ?? ''}
                           onChange={(e) =>
-                            updateAction(index, 'value', parseFloat(e.target.value) || 0)
+                            updateActionField(index, 'value', parseFloat(e.target.value) || 0)
                           }
                           required
                         />
@@ -420,8 +512,8 @@ export function WorkflowForm({ workflow, onCancel, onSuccess }: WorkflowFormProp
                     <div className="space-y-2">
                       <Label>Event Name *</Label>
                       <Input
-                        value={action.event_name || ''}
-                        onChange={(e) => updateAction(index, 'event_name', e.target.value)}
+                        value={action.event_name ?? ''}
+                        onChange={(e) => updateActionField(index, 'event_name', e.target.value)}
                         placeholder="e.g., alarm_triggered, system_shutdown"
                         required
                       />
@@ -434,9 +526,9 @@ export function WorkflowForm({ workflow, onCancel, onSuccess }: WorkflowFormProp
                       <Input
                         type="number"
                         min="1"
-                        value={action.delay_ms || ''}
+                        value={action.delay_ms ?? ''}
                         onChange={(e) =>
-                          updateAction(index, 'delay_ms', parseInt(e.target.value, 10) || 0)
+                          updateActionField(index, 'delay_ms', parseInt(e.target.value, 10) || 0)
                         }
                         required
                       />
@@ -467,4 +559,3 @@ export function WorkflowForm({ workflow, onCancel, onSuccess }: WorkflowFormProp
     </form>
   )
 }
-

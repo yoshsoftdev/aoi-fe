@@ -5,6 +5,8 @@ export interface Parameter {
   type: 'modbus_rtu' | 'modbus_tcp' | 'analog_input' | 'analog_output' | 'digital_input' | 'digital_output' | 'snmp'
   direction: 'READ' | 'WRITE' // READ (polling/scheduler) or WRITE (command/on-demand)
   read_write: boolean // Deprecated: use direction instead
+  write_mode?: 'PRESET' | 'DYNAMIC' // PRESET (value stored) or DYNAMIC (value provided at write time) - only for WRITE parameters
+  preset_value?: string // JSON-encoded preset value - only for PRESET mode
   unit?: string
   custom_rumus?: string
   description?: string

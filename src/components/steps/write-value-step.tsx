@@ -30,9 +30,12 @@ export function WriteValueStep({ parameter, config, addLog, onValueReady, onNext
   const [manualValues, setManualValues] = useState<number[]>([])
 
   // Fetch presets for this parameter
+  // NOTE: For PRESET mode parameters, preset_value is stored in parameter itself, not in separate presets table
+  // This query is kept for backward compatibility but will return empty array
   const { data: presets = [] } = useQuery({
     queryKey: ['presets', parameter.id],
     queryFn: () => writeService.getPresets(parameter.id),
+    enabled: false, // Disable query to avoid 404 errors - presets are now in parameter.preset_value
   })
 
   // Initialize manual values array based on quantity

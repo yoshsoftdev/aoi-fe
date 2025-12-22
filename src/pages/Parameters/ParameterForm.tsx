@@ -26,6 +26,8 @@ export default function ParameterForm({ mode = 'create', paramId = null, queryPa
     type: 'modbus_rtu',
     direction: 'READ', // Default to READ (polling/scheduler)
     read_write: false,
+    write_mode: undefined, // PRESET or DYNAMIC (only for WRITE direction)
+    preset_value: undefined, // JSON-encoded preset value (only for PRESET mode)
     custom_rumus: '',
   })
 
@@ -1377,6 +1379,65 @@ export default function ParameterForm({ mode = 'create', paramId = null, queryPa
             READ parameters are scheduled for polling. WRITE parameters are command-based and executed on-demand.
           </p>
         </div>
+
+        {/* Write Mode Selection (only for WRITE direction) */}
+        {formData.direction === 'WRITE' && (
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Write Mode *
+            </label>
+            <div className="flex space-x-6">
+              <label className="flex items-center cursor-pointer">
+                <input
+                  type="radio"
+                  name="write_mode"
+                  checked={formData.write_mode === 'PRESET'}
+                  onChange={() => setFormData({ ...formData, write_mode: 'PRESET' })}
+                  className="mr-2 w-4 h-4 text-blue-600 border-gray-300 focus:ring-blue-500"
+                />
+                <span className="text-gray-700 font-medium">PRESET</span>
+                <span className="text-xs text-gray-500 ml-2">- Value stored in parameter</span>
+              </label>
+              <label className="flex items-center cursor-pointer">
+                <input
+                  type="radio"
+                  name="write_mode"
+                  checked={formData.write_mode === 'DYNAMIC'}
+                  onChange={() => setFormData({ ...formData, write_mode: 'DYNAMIC', preset_value: undefined })}
+                  className="mr-2 w-4 h-4 text-blue-600 border-gray-300 focus:ring-blue-500"
+                />
+                <span className="text-gray-700 font-medium">DYNAMIC</span>
+                <span className="text-xs text-gray-500 ml-2">- Value provided at write time</span>
+              </label>
+            </div>
+            <p className="text-xs text-gray-500 mt-2">
+              PRESET: Value is stored in parameter (workflow triggers without sending value). 
+              DYNAMIC: Value must be provided when writing (workflow sends value).
+            </p>
+          </div>
+        )}
+
+        {/* Preset Value Input (only for PRESET write_mode) */}
+        {formData.direction === 'WRITE' && formData.write_mode === 'PRESET' && (
+          <div>
+            <label htmlFor="preset_value" className="block text-sm font-medium text-gray-700 mb-2">
+              Preset Value * (JSON format)
+            </label>
+            <textarea
+              id="preset_value"
+              value={formData.preset_value || ''}
+              onChange={(e) => setFormData({ ...formData, preset_value: e.target.value })}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-sm"
+              rows={4}
+              placeholder='{"value": 25.5} or {"register_values": [1, 1, 1, 1]}'
+              required
+            />
+            <p className="text-xs text-gray-500 mt-1">
+              JSON format: {"{"}"value": 25.5{"}"} for scalar, or {"{"}"register_values": [1, 1, 1, 1]{"}"} for raw registers.
+              This value will be used when workflow triggers this parameter.
+            </p>
+          </div>
+        )}
 
         {renderConfigFields()}
 

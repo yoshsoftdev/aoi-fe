@@ -28,9 +28,9 @@ export interface WorkflowCondition {
 export interface WorkflowAction {
   id?: number
   workflow_id?: number
-  action_type: 'write' | 'event' | 'delay'
+  action_type: 'TRIGGER_WRITE' | 'WRITE_WITH_VALUE' | 'event' | 'delay' | 'write' // 'write' is legacy
   parameter_id?: number
-  value?: number
+  value?: number // Required for WRITE_WITH_VALUE, not allowed for TRIGGER_WRITE
   event_name?: string
   delay_ms?: number
   created_at?: string
@@ -38,6 +38,7 @@ export interface WorkflowAction {
     id: number
     nama: string
     unit?: string
+    write_mode?: 'PRESET' | 'DYNAMIC' // For display purposes
   }
 }
 

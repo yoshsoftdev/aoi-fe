@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
@@ -49,6 +49,8 @@ export function WriteTestStep({ activeConnection, addLog, onParameterSelected, o
     data_type: 'uint16',
     byte_order: 'ABCD',
     test_value: '', // Value untuk test write
+    write_mode: 'DYNAMIC' as 'PRESET' | 'DYNAMIC', // Write mode: PRESET or DYNAMIC
+    preset_value: '', // JSON string for PRESET mode
   })
   const [testWriteResult, setTestWriteResult] = useState<{
     success: boolean
@@ -63,111 +65,7 @@ export function WriteTestStep({ activeConnection, addLog, onParameterSelected, o
     queryFn: () => parameterService.getAll(),
   })
 
-  // Create parameter mutation
-  const createParameterMutation = useMutation({
-    mutationFn: async (data: {
-      nama: string
-      device_id: number
-      type: string
-      direction: string
-      slave_id: number
-      function_code: number
-      register_address: number
-      quantity: number
-      data_type: string
-      byte_order: string
-    }) => {
-      // First create the parameter
-      const param = await parameterService.create({
-        nama: data.nama,
-        device_id: data.device_id,
-        type: data.type,
-        direction: data.direction,
-        is_formula: false,
-        read_write: true,
-      })
-
-      // Then create Modbus config
-      if (data.type === 'modbus_rtu') {
-        await modbusService.createRTU({
-          id_parameter: param.id,
-          slave_id: data.slave_id,
-          function_code: data.function_code,
-          register_address: data.register_address,
-          quantity: data.quantity,
-          data_type: data.data_type,
-          byte_order: data.byte_order,
-          read_write: true,
-          scaling: 1.0,
-        })
-      } else if (data.type === 'modbus_tcp') {
-        await modbusService.createTCP({
-          id_parameter: param.id,
-          slave_id: data.slave_id,
-          function_code: data.function_code,
-          register_address: data.register_address,
-          quantity: data.quantity,
-          data_type: data.data_type,
-          byte_order: data.byte_order,
-          read_write: true,
-          scaling: 1.0,
-        })
-      }
-
-      return param
-    },
-    onSuccess: async (param) => {
-      queryClient.invalidateQueries({ queryKey: ['parameters'] })
-      queryClient.invalidateQueries({ queryKey: ['modbus-rtu'] })
-      queryClient.invalidateQueries({ queryKey: ['modbus-tcp'] })
-      addLog(`Created write parameter: ${param.nama}`, 'success', activeConnection.id)
-      
-      // Reset form
-      setCreateFormData({
-        nama: '',
-        slave_id: 1,
-        function_code: 6,
-        register_address: 0,
-        quantity: 1,
-        data_type: 'uint16',
-        byte_order: 'ABCD',
-      })
-      setShowCreateForm(false)
-      
-      // Refetch to get the new parameter with config
-      await refetchParameters()
-      
-      // Small delay to ensure configs are loaded, then auto-select
-      setTimeout(async () => {
-        setSelectedParameterId(param.id)
-        
-        // Load Modbus config for the newly created parameter
-        try {
-          const paramType = activeConnection.protocol === 'Modbus TCP' ? 'modbus_tcp' : 'modbus_rtu'
-          if (paramType === 'modbus_rtu') {
-            const rtuConfigs = await modbusService.getAllRTU()
-            const config = rtuConfigs.find((c) => c.id_parameter === param.id)
-            if (config) {
-              setModbusConfig(config)
-              addLog(`Loaded Modbus RTU config for parameter ${param.nama}`, 'success')
-            }
-          } else {
-            const tcpConfigs = await modbusService.getAllTCP()
-            const config = tcpConfigs.find((c) => c.id_parameter === param.id)
-            if (config) {
-              setModbusConfig(config)
-              addLog(`Loaded Modbus TCP config for parameter ${param.nama}`, 'success')
-            }
-          }
-        } catch (error: any) {
-          addLog(`Failed to load Modbus config: ${error.message}`, 'error')
-        }
-      }, 500)
-    },
-    onError: (error: any) => {
-      addLog(`Failed to create parameter: ${error.message}`, 'error', activeConnection.id)
-    },
-  })
+  // Note: Parameter creation is handled in handleSaveParameter after successful test write
 
   // Test write before saving parameter
   // Uses test write endpoint that doesn't require parameter_id (no DB save)
@@ -226,7 +124,7 @@ export function WriteTestStep({ activeConnection, addLog, onParameterSelected, o
       // Ensure all required fields are present and valid
       const testWriteConfig = {
         device_id: parseInt(activeConnection.id, 10),
-        protocol: paramType,
+        protocol: paramType as 'modbus_rtu' | 'modbus_tcp',
         slave_id: createFormData.slave_id || 1,
         function_code: createFormData.function_code || 6,
         register_address: createFormData.register_address ?? 0, // Use nullish coalescing to ensure value is always a number
@@ -277,17 +175,35 @@ export function WriteTestStep({ activeConnection, addLog, onParameterSelected, o
       addLog('Saving parameter to database...', 'info', activeConnection.id)
       
       // Determine parameter type from connection
-      const paramType = activeConnection.protocol === 'Modbus TCP' ? 'modbus_tcp' : 'modbus_rtu'
+      const paramType: 'modbus_rtu' | 'modbus_tcp' = activeConnection.protocol === 'Modbus TCP' ? 'modbus_tcp' : 'modbus_rtu'
 
       // Create parameter and Modbus config (only after successful test write)
-      const param = await parameterService.create({
+      // Build parameter payload with write_mode and preset_value if PRESET mode
+      const paramPayload: any = {
         nama: createFormData.nama,
         device_id: parseInt(activeConnection.id, 10),
         type: paramType,
         direction: 'WRITE',
         is_formula: false,
         read_write: true,
-      })
+        write_mode: createFormData.write_mode,
+      }
+
+      // Add preset_value if PRESET mode
+      if (createFormData.write_mode === 'PRESET') {
+        if (!createFormData.preset_value.trim()) {
+          throw new Error('Preset Value is required for PRESET mode')
+        }
+        // Validate JSON format
+        try {
+          JSON.parse(createFormData.preset_value)
+        } catch (e) {
+          throw new Error('Preset Value must be valid JSON format')
+        }
+        paramPayload.preset_value = createFormData.preset_value
+      }
+
+      const param = await parameterService.create(paramPayload)
 
       // Create Modbus config
       if (paramType === 'modbus_rtu') {
@@ -355,6 +271,8 @@ export function WriteTestStep({ activeConnection, addLog, onParameterSelected, o
           data_type: 'uint16',
           byte_order: 'ABCD',
           test_value: '',
+          write_mode: 'DYNAMIC',
+          preset_value: '',
         })
         setShowCreateForm(false)
         setTestWriteResult(null)
@@ -484,6 +402,9 @@ export function WriteTestStep({ activeConnection, addLog, onParameterSelected, o
                     quantity: 1,
                     data_type: 'uint16',
                     byte_order: 'ABCD',
+                    test_value: '',
+                    write_mode: 'DYNAMIC',
+                    preset_value: '',
                   })
                 }}
               >
@@ -609,6 +530,55 @@ export function WriteTestStep({ activeConnection, addLog, onParameterSelected, o
               </div>
             </div>
 
+            {/* Write Mode Selection */}
+            <div className="space-y-2">
+              <Label htmlFor="write-mode">Write Mode *</Label>
+              <Select
+                value={createFormData.write_mode}
+                onValueChange={(value) => {
+                  setCreateFormData({
+                    ...createFormData,
+                    write_mode: value as 'PRESET' | 'DYNAMIC',
+                    preset_value: value === 'DYNAMIC' ? '' : createFormData.preset_value, // Clear preset_value if switching to DYNAMIC
+                  })
+                }}
+              >
+                <SelectTrigger id="write-mode">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="PRESET">PRESET (Value stored in parameter)</SelectItem>
+                  <SelectItem value="DYNAMIC">DYNAMIC (Value provided at write time)</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                PRESET: Value stored in parameter (used by Workflow trigger). DYNAMIC: Value provided when writing (used by Workflow with value or Manual write).
+              </p>
+            </div>
+
+            {/* Preset Value Field (only for PRESET mode) */}
+            {createFormData.write_mode === 'PRESET' && (
+              <div className="space-y-2">
+                <Label htmlFor="preset-value">Preset Value * (JSON format)</Label>
+                <Input
+                  id="preset-value"
+                  type="text"
+                  value={createFormData.preset_value}
+                  onChange={(e) => setCreateFormData({ ...createFormData, preset_value: e.target.value })}
+                  placeholder={
+                    createFormData.quantity > 1
+                      ? `{"register_values": [1, 1, 1, 1]} (for ${createFormData.quantity} registers)`
+                      : '{"value": 1} (single value)'
+                  }
+                  className="font-mono text-sm"
+                />
+                <p className="text-xs text-muted-foreground">
+                  JSON format: {"{"}"value": 1{"}"} for single value, or {"{"}"register_values": [1, 1, 1, 1]{"}"} for multiple registers.
+                  This value will be used when workflow triggers this parameter.
+                </p>
+              </div>
+            )}
+
             {/* Test Value Field */}
             <div className="space-y-2">
               <Label htmlFor="test-value">
@@ -665,7 +635,12 @@ export function WriteTestStep({ activeConnection, addLog, onParameterSelected, o
                 <>
                   <Button
                     onClick={handleTestWrite}
-                    disabled={isTestingWrite || !createFormData.nama.trim() || !createFormData.test_value.trim()}
+                    disabled={
+                      isTestingWrite ||
+                      !createFormData.nama.trim() ||
+                      !createFormData.test_value.trim() ||
+                      (createFormData.write_mode === 'PRESET' && !createFormData.preset_value.trim())
+                    }
                     className="flex-1"
                   >
                     {isTestingWrite ? 'Testing Write...' : 'Test Write'}
@@ -683,6 +658,8 @@ export function WriteTestStep({ activeConnection, addLog, onParameterSelected, o
                         data_type: 'uint16',
                         byte_order: 'ABCD',
                         test_value: '',
+                        write_mode: 'DYNAMIC',
+                        preset_value: '',
                       })
                       setTestWriteResult(null)
                       setTestWritePassed(false)
@@ -715,6 +692,8 @@ export function WriteTestStep({ activeConnection, addLog, onParameterSelected, o
                         data_type: 'uint16',
                         byte_order: 'ABCD',
                         test_value: '',
+                        write_mode: 'DYNAMIC',
+                        preset_value: '',
                       })
                       setTestWriteResult(null)
                       setTestWritePassed(false)
