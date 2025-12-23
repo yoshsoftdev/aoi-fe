@@ -8,7 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { StatusBadge } from '@/components/status-badge'
 import { Badge } from '@/components/ui/badge'
 import { DeleteConfirmationDialog } from '@/components/ui/delete-confirmation-dialog'
-import type { Device } from '@/types'
+import type { Device } from '@/types/device'
 
 export default function DeviceList() {
   const navigate = useNavigate()
