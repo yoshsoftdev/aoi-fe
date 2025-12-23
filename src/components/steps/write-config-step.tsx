@@ -118,13 +118,21 @@ export function WriteConfigStep({ activeConnection, addLog, onParameterCreated }
       const type: 'modbus_rtu' | 'modbus_tcp' =
         data.type === 'modbus_rtu' || data.type === 'modbus_tcp' ? data.type : 'modbus_rtu'
 
-      const param = await parameterService.create({
+      // Set default write_mode for WRITE parameters
+      const createData: any = {
         nama: data.nama,
         device_id: data.device_id,
         type,
         direction,
         read_write: direction === 'WRITE',
-      })
+      }
+      
+      // WRITE parameters must have write_mode set
+      if (direction === 'WRITE') {
+        createData.write_mode = 'DYNAMIC' // Default to DYNAMIC for new parameters
+      }
+      
+      const param = await parameterService.create(createData)
 
       if (data.type === 'modbus_rtu') {
         await modbusService.createRTU({
@@ -161,6 +169,7 @@ export function WriteConfigStep({ activeConnection, addLog, onParameterCreated }
       addLog(`Created write parameter: ${param.nama}`, 'success', activeConnection.id)
       onParameterCreated?.(param)
       setShowForm(false)
+      setEditingParam(null)
       setFormData({
         name: '',
         slaveId: 1,
@@ -175,6 +184,129 @@ export function WriteConfigStep({ activeConnection, addLog, onParameterCreated }
     },
     onError: (error: any) => {
       addLog(`Failed to create parameter: ${error.message}`, 'error', activeConnection.id)
+    },
+  })
+
+  // Update parameter mutation
+  const updateParameterMutation = useMutation({
+    mutationFn: async (data: {
+      parameterId: number
+      modbusConfigId: number | null
+      nama: string
+      device_id: number
+      type: string
+      direction: string
+      slave_id: number
+      function_code: number
+      register_address: number
+      quantity: number
+      data_type: string
+      byte_order: string
+    }) => {
+      const direction: 'READ' | 'WRITE' = data.direction === 'READ' || data.direction === 'WRITE' ? data.direction : 'WRITE'
+      const type: 'modbus_rtu' | 'modbus_tcp' =
+        data.type === 'modbus_rtu' || data.type === 'modbus_tcp' ? data.type : 'modbus_rtu'
+
+      // Get existing parameter to preserve write_mode and preset_value
+      const existingParam = await parameterService.getById(data.parameterId)
+      
+      // Update parameter - preserve write_mode and preset_value
+      const updateData: any = {
+        nama: data.nama,
+        device_id: data.device_id,
+        type,
+        direction,
+        read_write: direction === 'WRITE',
+      }
+      
+      // Preserve write_mode if it exists
+      if ((existingParam as any).write_mode) {
+        updateData.write_mode = (existingParam as any).write_mode
+      }
+      
+      // Preserve preset_value if it exists
+      if ((existingParam as any).preset_value) {
+        updateData.preset_value = (existingParam as any).preset_value
+      }
+      
+      const param = await parameterService.update(data.parameterId, updateData)
+
+      // Update or create modbus config
+      if (data.modbusConfigId) {
+        // Update existing modbus config
+        if (data.type === 'modbus_rtu') {
+          await modbusService.updateRTU(data.modbusConfigId, {
+            slave_id: data.slave_id,
+            function_code: data.function_code,
+            register_address: data.register_address,
+            quantity: data.quantity,
+            data_type: data.data_type,
+            byte_order: data.byte_order,
+            read_write: data.direction === 'WRITE',
+          })
+        } else if (data.type === 'modbus_tcp') {
+          await modbusService.updateTCP(data.modbusConfigId, {
+            slave_id: data.slave_id,
+            function_code: data.function_code,
+            register_address: data.register_address,
+            quantity: data.quantity,
+            data_type: data.data_type,
+            byte_order: data.byte_order,
+            read_write: data.direction === 'WRITE',
+          })
+        }
+      } else {
+        // Create new modbus config if it doesn't exist
+        if (data.type === 'modbus_rtu') {
+          await modbusService.createRTU({
+            id_parameter: param.id,
+            slave_id: data.slave_id,
+            function_code: data.function_code,
+            register_address: data.register_address,
+            quantity: data.quantity,
+            data_type: data.data_type,
+            byte_order: data.byte_order,
+            read_write: data.direction === 'WRITE',
+            scaling: 1,
+          })
+        } else if (data.type === 'modbus_tcp') {
+          await modbusService.createTCP({
+            id_parameter: param.id,
+            slave_id: data.slave_id,
+            function_code: data.function_code,
+            register_address: data.register_address,
+            quantity: data.quantity,
+            data_type: data.data_type,
+            byte_order: data.byte_order,
+            read_write: data.direction === 'WRITE',
+            scaling: 1,
+          })
+        }
+      }
+
+      return param
+    },
+    onSuccess: (param) => {
+      queryClient.invalidateQueries({ queryKey: ['parameters'] })
+      queryClient.invalidateQueries({ queryKey: ['modbus-rtu'] })
+      queryClient.invalidateQueries({ queryKey: ['modbus-tcp'] })
+      addLog(`Updated write parameter: ${param.nama}`, 'success', activeConnection.id)
+      setShowForm(false)
+      setEditingParam(null)
+      setFormData({
+        name: '',
+        slaveId: 1,
+        function: 'Write Single Register',
+        address: 0,
+        value: '',
+        writeMode: 'single',
+        registerCount: 1,
+        dataType: 'uint16',
+        byteOrder: 'Big Endian (AB CD)',
+      })
+    },
+    onError: (error: any) => {
+      addLog(`Failed to update parameter: ${error.message}`, 'error', activeConnection.id)
     },
   })
 
@@ -205,18 +337,37 @@ export function WriteConfigStep({ activeConnection, addLog, onParameterCreated }
     }
 
     try {
-      await createParameterMutation.mutateAsync({
-        nama: formData.name,
-        device_id: parseInt(activeConnection.id, 10),
-        type: paramType,
-        direction: 'WRITE',
-        slave_id: formData.slaveId,
-        function_code: functionCode,
-        register_address: formData.address,
-        quantity: formData.writeMode === 'multiple' ? formData.registerCount || 1 : 1,
-        data_type: formData.dataType,
-        byte_order: byteOrderMap[formData.byteOrder] || 'ABCD',
-      })
+      if (editingParam) {
+        // Update existing parameter
+        await updateParameterMutation.mutateAsync({
+          parameterId: editingParam.id,
+          modbusConfigId: editingParam.modbusConfig?.id || null,
+          nama: formData.name,
+          device_id: parseInt(activeConnection.id, 10),
+          type: paramType,
+          direction: 'WRITE',
+          slave_id: formData.slaveId,
+          function_code: functionCode,
+          register_address: formData.address,
+          quantity: formData.writeMode === 'multiple' ? formData.registerCount || 1 : 1,
+          data_type: formData.dataType,
+          byte_order: byteOrderMap[formData.byteOrder] || 'ABCD',
+        })
+      } else {
+        // Create new parameter
+        await createParameterMutation.mutateAsync({
+          nama: formData.name,
+          device_id: parseInt(activeConnection.id, 10),
+          type: paramType,
+          direction: 'WRITE',
+          slave_id: formData.slaveId,
+          function_code: functionCode,
+          register_address: formData.address,
+          quantity: formData.writeMode === 'multiple' ? formData.registerCount || 1 : 1,
+          data_type: formData.dataType,
+          byte_order: byteOrderMap[formData.byteOrder] || 'ABCD',
+        })
+      }
     } catch (error: any) {
       // Error already handled in mutation
     }
@@ -545,10 +696,16 @@ export function WriteConfigStep({ activeConnection, addLog, onParameterCreated }
             </div>
 
             <div className="flex gap-2">
-              <Button onClick={handleCreate} className="flex-1" disabled={createParameterMutation.isPending}>
+              <Button
+                onClick={handleCreate}
+                className="flex-1"
+                disabled={createParameterMutation.isPending || updateParameterMutation.isPending}
+              >
                 <Save className="h-4 w-4 mr-2" />
-                {createParameterMutation.isPending
-                  ? 'Creating...'
+                {createParameterMutation.isPending || updateParameterMutation.isPending
+                  ? editingParam
+                    ? 'Updating...'
+                    : 'Creating...'
                   : editingParam
                     ? 'Update Parameter'
                     : 'Create Parameter'}
@@ -593,6 +750,18 @@ export function WriteConfigStep({ activeConnection, addLog, onParameterCreated }
                         <Badge variant="outline" className="text-xs">
                           {getFunctionCodeName(param.functionCode)}
                         </Badge>
+                        {(param.parameter as any).write_mode && (
+                          <Badge
+                            variant="outline"
+                            className={`text-xs ${
+                              (param.parameter as any).write_mode === 'PRESET'
+                                ? 'bg-blue-500/10 text-blue-600 border-blue-500/20'
+                                : 'bg-orange-500/10 text-orange-600 border-orange-500/20'
+                            }`}
+                          >
+                            {(param.parameter as any).write_mode}
+                          </Badge>
+                        )}
                       </CardTitle>
                       <CardDescription className="mt-1">
                         Slave {param.slaveId} • Address {param.address === 0 ? 'O' : param.address}
@@ -617,7 +786,17 @@ export function WriteConfigStep({ activeConnection, addLog, onParameterCreated }
                   </div>
 
                   <div className="flex gap-2">
-                    <Button onClick={() => handleExecute(param)} size="sm" className="flex-1">
+                    <Button
+                      onClick={() => handleExecute(param)}
+                      size="sm"
+                      className="flex-1"
+                      disabled={(param.parameter as any).write_mode === 'DYNAMIC'}
+                      title={
+                        (param.parameter as any).write_mode === 'DYNAMIC'
+                          ? 'DYNAMIC write parameters cannot be executed directly. Use workflow or write API with value.'
+                          : 'Execute write operation'
+                      }
+                    >
                       <CheckCircle2 className="h-4 w-4 mr-2" />
                       Execute
                     </Button>
