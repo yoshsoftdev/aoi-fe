@@ -38,9 +38,18 @@ export function WorkflowView() {
     setShowForm(true)
   }
 
-  const handleEdit = (workflow: Workflow) => {
-    setEditingWorkflow(workflow)
-    setShowForm(true)
+  const handleEdit = async (workflow: Workflow) => {
+    // Fetch full workflow data including actions and conditions
+    try {
+      const fullWorkflow = await workflowService.getById(workflow.id)
+      setEditingWorkflow(fullWorkflow)
+      setShowForm(true)
+    } catch (error) {
+      console.error('Failed to load workflow:', error)
+      // Fallback to workflow from list if fetch fails
+      setEditingWorkflow(workflow)
+      setShowForm(true)
+    }
   }
 
   const handleDelete = (id: number) => {
@@ -175,36 +184,68 @@ export function WorkflowView() {
                   <div>
                     <h4 className="text-sm font-semibold mb-2">Actions (THEN)</h4>
                     <div className="space-y-2">
-                      {workflow.actions?.map((action, idx) => (
-                        <div key={idx} className="text-sm bg-muted/50 p-2 rounded">
-                          {action.action_type === 'write' && (
-                            <>
-                              <span className="font-medium">Write</span>{' '}
-                              <span className="text-muted-foreground">to</span>{' '}
-                              <span className="font-medium">
-                                {action.parameter?.nama || `Parameter ${action.parameter_id}`}
-                              </span>{' '}
-                              <span className="text-muted-foreground">=</span>{' '}
-                              <span className="font-medium">{action.value}</span>
-                              {action.parameter?.unit && (
-                                <span className="text-muted-foreground"> {action.parameter.unit}</span>
-                              )}
-                            </>
-                          )}
-                          {action.action_type === 'event' && (
-                            <>
-                              <span className="font-medium">Emit Event:</span>{' '}
-                              <span className="font-medium">{action.event_name}</span>
-                            </>
-                          )}
-                          {action.action_type === 'delay' && (
-                            <>
-                              <span className="font-medium">Delay:</span>{' '}
-                              <span className="font-medium">{action.delay_ms}ms</span>
-                            </>
-                          )}
-                        </div>
-                      ))}
+                      {workflow.actions && workflow.actions.length > 0 ? (
+                        workflow.actions.map((action, idx) => (
+                          <div key={idx} className="text-sm bg-muted/50 p-2 rounded">
+                            {action.action_type === 'TRIGGER_WRITE' && (
+                              <>
+                                <span className="font-medium">Trigger Write</span>{' '}
+                                <span className="text-muted-foreground">to</span>{' '}
+                                <span className="font-medium">
+                                  {action.parameter?.nama || `Parameter ${action.parameter_id}`}
+                                </span>
+                                {action.parameter?.unit && (
+                                  <span className="text-muted-foreground"> ({action.parameter.unit})</span>
+                                )}
+                                <span className="text-muted-foreground"> [PRESET]</span>
+                              </>
+                            )}
+                            {action.action_type === 'WRITE_WITH_VALUE' && (
+                              <>
+                                <span className="font-medium">Write</span>{' '}
+                                <span className="text-muted-foreground">to</span>{' '}
+                                <span className="font-medium">
+                                  {action.parameter?.nama || `Parameter ${action.parameter_id}`}
+                                </span>{' '}
+                                <span className="text-muted-foreground">=</span>{' '}
+                                <span className="font-medium">{action.value}</span>
+                                {action.parameter?.unit && (
+                                  <span className="text-muted-foreground"> {action.parameter.unit}</span>
+                                )}
+                                <span className="text-muted-foreground"> [DYNAMIC]</span>
+                              </>
+                            )}
+                            {action.action_type === 'write' && (
+                              <>
+                                <span className="font-medium">Write</span>{' '}
+                                <span className="text-muted-foreground">to</span>{' '}
+                                <span className="font-medium">
+                                  {action.parameter?.nama || `Parameter ${action.parameter_id}`}
+                                </span>{' '}
+                                <span className="text-muted-foreground">=</span>{' '}
+                                <span className="font-medium">{action.value}</span>
+                                {action.parameter?.unit && (
+                                  <span className="text-muted-foreground"> {action.parameter.unit}</span>
+                                )}
+                              </>
+                            )}
+                            {action.action_type === 'event' && (
+                              <>
+                                <span className="font-medium">Emit Event:</span>{' '}
+                                <span className="font-medium">{action.event_name}</span>
+                              </>
+                            )}
+                            {action.action_type === 'delay' && (
+                              <>
+                                <span className="font-medium">Delay:</span>{' '}
+                                <span className="font-medium">{action.delay_ms}ms</span>
+                              </>
+                            )}
+                          </div>
+                        ))
+                      ) : (
+                        <div className="text-sm text-muted-foreground italic">No actions defined</div>
+                      )}
                     </div>
                   </div>
                 </div>

@@ -83,29 +83,49 @@ export function WorkflowForm({ workflow, onCancel, onSuccess }: WorkflowFormProp
   // Load workflow data
   useEffect(() => {
     if (workflow) {
+      console.log('[WorkflowForm] Loading workflow:', workflow.id, {
+        conditions: workflow.conditions?.length || 0,
+        actions: workflow.actions?.length || 0,
+        actionsData: workflow.actions,
+      })
+      
       setFormData({
         nama: workflow.nama,
         description: workflow.description || '',
         enabled: workflow.enabled,
       })
-      setConditions(
-        workflow.conditions?.map((c) => ({
-          parameter_id: c.parameter_id,
-          operator: c.operator,
-          threshold: c.threshold,
-        })) || []
-      )
-      setActions(
-        workflow.actions?.map((a) => ({
-          action_type: a.action_type,
-          parameter_id: a.parameter_id,
-          value: a.value,
-          event_name: a.event_name,
-          delay_ms: a.delay_ms,
-        })) || []
-      )
+      
+      // Reset conditions and actions before setting new ones to prevent duplication
+      const mappedConditions = workflow.conditions?.map((c) => ({
+        parameter_id: c.parameter_id,
+        operator: c.operator,
+        threshold: c.threshold,
+      })) || []
+      
+      const mappedActions = workflow.actions?.map((a) => ({
+        action_type: a.action_type,
+        parameter_id: a.parameter_id,
+        value: a.value,
+        event_name: a.event_name,
+        delay_ms: a.delay_ms,
+      })) || []
+      
+      console.log('[WorkflowForm] Mapped conditions:', mappedConditions.length, mappedConditions)
+      console.log('[WorkflowForm] Mapped actions:', mappedActions.length, mappedActions)
+      
+      setConditions(mappedConditions)
+      setActions(mappedActions)
+    } else {
+      // Reset form when no workflow (create mode)
+      setFormData({
+        nama: '',
+        description: '',
+        enabled: true,
+      })
+      setConditions([])
+      setActions([])
     }
-  }, [workflow])
+  }, [workflow?.id]) // Use workflow.id instead of workflow to prevent re-triggering on object reference changes
 
   const createMutation = useMutation({
     mutationFn: (data: any) => workflowService.create(data),
@@ -395,8 +415,11 @@ export function WorkflowForm({ workflow, onCancel, onSuccess }: WorkflowFormProp
               No actions added. Click "Add Action" to add one.
             </p>
           ) : (
-            actions.map((action, index) => (
-              <div key={index} className="border rounded-lg p-4 space-y-3">
+            actions.map((action, index) => {
+              // Ensure action has required fields
+              const actionKey = `action-${index}-${action.action_type}-${action.parameter_id || 'none'}`
+              return (
+                <div key={actionKey} className="border rounded-lg p-4 space-y-3">
                 <div className="flex items-center justify-between mb-2">
                   <Badge variant="outline">Action {index + 1}</Badge>
                   <Button
@@ -562,8 +585,9 @@ export function WorkflowForm({ workflow, onCancel, onSuccess }: WorkflowFormProp
                     </div>
                   )}
                 </div>
-              </div>
-            ))
+                </div>
+              )
+            })
           )}
         </CardContent>
       </Card>
