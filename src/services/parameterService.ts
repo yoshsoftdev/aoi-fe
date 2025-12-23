@@ -1,6 +1,23 @@
 import api from './api'
 import { Parameter } from '@/types/parameter'
 
+export interface DeleteParameterError {
+  status: 'REJECTED'
+  reason: 'PARAMETER_IN_USE' | 'INVALID_ID' | 'INTERNAL_ERROR' | string
+  error: string
+}
+
+export class ParameterDeleteError extends Error {
+  constructor(
+    public reason: string,
+    public status: string,
+    message: string
+  ) {
+    super(message)
+    this.name = 'ParameterDeleteError'
+  }
+}
+
 export const parameterService = {
   getAll: async (): Promise<Parameter[]> => {
     const response = await api.get('/parameters')
@@ -23,7 +40,29 @@ export const parameterService = {
   },
 
   delete: async (id: number): Promise<void> => {
-    await api.delete(`/parameters/${id}`)
+    try {
+      await api.delete(`/parameters/${id}`)
+    } catch (error: any) {
+      // Handle error response from backend
+      if (error.response?.data) {
+        const errorData = error.response.data as DeleteParameterError
+        if (errorData.status === 'REJECTED' && errorData.reason === 'PARAMETER_IN_USE') {
+          throw new ParameterDeleteError(
+            errorData.reason,
+            errorData.status,
+            errorData.error || 'Parameter is used in workflow and cannot be deleted'
+          )
+        }
+        // Throw generic error with backend message
+        throw new ParameterDeleteError(
+          errorData.reason || 'UNKNOWN',
+          errorData.status || 'REJECTED',
+          errorData.error || error.message || 'Failed to delete parameter'
+        )
+      }
+      // Re-throw if not a handled error
+      throw error
+    }
   },
 }
 

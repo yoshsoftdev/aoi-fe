@@ -4,6 +4,7 @@ import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from '@/components/ui/dialog'
+import { DeleteConfirmationDialog } from '@/components/ui/delete-confirmation-dialog'
 import { Activity, TrendingUp, Zap, Database, Network, Edit, Trash2 } from 'lucide-react'
 import type { SavedDashboardData, MappedValue } from '@/types'
 import { formatNumber } from '@/utils/formatters'
@@ -22,6 +23,7 @@ export function DashboardView({ savedData, onParameterUpdate }: DashboardViewPro
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [selectedParameter, setSelectedParameter] = useState<MappedValue | null>(null)
   const [editFormData, setEditFormData] = useState({ nama: '', custom_rumus: '' })
+  const [deleteError, setDeleteError] = useState<string | null>(null)
 
   // Fetch parameter details for editing
   const { data: parameterDetails } = useQuery({
@@ -46,7 +48,15 @@ export function DashboardView({ savedData, onParameterUpdate }: DashboardViewPro
       queryClient.invalidateQueries({ queryKey: ['parameters'] })
       setDeleteDialogOpen(false)
       setSelectedParameter(null)
+      setDeleteError(null)
       onParameterUpdate?.()
+    },
+    onError: (error: any) => {
+      if (error instanceof Error && error.name === 'ParameterDeleteError') {
+        setDeleteError(error.message)
+      } else {
+        setDeleteError(error?.message || 'Failed to delete parameter')
+      }
     },
   })
 
@@ -72,6 +82,7 @@ export function DashboardView({ savedData, onParameterUpdate }: DashboardViewPro
 
   const handleDelete = (value: MappedValue) => {
     setSelectedParameter(value)
+    setDeleteError(null)
     setDeleteDialogOpen(true)
   }
 
@@ -321,29 +332,22 @@ export function DashboardView({ savedData, onParameterUpdate }: DashboardViewPro
       </Dialog>
 
       {/* Delete Confirmation Dialog */}
-      <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Delete Parameter</DialogTitle>
-            <DialogDescription>
-              Are you sure you want to delete parameter "{selectedParameter?.outputName}"? This action cannot be undone.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setDeleteDialogOpen(false)}>
-              Cancel
-            </Button>
-            <Button
-              variant="destructive"
-              onClick={handleConfirmDelete}
-              disabled={deleteMutation.isPending}
-            >
-              {deleteMutation.isPending ? 'Deleting...' : 'Delete'}
-            </Button>
-          </DialogFooter>
-          <DialogClose />
-        </DialogContent>
-      </Dialog>
+      <DeleteConfirmationDialog
+        open={deleteDialogOpen}
+        onOpenChange={(open) => {
+          setDeleteDialogOpen(open)
+          if (!open) {
+            setDeleteError(null)
+            setSelectedParameter(null)
+          }
+        }}
+        onConfirm={handleConfirmDelete}
+        title="Delete Parameter"
+        description="Are you sure you want to delete this parameter? This action cannot be undone."
+        itemName={selectedParameter?.outputName}
+        isDeleting={deleteMutation.isPending}
+        error={deleteError}
+      />
     </div>
   )
 }

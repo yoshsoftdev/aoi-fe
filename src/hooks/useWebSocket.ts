@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import type { DashboardData } from '@/types'
 import { parameterService } from '@/services/parameterService'
 import type { Parameter } from '@/types/parameter'
+import { useToast } from '@/contexts/ToastContext'
 
 // Detect WebSocket URL - use relative path in production (embedded)
 const getWebSocketURL = (): string => {
@@ -41,6 +42,7 @@ export const useWebSocket = () => {
   const [connected, setConnected] = useState(false)
   const wsRef = useRef<WebSocket | null>(null)
   const initializedRef = useRef(false)
+  const { showToast } = useToast()
 
   // CRITICAL: Load parameter list from API to initialize dashboard
   // This ensures parameters remain visible even when device is offline
@@ -126,6 +128,27 @@ export const useWebSocket = () => {
 
     ws.onmessage = (event) => {
       const message = JSON.parse(event.data)
+      
+      // Handle alarm notifications
+      if (message.type === 'alarm' && message.data) {
+        const alarmData = message.data
+        const workflowName = alarmData.workflow_name || 'Unknown Workflow'
+        const alarmMessage = alarmData.message || 'Alarm triggered'
+        
+        // Show toast notification (internal popup, no browser permission needed)
+        // duration: 0 means notification stays until manually closed
+        showToast({
+          title: `Alarm: ${workflowName}`,
+          message: alarmMessage,
+          type: 'warning',
+          duration: 0, // Stay until user closes manually
+        })
+        
+        // Also log to console
+        console.warn(`[ALARM] ${workflowName}: ${alarmMessage}`)
+        
+        return
+      }
       
       if (message.type === 'data_update' && message.data) {
         // Backend sends DashboardData format with device_nama and parameter_nama

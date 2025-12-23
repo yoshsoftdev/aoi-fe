@@ -7,8 +7,9 @@ import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Plus, Edit, Trash2, Settings, AlertCircle, CheckCircle2 } from 'lucide-react'
-import { parameterService } from '@/services/parameterService'
+import { parameterService, ParameterDeleteError } from '@/services/parameterService'
 import { deviceService } from '@/services/deviceService'
+import { DeleteConfirmationDialog } from '@/components/ui/delete-confirmation-dialog'
 import type { Parameter } from '@/types/parameter'
 
 export default function WritableParameterList() {
@@ -16,6 +17,9 @@ export default function WritableParameterList() {
   const queryClient = useQueryClient()
   const [selectedDeviceId, setSelectedDeviceId] = useState<number | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const [paramToDelete, setParamToDelete] = useState<Parameter | null>(null)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
 
   // Fetch all devices
   const { data: devices = [] } = useQuery({
@@ -76,17 +80,28 @@ export default function WritableParameterList() {
     mutationFn: parameterService.delete,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['parameters'] })
+      setDeleteDialogOpen(false)
+      setParamToDelete(null)
+      setDeleteError(null)
+    },
+    onError: (error: any) => {
+      if (error instanceof ParameterDeleteError) {
+        setDeleteError(error.message)
+      } else {
+        setDeleteError(error?.message || 'Failed to delete parameter')
+      }
     },
   })
 
-  const handleDelete = async (id: number) => {
-    if (confirm('Are you sure you want to delete this writable parameter?')) {
-      try {
-        await deleteMutation.mutateAsync(id)
-      } catch (error) {
-        console.error('Failed to delete parameter:', error)
-      }
-    }
+  const handleDelete = (param: Parameter) => {
+    setParamToDelete(param)
+    setDeleteError(null)
+    setDeleteDialogOpen(true)
+  }
+
+  const handleConfirmDelete = () => {
+    if (!paramToDelete) return
+    deleteMutation.mutate(paramToDelete.id)
   }
 
   const handleCreate = () => {
@@ -317,7 +332,7 @@ export default function WritableParameterList() {
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={() => handleDelete(param.id)}
+                        onClick={() => handleDelete(param)}
                         className="text-red-600 hover:text-red-700"
                       >
                         <Trash2 className="h-3 w-3" />

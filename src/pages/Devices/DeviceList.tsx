@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { deviceService } from '@/services/deviceService'
 import { useNavigate } from 'react-router-dom'
@@ -6,10 +7,14 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { StatusBadge } from '@/components/status-badge'
 import { Badge } from '@/components/ui/badge'
+import { DeleteConfirmationDialog } from '@/components/ui/delete-confirmation-dialog'
+import type { Device } from '@/types'
 
 export default function DeviceList() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const [deviceToDelete, setDeviceToDelete] = useState<Device | null>(null)
 
   const { data: devices, isLoading } = useQuery({
     queryKey: ['devices'],
@@ -20,13 +25,19 @@ export default function DeviceList() {
     mutationFn: deviceService.delete,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['devices'] })
+      setDeleteDialogOpen(false)
+      setDeviceToDelete(null)
     },
   })
 
-  const handleDelete = async (id: number) => {
-    if (confirm('Are you sure you want to delete this koneksi? All associated parameters will also be deleted.')) {
-      await deleteMutation.mutateAsync(id)
-    }
+  const handleDelete = (device: Device) => {
+    setDeviceToDelete(device)
+    setDeleteDialogOpen(true)
+  }
+
+  const handleConfirmDelete = () => {
+    if (!deviceToDelete) return
+    deleteMutation.mutate(deviceToDelete.id)
   }
 
   if (isLoading) {
@@ -109,7 +120,7 @@ export default function DeviceList() {
                     variant="outline"
                     size="sm"
                     className="flex-1"
-                    onClick={() => handleDelete(device.id)}
+                    onClick={() => handleDelete(device)}
                   >
                     <Trash2 className="h-3 w-3 mr-1" />
                     Delete
@@ -120,6 +131,23 @@ export default function DeviceList() {
           ))}
         </div>
       )}
+
+      {/* Delete Confirmation Dialog */}
+      <DeleteConfirmationDialog
+        open={deleteDialogOpen}
+        onOpenChange={(open) => {
+          setDeleteDialogOpen(open)
+          if (!open) {
+            setDeviceToDelete(null)
+          }
+        }}
+        onConfirm={handleConfirmDelete}
+        title="Delete Device"
+        description="Are you sure you want to delete this device? All associated parameters will also be deleted. This action cannot be undone."
+        itemName={deviceToDelete?.nama}
+        isDeleting={deleteMutation.isPending}
+        error={null}
+      />
     </div>
   )
 }

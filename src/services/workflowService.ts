@@ -28,11 +28,12 @@ export interface WorkflowCondition {
 export interface WorkflowAction {
   id?: number
   workflow_id?: number
-  action_type: 'TRIGGER_WRITE' | 'WRITE_WITH_VALUE' | 'event' | 'delay' | 'write' // 'write' is legacy
+  action_type: 'TRIGGER_WRITE' | 'WRITE_WITH_VALUE' | 'event' | 'delay' | 'alarm' | 'write' // 'write' is legacy
   parameter_id?: number
   value?: number // Required for WRITE_WITH_VALUE, not allowed for TRIGGER_WRITE
   event_name?: string
   delay_ms?: number
+  alarm_message?: string // Required for 'alarm' action
   created_at?: string
   parameter?: {
     id: number

@@ -108,6 +108,7 @@ export function WorkflowForm({ workflow, onCancel, onSuccess }: WorkflowFormProp
         value: a.value,
         event_name: a.event_name,
         delay_ms: a.delay_ms,
+        alarm_message: a.alarm_message,
       })) || []
       
       console.log('[WorkflowForm] Mapped conditions:', mappedConditions.length, mappedConditions)
@@ -466,6 +467,13 @@ export function WorkflowForm({ workflow, onCancel, onSuccess }: WorkflowFormProp
                             delay_ms: 1000,
                           })
                         }
+
+                        if (value === 'alarm') {
+                          replaceAction(index, {
+                            action_type: 'alarm',
+                            alarm_message: '',
+                          })
+                        }
                       }}
                     >
                       <SelectTrigger>
@@ -476,6 +484,7 @@ export function WorkflowForm({ workflow, onCancel, onSuccess }: WorkflowFormProp
                         <SelectItem value="WRITE_WITH_VALUE">Write with Value (DYNAMIC)</SelectItem>
                         <SelectItem value="event">Emit Event</SelectItem>
                         <SelectItem value="delay">Delay</SelectItem>
+                        <SelectItem value="alarm">Alarm Notification</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -582,6 +591,22 @@ export function WorkflowForm({ workflow, onCancel, onSuccess }: WorkflowFormProp
                         }
                         required
                       />
+                    </div>
+                  )}
+
+                  {action.action_type === 'alarm' && (
+                    <div className="space-y-2">
+                      <Label>Alarm Message *</Label>
+                      <Textarea
+                        value={action.alarm_message ?? ''}
+                        onChange={(e) => updateActionField(index, 'alarm_message', e.target.value)}
+                        placeholder="e.g., Temperature exceeded threshold! Please check the system."
+                        rows={3}
+                        required
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        This message will be displayed as a notification when the workflow condition is met.
+                      </p>
                     </div>
                   )}
                 </div>

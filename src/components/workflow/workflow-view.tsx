@@ -6,11 +6,14 @@ import { Badge } from '@/components/ui/badge'
 import { Plus, Trash2, Edit, Play, Pause } from 'lucide-react'
 import { workflowService, type Workflow } from '@/services/workflowService'
 import { WorkflowForm } from './workflow-form'
+import { DeleteConfirmationDialog } from '@/components/ui/delete-confirmation-dialog'
 
 export function WorkflowView() {
   const queryClient = useQueryClient()
   const [showForm, setShowForm] = useState(false)
   const [editingWorkflow, setEditingWorkflow] = useState<Workflow | null>(null)
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const [workflowToDelete, setWorkflowToDelete] = useState<Workflow | null>(null)
 
   const { data: workflows = [], isLoading } = useQuery({
     queryKey: ['workflows'],
@@ -21,6 +24,8 @@ export function WorkflowView() {
     mutationFn: (id: number) => workflowService.delete(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['workflows'] })
+      setDeleteDialogOpen(false)
+      setWorkflowToDelete(null)
     },
   })
 
@@ -52,10 +57,14 @@ export function WorkflowView() {
     }
   }
 
-  const handleDelete = (id: number) => {
-    if (confirm('Are you sure you want to delete this workflow?')) {
-      deleteMutation.mutate(id)
-    }
+  const handleDelete = (workflow: Workflow) => {
+    setWorkflowToDelete(workflow)
+    setDeleteDialogOpen(true)
+  }
+
+  const handleConfirmDelete = () => {
+    if (!workflowToDelete) return
+    deleteMutation.mutate(workflowToDelete.id)
   }
 
   const handleToggle = (workflow: Workflow) => {
@@ -152,7 +161,7 @@ export function WorkflowView() {
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => handleDelete(workflow.id)}
+                      onClick={() => handleDelete(workflow)}
                     >
                       <Trash2 className="h-4 w-4" />
                     </Button>
@@ -241,6 +250,12 @@ export function WorkflowView() {
                                 <span className="font-medium">{action.delay_ms}ms</span>
                               </>
                             )}
+                            {action.action_type === 'alarm' && (
+                              <>
+                                <span className="font-medium">Alarm:</span>{' '}
+                                <span className="font-medium">{action.alarm_message || 'No message'}</span>
+                              </>
+                            )}
                           </div>
                         ))
                       ) : (
@@ -254,6 +269,23 @@ export function WorkflowView() {
           ))}
         </div>
       )}
+
+      {/* Delete Confirmation Dialog */}
+      <DeleteConfirmationDialog
+        open={deleteDialogOpen}
+        onOpenChange={(open) => {
+          setDeleteDialogOpen(open)
+          if (!open) {
+            setWorkflowToDelete(null)
+          }
+        }}
+        onConfirm={handleConfirmDelete}
+        title="Delete Workflow"
+        description="Are you sure you want to delete this workflow? This action cannot be undone."
+        itemName={workflowToDelete?.nama}
+        isDeleting={deleteMutation.isPending}
+        error={null}
+      />
     </div>
   )
 }

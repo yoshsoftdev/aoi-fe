@@ -7,9 +7,10 @@ import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Badge } from '@/components/ui/badge'
 import { Plus, Save, Trash2, CheckCircle2, Info, Edit } from 'lucide-react'
-import { parameterService } from '@/services/parameterService'
+import { parameterService, ParameterDeleteError } from '@/services/parameterService'
 import { modbusService } from '@/services/modbusService'
 import { writeService } from '@/services/writeService'
+import { DeleteConfirmationDialog } from '@/components/ui/delete-confirmation-dialog'
 import type { Connection, ModbusFunction, DataType, ByteOrder } from '@/types'
 import type { Parameter } from '@/types/parameter'
 import type { ModbusRTU, ModbusTCP } from '@/types/parameter'
@@ -42,6 +43,9 @@ export function WriteConfigStep({ activeConnection, addLog, onParameterCreated }
   const queryClient = useQueryClient()
   const [showForm, setShowForm] = useState(false)
   const [editingParam, setEditingParam] = useState<ConfiguredWriteParameter | null>(null)
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const [paramToDelete, setParamToDelete] = useState<ConfiguredWriteParameter | null>(null)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
   const [formData, setFormData] = useState({
     name: '',
     slaveId: 1,
@@ -402,19 +406,32 @@ export function WriteConfigStep({ activeConnection, addLog, onParameterCreated }
     setShowForm(true)
   }
 
-  const handleDelete = async (param: ConfiguredWriteParameter) => {
-    if (!confirm(`Are you sure you want to delete parameter "${param.parameter.nama}"?`)) {
-      return
-    }
+  const handleDelete = (param: ConfiguredWriteParameter) => {
+    setParamToDelete(param)
+    setDeleteError(null)
+    setDeleteDialogOpen(true)
+  }
+
+  const handleConfirmDelete = async () => {
+    if (!paramToDelete) return
 
     try {
-      await parameterService.delete(param.id)
+      await parameterService.delete(paramToDelete.id)
       queryClient.invalidateQueries({ queryKey: ['parameters'] })
       queryClient.invalidateQueries({ queryKey: ['modbus-rtu'] })
       queryClient.invalidateQueries({ queryKey: ['modbus-tcp'] })
-      addLog(`Deleted write parameter: ${param.parameter.nama}`, 'info', activeConnection.id)
+      addLog(`Deleted write parameter: ${paramToDelete.parameter.nama}`, 'info', activeConnection.id)
+      setDeleteDialogOpen(false)
+      setParamToDelete(null)
+      setDeleteError(null)
     } catch (error: any) {
-      addLog(`Failed to delete parameter: ${error.message}`, 'error', activeConnection.id)
+      if (error instanceof ParameterDeleteError) {
+        setDeleteError(error.message)
+      } else {
+        const errorMsg = error?.message || 'Failed to delete parameter'
+        setDeleteError(errorMsg)
+        addLog(`Failed to delete parameter: ${errorMsg}`, 'error', activeConnection.id)
+      }
     }
   }
 
@@ -832,6 +849,24 @@ export function WriteConfigStep({ activeConnection, addLog, onParameterCreated }
           )}
         </>
       )}
+
+      {/* Delete Confirmation Dialog */}
+      <DeleteConfirmationDialog
+        open={deleteDialogOpen}
+        onOpenChange={(open) => {
+          setDeleteDialogOpen(open)
+          if (!open) {
+            setDeleteError(null)
+            setParamToDelete(null)
+          }
+        }}
+        onConfirm={handleConfirmDelete}
+        title="Delete Write Parameter"
+        description="Are you sure you want to delete this write parameter? This action cannot be undone."
+        itemName={paramToDelete?.parameter.nama}
+        isDeleting={false}
+        error={deleteError}
+      />
     </div>
   )
 }

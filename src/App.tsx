@@ -14,10 +14,13 @@ import { Activity, LayoutDashboard, TestTube2, PenTool, Menu, X, Workflow } from
 import type { Connection, LogEntry, RawDataField, SavedDashboardData, MappedValue, DashboardData } from '@/types'
 import { cn } from '@/lib/utils'
 import { useWebSocket } from '@/hooks/useWebSocket'
+import { ToastProvider, useToast } from '@/contexts/ToastContext'
+import { ToastContainer } from '@/components/ui/toast'
 
 const queryClient = new QueryClient()
 
-function App() {
+function AppContent() {
+  const { toasts, removeToast } = useToast()
   const [currentView, setCurrentView] = useState<'dashboard' | 'tester' | 'write' | 'workflow'>('dashboard')
   const [isSidebarOpen, setIsSidebarOpen] = useState(true)
 
@@ -197,7 +200,7 @@ function App() {
   ]
 
   return (
-    <QueryClientProvider client={queryClient}>
+    <>
       <div className="min-h-screen bg-background flex">
         <aside
           className={cn(
@@ -380,6 +383,17 @@ function App() {
           </div>
         </div>
       </div>
+      <ToastContainer toasts={toasts} onClose={removeToast} />
+    </>
+  )
+}
+
+function App() {
+  return (
+    <QueryClientProvider client={queryClient}>
+      <ToastProvider>
+        <AppContent />
+      </ToastProvider>
     </QueryClientProvider>
   )
 }
