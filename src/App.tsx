@@ -42,8 +42,6 @@ function App() {
   // Write Control state
   const [writeStep, setWriteStep] = useState(0)
   const [writeActiveConnection, setWriteActiveConnection] = useState<Connection | null>(null)
-  const [writeSelectedParameter, setWriteSelectedParameter] = useState<any>(null)
-  const [writeValueReady, setWriteValueReady] = useState(false)
 
   // Live data from backend via WebSocket
   const { data: wsData } = useWebSocket()
@@ -299,8 +297,6 @@ function App() {
                   currentStep={writeStep}
                   onStepClick={setWriteStep}
                   canProceedToStep2={writeActiveConnection?.status === 'connected'}
-                  canProceedToStep3={!!writeSelectedParameter}
-                  canProceedToStep4={writeValueReady}
                 />
               </div>
             )}
@@ -316,23 +312,10 @@ function App() {
                   // Reset dependent states when step changes
                   if (step === 0) {
                     setWriteActiveConnection(null)
-                    setWriteSelectedParameter(null)
-                    setWriteValueReady(false)
-                  } else if (step === 1) {
-                    setWriteSelectedParameter(null)
-                    setWriteValueReady(false)
-                  } else if (step === 2) {
-                    setWriteValueReady(false)
                   }
                 }}
                 onConnectionChange={(connection) => {
                   setWriteActiveConnection(connection)
-                }}
-                onParameterSelected={(parameter) => {
-                  setWriteSelectedParameter(parameter)
-                }}
-                onValueReady={() => {
-                  setWriteValueReady(true)
                 }}
               />
             ) : currentView === 'workflow' ? (

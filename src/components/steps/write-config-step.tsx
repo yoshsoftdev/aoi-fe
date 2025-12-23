@@ -35,11 +35,10 @@ interface WriteConfigStepProps {
     connectionId?: string,
     slaveId?: number,
   ) => void
-  onNext?: () => void
   onParameterCreated?: (parameter: Parameter) => void
 }
 
-export function WriteConfigStep({ activeConnection, addLog, onNext, onParameterCreated }: WriteConfigStepProps) {
+export function WriteConfigStep({ activeConnection, addLog, onParameterCreated }: WriteConfigStepProps) {
   const queryClient = useQueryClient()
   const [showForm, setShowForm] = useState(false)
   const [editingParam, setEditingParam] = useState<ConfiguredWriteParameter | null>(null)
