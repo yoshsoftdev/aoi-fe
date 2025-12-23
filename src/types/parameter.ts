@@ -2,9 +2,11 @@ export interface Parameter {
   id: number
   device_id: number
   nama: string
-  type: 'modbus_rtu' | 'modbus_tcp' | 'analog_input' | 'analog_output' | 'digital_input' | 'digital_output' | 'snmp'
+  type: 'modbus_rtu' | 'modbus_tcp' | 'analog_input' | 'analog_output' | 'digital_input' | 'digital_output' | 'snmp' | 'formula'
   direction: 'READ' | 'WRITE' // READ (polling/scheduler) or WRITE (command/on-demand)
   read_write: boolean // Deprecated: use direction instead
+  parameter_mode?: 'SOURCE' | 'DIRECT' | 'CLEAN' | 'FORMULA' // SOURCE (internal), DIRECT (clean from device), CLEAN (logical), FORMULA (derived)
+  is_formula?: boolean // true = derived parameter (formula), false = raw parameter
   write_mode?: 'PRESET' | 'DYNAMIC' // PRESET (value stored) or DYNAMIC (value provided at write time) - only for WRITE parameters
   preset_value?: string // JSON-encoded preset value - only for PRESET mode
   unit?: string

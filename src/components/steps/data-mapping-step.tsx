@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { Input, Textarea } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Plus, Trash2, Calculator, AlertCircle, ArrowRight, Save, Loader2 } from 'lucide-react'
 import type { RawDataField, MappingConfig, MappedValue, Connection } from '@/types'
 import { mappingService } from '@/services/mappingService'
@@ -43,10 +44,12 @@ export function DataMappingStep({
     const newMapping: MappingConfig = {
       id: Date.now().toString(),
       outputName: `Output_${mappings.length + 1}`,
+      outputType: 'DIRECT', // Default to DIRECT, but user must explicitly choose
       operation: 'add',
       operands: [],
       enabled: true,
       formula: '',
+      sourceField: '',
     }
     setMappings([...mappings, newMapping])
   }
@@ -100,45 +103,97 @@ export function DataMappingStep({
       if (!mapping.enabled) continue
 
       try {
-        if (!mapping.formula || mapping.formula.trim() === '') {
+        if (mapping.outputType === 'DIRECT') {
+          // DIRECT: Use source value as-is
+          if (!mapping.sourceField || mapping.sourceField.trim() === '') {
+            results.push({
+              id: mapping.id,
+              outputName: mapping.outputName,
+              rawValues: [],
+              mappedValue: 0,
+              formula: 'DIRECT',
+              error: 'Source field is required for DIRECT type',
+              timestamp: new Date(),
+            })
+            continue
+          }
+
+          const sourceValue = dataMap.get(mapping.sourceField)
+          if (sourceValue === undefined) {
+            results.push({
+              id: mapping.id,
+              outputName: mapping.outputName,
+              rawValues: [],
+              mappedValue: 0,
+              formula: 'DIRECT',
+              error: `Source field "${mapping.sourceField}" not found`,
+              timestamp: new Date(),
+            })
+            continue
+          }
+
+          results.push({
+            id: mapping.id,
+            outputName: mapping.outputName,
+            rawValues: [{ name: mapping.sourceField, value: sourceValue }],
+            mappedValue: sourceValue,
+            formula: `DIRECT: ${mapping.sourceField}`,
+            timestamp: new Date(),
+          })
+
+          addLog(`Mapped ${mapping.outputName} = ${parseFloat(sourceValue.toFixed(3))} (DIRECT from ${mapping.sourceField})`, 'success')
+        } else if (mapping.outputType === 'FORMULA') {
+          // FORMULA: Calculate using expression
+          if (!mapping.formula || mapping.formula.trim() === '') {
+            results.push({
+              id: mapping.id,
+              outputName: mapping.outputName,
+              rawValues: [],
+              mappedValue: 0,
+              formula: mapping.formula,
+              error: 'Formula is required for FORMULA type',
+              timestamp: new Date(),
+            })
+            continue
+          }
+
+          const result = evaluateFormula(mapping.formula, dataMap)
+
+          const usedRawValues = rawData
+            .filter((field) => mapping.formula.includes(field.name))
+            .map((field) => ({
+              name: field.name,
+              value: field.value,
+            }))
+
+          results.push({
+            id: mapping.id,
+            outputName: mapping.outputName,
+            rawValues: usedRawValues,
+            mappedValue: result,
+            formula: mapping.formula,
+            timestamp: new Date(),
+          })
+
+          addLog(`Mapped ${mapping.outputName} = ${parseFloat(result.toFixed(3))} (FORMULA)`, 'success')
+        } else {
           results.push({
             id: mapping.id,
             outputName: mapping.outputName,
             rawValues: [],
             mappedValue: 0,
-            formula: mapping.formula,
-            error: 'Empty formula',
+            formula: '',
+            error: 'Output type must be DIRECT or FORMULA',
             timestamp: new Date(),
           })
-          continue
         }
-
-        const result = evaluateFormula(mapping.formula, dataMap)
-
-        const usedRawValues = rawData
-          .filter((field) => mapping.formula.includes(field.name))
-          .map((field) => ({
-            name: field.name,
-            value: field.value,
-          }))
-
-        results.push({
-          id: mapping.id,
-          outputName: mapping.outputName,
-          rawValues: usedRawValues,
-          mappedValue: result,
-          formula: mapping.formula,
-          timestamp: new Date(),
-        })
-
-        addLog(`Mapped ${mapping.outputName} = ${parseFloat(result.toFixed(3))}`, 'success')
       } catch (error) {
         results.push({
           id: mapping.id,
           outputName: mapping.outputName,
           rawValues: [],
           mappedValue: 0,
-          formula: mapping.formula,
+          formula: mapping.formula || '',
           error: error instanceof Error ? error.message : 'Calculation error',
           timestamp: new Date(),
         })
@@ -211,13 +266,16 @@ export function DataMappingStep({
           ? activeConnection.id
           : undefined
 
-      // Build mappings array with new format
-      const mappings: Array<{
-        type?: 'raw' | 'formula'
+      // Build mappings array with explicit output_type
+      const payloadMappings: Array<{
+        output_type: 'DIRECT' | 'FORMULA'
         outputName: string
+        source_field?: string
+        source_parameter_id?: number
         formula?: string
         expression?: string
         variables?: Array<{ name: string; source_parameter_name: string }>
+        source_parameter_ids?: number[]
         slaveId?: number
         functionCode?: number
         registerAddress?: number
@@ -230,46 +288,67 @@ export function DataMappingStep({
       // Track created raw parameters: fieldRef -> parameterName
       const fieldRefToParamName: Map<string, string> = new Map()
 
-      // First pass: Create RAW parameters
-      for (const mv of mappedValues) {
+      // First pass: Create RAW parameters for FORMULA dependencies
+      // If FORMULA references field names, we need to create RAW parameters first
+      // Note: We iterate over state mappings, not payloadMappings
+      for (const mapping of mappings) {
+        if (mapping.outputType === 'FORMULA' && mapping.formula) {
+          const hasFieldRef = containsFieldReference(mapping.formula)
+          const hasModbusConfig = testConfig && (
+            (testConfig.slaveId !== undefined && testConfig.registerAddress !== undefined) ||
+            testConfig.oid !== undefined
+          )
+
+          if (hasModbusConfig && hasFieldRef) {
+            // Extract field references and create RAW parameters for them
+            const fieldRefs = extractFieldReferences(mapping.formula)
+            
+            for (const fieldRef of fieldRefs) {
+              if (!fieldRefToParamName.has(fieldRef)) {
+                const rawParamName = `${mapping.outputName}_raw_${fieldRef.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '')}`
+                fieldRefToParamName.set(fieldRef, rawParamName)
+
+                payloadMappings.push({
+                  output_type: 'DIRECT',
+                  outputName: rawParamName,
+                  source_field: fieldRef,
+                  ...(testConfig.slaveId !== undefined && { slaveId: testConfig.slaveId }),
+                  ...(testConfig.functionCode !== undefined && { functionCode: testConfig.functionCode }),
+                  ...(testConfig.registerAddress !== undefined && { registerAddress: testConfig.registerAddress }),
+                  ...(testConfig.quantity !== undefined && { quantity: testConfig.quantity }),
+                  ...(testConfig.dataType && { dataType: testConfig.dataType }),
+                  ...(testConfig.byteOrder && { byteOrder: testConfig.byteOrder }),
+                  ...(testConfig.oid && { oid: testConfig.oid }),
+                })
+              }
+            }
+          }
+        }
+      }
+
+      // Second pass: Create mappings based on output_type
+      for (const mapping of mappings) {
         const hasModbusConfig = testConfig && (
           (testConfig.slaveId !== undefined && testConfig.registerAddress !== undefined) ||
           testConfig.oid !== undefined
         )
-        const hasFieldRef = containsFieldReference(mv.formula)
 
-        if (hasModbusConfig && hasFieldRef) {
-          // This mapping has both Modbus config AND formula with field reference
-          // Create RAW parameter first, then FORMULA parameter will reference it
-          const fieldRefs = extractFieldReferences(mv.formula)
-          
-          // Create RAW parameter for each unique field reference
-          for (const fieldRef of fieldRefs) {
-            if (!fieldRefToParamName.has(fieldRef)) {
-              // Generate parameter name from field reference
-              // e.g., "Slave 4 Addr 10" -> "slave_4_addr_10"
-              const rawParamName = `${mv.outputName}_raw_${fieldRef.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '')}`
-              fieldRefToParamName.set(fieldRef, rawParamName)
-
-              mappings.push({
-                type: 'raw',
-                outputName: rawParamName,
-                ...(testConfig.slaveId !== undefined && { slaveId: testConfig.slaveId }),
-                ...(testConfig.functionCode !== undefined && { functionCode: testConfig.functionCode }),
-                ...(testConfig.registerAddress !== undefined && { registerAddress: testConfig.registerAddress }),
-                ...(testConfig.quantity !== undefined && { quantity: testConfig.quantity }),
-                ...(testConfig.dataType && { dataType: testConfig.dataType }),
-                ...(testConfig.byteOrder && { byteOrder: testConfig.byteOrder }),
-                ...(testConfig.oid && { oid: testConfig.oid }),
-              })
-            }
+        if (mapping.outputType === 'DIRECT') {
+          // DIRECT: Single source, no formula
+          if (!mapping.sourceField) {
+            addLog(`Error: Source field is required for DIRECT type in "${mapping.outputName}"`, 'error')
+            continue
           }
-        } else if (hasModbusConfig && !hasFieldRef) {
-          // RAW parameter without field reference (simple formula or no formula)
-          mappings.push({
-            type: 'raw',
-            outputName: mv.outputName,
-            ...(mv.formula && { formula: mv.formula }), // Simple formula like "value * 2"
+
+          if (!hasModbusConfig) {
+            addLog(`Error: Modbus config is required for DIRECT type in "${mapping.outputName}"`, 'error')
+            continue
+          }
+
+          payloadMappings.push({
+            output_type: 'DIRECT',
+            outputName: mapping.outputName,
+            source_field: mapping.sourceField,
             ...(testConfig.slaveId !== undefined && { slaveId: testConfig.slaveId }),
             ...(testConfig.functionCode !== undefined && { functionCode: testConfig.functionCode }),
             ...(testConfig.registerAddress !== undefined && { registerAddress: testConfig.registerAddress }),
@@ -278,50 +357,55 @@ export function DataMappingStep({
             ...(testConfig.byteOrder && { byteOrder: testConfig.byteOrder }),
             ...(testConfig.oid && { oid: testConfig.oid }),
           })
-        }
-      }
+        } else if (mapping.outputType === 'FORMULA') {
+          // FORMULA: Calculate using expression
+          if (!mapping.formula || mapping.formula.trim() === '') {
+            addLog(`Error: Formula is required for FORMULA type in "${mapping.outputName}"`, 'error')
+            continue
+          }
 
-      // Second pass: Create FORMULA parameters
-      for (const mv of mappedValues) {
-        const hasFieldRef = containsFieldReference(mv.formula)
-        const hasModbusConfig = testConfig && (
-          (testConfig.slaveId !== undefined && testConfig.registerAddress !== undefined) ||
-          testConfig.oid !== undefined
-        )
+          const hasFieldRef = containsFieldReference(mapping.formula)
+          
+          if (hasFieldRef) {
+            // Formula with field references - normalize and create variables
+            const fieldRefs = extractFieldReferences(mapping.formula)
+            const { expression, variables } = normalizeExpression(mapping.formula, fieldRefs)
 
-        if (hasFieldRef) {
-          // This is a FORMULA parameter
-          const fieldRefs = extractFieldReferences(mv.formula)
-          const { expression, variables } = normalizeExpression(mv.formula, fieldRefs)
-
-          // Update variables to use the correct parameter names from fieldRefToParamName map
-          const updatedVariables = variables.map(v => {
-            const paramName = fieldRefToParamName.get(v.fieldRef)
-            if (paramName) {
+            // Update variables to use the correct parameter names from fieldRefToParamName map
+            const updatedVariables = variables.map(v => {
+              const paramName = fieldRefToParamName.get(v.fieldRef)
+              if (paramName) {
+                return {
+                  name: v.name,
+                  source_parameter_name: paramName
+                }
+              }
+              
+              // Fallback: generate parameter name from field reference
+              const fallbackParamName = v.fieldRef.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '')
               return {
                 name: v.name,
-                source_parameter_name: paramName
+                source_parameter_name: fallbackParamName
               }
-            }
-            
-            // Fallback: generate parameter name from field reference
-            const fallbackParamName = v.fieldRef.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '')
-            return {
-              name: v.name,
-              source_parameter_name: fallbackParamName
-            }
-          })
+            })
 
-          mappings.push({
-            type: 'formula',
-            outputName: mv.outputName,
-            expression: expression,
-            variables: updatedVariables
-          })
-        } else if (!hasModbusConfig && mv.formula) {
-          // Formula without Modbus config - this might reference existing parameters
-          // For now, we'll skip it or show a warning
-          addLog(`Warning: Formula "${mv.formula}" without Modbus config - skipping. Please ensure referenced parameters exist.`, 'warning')
+            payloadMappings.push({
+              output_type: 'FORMULA',
+              outputName: mapping.outputName,
+              formula: mapping.formula,
+              expression: expression,
+              variables: updatedVariables
+            })
+          } else {
+            // Formula without field references - might reference existing parameters
+            addLog(`Warning: Formula "${mapping.formula}" in "${mapping.outputName}" does not contain field references. Please ensure referenced parameters exist.`, 'warning')
+            payloadMappings.push({
+              output_type: 'FORMULA',
+              outputName: mapping.outputName,
+              formula: mapping.formula,
+              expression: mapping.formula, // Use formula as expression if no field refs
+            })
+          }
         }
       }
 
@@ -333,7 +417,7 @@ export function DataMappingStep({
           config: activeConnection.config,
         },
         ...(koneksiId && { koneksi_id: koneksiId }),
-        mappings: mappings,
+        mappings: payloadMappings,
       }
 
       const response = await mappingService.save(request)
@@ -496,19 +580,70 @@ export function DataMappingStep({
                     </div>
                   </CardHeader>
                   <CardContent className="space-y-4">
+                    {/* Output Type Selector */}
                     <div className="space-y-2">
-                      <Label>Formula</Label>
-                      <Textarea
-                        value={mapping.formula}
-                        onChange={(e) => updateMapping(mapping.id, { formula: e.target.value })}
-                        placeholder="e.g., (Slave 1 Addr 7 + Slave 1 Addr 8) / 10"
-                        className="font-mono text-sm"
-                        rows={3}
-                      />
-                      <p className="text-xs text-muted-foreground">
-                        Copy field names from the left panel and use +, -, *, /, ( )
-                      </p>
+                      <Label>Output Type *</Label>
+                      <RadioGroup
+                        value={mapping.outputType}
+                        onValueChange={(value) => updateMapping(mapping.id, { 
+                          outputType: value as 'DIRECT' | 'FORMULA',
+                          formula: value === 'DIRECT' ? '' : mapping.formula,
+                          sourceField: value === 'FORMULA' ? '' : mapping.sourceField,
+                        })}
+                      >
+                        <div className="flex items-center space-x-2">
+                          <RadioGroupItem value="DIRECT" id={`direct-${mapping.id}`} />
+                          <Label htmlFor={`direct-${mapping.id}`} className="cursor-pointer">
+                            Direct (use source value as-is)
+                          </Label>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <RadioGroupItem value="FORMULA" id={`formula-${mapping.id}`} />
+                          <Label htmlFor={`formula-${mapping.id}`} className="cursor-pointer">
+                            Formula (calculate using expression)
+                          </Label>
+                        </div>
+                      </RadioGroup>
                     </div>
+
+                    {/* DIRECT: Source Field Selector */}
+                    {mapping.outputType === 'DIRECT' && (
+                      <div className="space-y-2">
+                        <Label>Source Field *</Label>
+                        <select
+                          value={mapping.sourceField || ''}
+                          onChange={(e) => updateMapping(mapping.id, { sourceField: e.target.value })}
+                          className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                        >
+                          <option value="">Select source field...</option>
+                          {rawData.map((field) => (
+                            <option key={field.id} value={field.name}>
+                              {field.name} ({field.value})
+                            </option>
+                          ))}
+                        </select>
+                        <p className="text-xs text-muted-foreground">
+                          Select a single source field to use its value directly
+                        </p>
+                      </div>
+                    )}
+
+                    {/* FORMULA: Formula Editor */}
+                    {mapping.outputType === 'FORMULA' && (
+                      <div className="space-y-2">
+                        <Label>Formula *</Label>
+                        <Textarea
+                          value={mapping.formula}
+                          onChange={(e) => updateMapping(mapping.id, { formula: e.target.value })}
+                          placeholder="e.g., (Slave 1 Addr 7 + Slave 1 Addr 8) / 10"
+                          className="font-mono text-sm"
+                          rows={3}
+                        />
+                        <p className="text-xs text-muted-foreground">
+                          Copy field names from the left panel and use +, -, *, /, ( )
+                        </p>
+                      </div>
+                    )}
                   </CardContent>
                 </Card>
               ))}

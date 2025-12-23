@@ -100,10 +100,12 @@ export interface RawDataField {
 export interface MappingConfig {
   id: string
   outputName: string
+  outputType: 'DIRECT' | 'FORMULA' // Explicit output type - user must choose
   operation: OperationType
   operands: string[] // IDs of raw data fields
   constantValue?: number
-  formula: string // custom formula like "(Slave 1 Addr 7 + Slave 1 Addr 8) / 10"
+  formula: string // custom formula like "(Slave 1 Addr 7 + Slave 1 Addr 8) / 10" - required if outputType is FORMULA
+  sourceField?: string // Source field name for DIRECT type - required if outputType is DIRECT
   enabled: boolean
 }
 

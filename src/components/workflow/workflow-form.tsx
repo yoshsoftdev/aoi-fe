@@ -33,8 +33,35 @@ export function WorkflowForm({ workflow, onCancel, onSuccess }: WorkflowFormProp
   })
 
   // ✅ 1. SIMPLIFIKASI PARAMETER FILTER
+  // Clean parameters = DIRECT, CLEAN, FORMULA (semua yang punya clean data)
+  // HANYA untuk READ parameters (WRITE tidak boleh digunakan untuk condition)
+  // SOURCE tidak termasuk karena internal only
   const cleanParameters = useMemo(
-    () => allParameters.filter(p => (p as any).is_formula === true || (p as any).isFormula === true),
+    () => {
+      return allParameters.filter(p => {
+        const param = p as any
+        
+        // CRITICAL: Exclude WRITE parameters (only READ parameters can be used for conditions)
+        const isWrite = param.direction === 'WRITE' || (param.direction === undefined && param.read_write === true)
+        if (isWrite) {
+          return false
+        }
+        
+        const paramMode = param.parameter_mode || param.parameterMode
+        const isFormula = param.is_formula === true || param.isFormula === true
+        
+        // Include DIRECT, CLEAN, FORMULA parameters (READ only)
+        // DIRECT: parameter_mode = 'DIRECT' (clean data langsung dari device)
+        // CLEAN: parameter_mode = 'CLEAN' (logical parameter dengan clean data)
+        // FORMULA: parameter_mode = 'FORMULA' atau is_formula = true (derived parameter)
+        return (
+          paramMode === 'DIRECT' ||
+          paramMode === 'CLEAN' ||
+          paramMode === 'FORMULA' ||
+          isFormula
+        )
+      })
+    },
     [allParameters]
   )
 

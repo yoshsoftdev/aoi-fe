@@ -7,11 +7,12 @@ export interface FormulaVariable {
 }
 
 export interface MappingData {
-  type?: 'raw' | 'formula' // Explicit type - if not provided, auto-detect
+  output_type: 'DIRECT' | 'FORMULA' // Explicit output type - REQUIRED, no auto-detect
   outputName: string
   
-  // For RAW parameter
-  formula?: string // Simple formula (value * 2) - not field reference
+  // For DIRECT type
+  source_parameter_id?: number // Source parameter ID for DIRECT (single source only)
+  source_field?: string // Source field name (e.g., "Slave 1 Addr 7")
   slaveId?: number
   functionCode?: number
   registerAddress?: number
@@ -20,9 +21,11 @@ export interface MappingData {
   byteOrder?: string
   oid?: string // For SNMP
   
-  // For FORMULA parameter
-  expression?: string // "a * 2" or "(a + b) / 2"
+  // For FORMULA type
+  formula?: string // Formula expression like "(Slave 1 Addr 7 + Slave 1 Addr 8) / 10"
+  expression?: string // Normalized expression "a * 2" or "(a + b) / 2"
   variables?: FormulaVariable[]
+  source_parameter_ids?: number[] // Multiple source parameter IDs for FORMULA
 }
 
 export interface SaveMappingRequest {
