@@ -92,10 +92,16 @@ export default function Dashboard() {
                     <Network className="h-5 w-5 text-primary" />
                     <h3 className="text-lg font-semibold text-foreground">{deviceName}</h3>
                     <Badge 
-                      variant={latestItem.status === 'online' ? 'default' : 'destructive'}
-                      className="ml-auto"
+                      variant={latestItem.status === 'online' ? 'default' : 'outline'}
+                      className={`ml-auto ${
+                        latestItem.status === 'online' ? 'bg-green-500/10 text-green-500 border-green-500/20' :
+                        latestItem.status === 'offline' ? 'bg-muted text-muted-foreground border-border' :
+                        'bg-destructive/10 text-destructive border-destructive/20'
+                      }`}
                     >
-                      {latestItem.status || 'offline'}
+                      {latestItem.status === 'online' ? 'Online' :
+                       latestItem.status === 'offline' ? 'Offline' :
+                       latestItem.status === 'error' ? 'Error' : 'Unknown'}
                     </Badge>
                   </div>
 
@@ -109,25 +115,35 @@ export default function Dashboard() {
                           </CardDescription>
                         </CardHeader>
                         <CardContent>
-                          {item.value !== null && item.value !== undefined ? (
-                            <div>
-                              <p className="text-3xl font-bold text-primary">
-                                {formatNumber(item.value, 2)}
+                          {/* CRITICAL: Always display value, even when offline (value=0) */}
+                          {/* Parameter should remain visible with value=0 and status badge */}
+                          <div>
+                            <p className={`text-3xl font-bold ${
+                              item.status === 'online' ? 'text-primary' : 
+                              item.status === 'offline' ? 'text-muted-foreground' : 
+                              'text-destructive'
+                            }`}>
+                              {formatNumber(item.value ?? 0, 2)}
+                            </p>
+                            <div className="mt-3 pt-3 border-t border-border flex items-center justify-between">
+                              <p className="text-xs text-muted-foreground">
+                                Updated: {new Date(item.timestamp).toLocaleTimeString()}
                               </p>
-                              <div className="mt-3 pt-3 border-t border-border">
-                                <p className="text-xs text-muted-foreground">
-                                  Updated: {new Date(item.timestamp).toLocaleTimeString()}
-                                </p>
-                              </div>
+                              {/* Status badge */}
+                              <Badge 
+                                variant={item.status === 'online' ? 'default' : 'outline'}
+                                className={
+                                  item.status === 'online' ? 'bg-green-500/10 text-green-500 border-green-500/20' :
+                                  item.status === 'offline' ? 'bg-muted text-muted-foreground border-border' :
+                                  'bg-destructive/10 text-destructive border-destructive/20'
+                                }
+                              >
+                                {item.status === 'online' ? 'Online' :
+                                 item.status === 'offline' ? 'Offline' :
+                                 item.status === 'error' ? 'Error' : 'Unknown'}
+                              </Badge>
                             </div>
-                          ) : (
-                            <div className="text-destructive">
-                              <p className="text-sm font-medium">Error</p>
-                              <p className="text-xs">
-                                {item.status === 'error' ? 'Error reading data' : 'No data available'}
-                              </p>
-                            </div>
-                          )}
+                          </div>
                         </CardContent>
                       </Card>
                     ))}
