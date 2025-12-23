@@ -274,13 +274,70 @@ export function WriteConfigStep({ activeConnection, addLog, onNext, onParameterC
       return
     }
 
-    const value = param.value ? Number(param.value) : 1
-    addLog(`Executing write: ${param.parameter.nama} - Slave ${param.slaveId}, Address ${param.address}`, 'info', activeConnection.id, param.slaveId)
+    // Determine register values based on parameter configuration
+    let registerValues: number[] = []
+    
+    // Check if parameter has preset_value
+    const presetValue = (param.parameter as any).preset_value
+    if (presetValue) {
+      try {
+        // Try to parse preset_value as JSON
+        const parsed = JSON.parse(presetValue)
+        if (parsed.register_values && Array.isArray(parsed.register_values)) {
+          registerValues = parsed.register_values.map((v: any) => Math.max(0, Math.min(65535, Math.floor(Number(v)))))
+        } else if (parsed.value !== undefined) {
+          // Single scalar value
+          registerValues = [Math.max(0, Math.min(65535, Math.floor(Number(parsed.value))))]
+        } else {
+          // Fallback: use the value directly if it's a number
+          registerValues = [Math.max(0, Math.min(65535, Math.floor(Number(presetValue))))]
+        }
+      } catch {
+        // If not JSON, try to parse as number
+        const numValue = Number(presetValue)
+        if (!isNaN(numValue)) {
+          registerValues = [Math.max(0, Math.min(65535, Math.floor(numValue)))]
+        }
+      }
+    }
+    
+    // If no preset_value or parsing failed, use default based on quantity
+    if (registerValues.length === 0) {
+      // Default: fill with 1 for each register
+      registerValues = Array(param.quantity).fill(1)
+    } else if (registerValues.length !== param.quantity) {
+      // If quantity doesn't match, pad or truncate
+      if (registerValues.length < param.quantity) {
+        // Pad with last value
+        const lastValue = registerValues[registerValues.length - 1] || 1
+        while (registerValues.length < param.quantity) {
+          registerValues.push(lastValue)
+        }
+      } else {
+        // Truncate to quantity
+        registerValues = registerValues.slice(0, param.quantity)
+      }
+    }
+
+    // Ensure all values are uint16 (0-65535)
+    registerValues = registerValues.map(v => Math.max(0, Math.min(65535, Math.floor(v))))
+
+    addLog(
+      `Executing write: ${param.parameter.nama} - Slave ${param.slaveId}, Address ${param.address}, Values: [${registerValues.join(', ')}]`,
+      'info',
+      activeConnection.id,
+      param.slaveId,
+    )
 
     try {
-      const response = await writeService.execute(param.parameter.id, 'manual', undefined, [value])
+      const response = await writeService.execute(param.parameter.id, 'manual', undefined, registerValues)
       if (response.success) {
-        addLog(`Write successful: ${param.parameter.nama} - Value ${value} written`, 'success', activeConnection.id, param.slaveId)
+        addLog(
+          `Write successful: ${param.parameter.nama} - Values [${registerValues.join(', ')}] written`,
+          'success',
+          activeConnection.id,
+          param.slaveId,
+        )
       } else {
         addLog(`Write failed: ${response.error || response.message}`, 'error', activeConnection.id, param.slaveId)
       }
