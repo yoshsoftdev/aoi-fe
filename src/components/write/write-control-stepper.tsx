@@ -22,19 +22,24 @@ export function WriteControlViewStepper({
       disabled: false,
     },
     {
+      title: 'Write Configuration',
+      description: 'Configure write parameters',
+      disabled: !canProceedToStep2,
+    },
+    {
       title: 'Select OR Create Write Parameter',
       description: 'Select or create writable parameter',
-      disabled: !canProceedToStep2,
+      disabled: !canProceedToStep3,
     },
     {
       title: 'Write Value',
       description: 'Choose preset or manual',
-      disabled: !canProceedToStep3,
+      disabled: !canProceedToStep4,
     },
     {
       title: 'Execute Write',
       description: 'Review and execute',
-      disabled: !canProceedToStep4,
+      disabled: true,
     },
   ]
 

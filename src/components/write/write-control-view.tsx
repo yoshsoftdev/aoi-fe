@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { ConnectionStep } from '@/components/steps/connection-step'
+import { WriteConfigStep } from '@/components/steps/write-config-step'
 import { WriteTestStep } from '@/components/steps/write-test-step'
 import { WriteValueStep } from '@/components/steps/write-value-step'
 import { ExecuteWriteStep } from '@/components/steps/execute-write-step'
@@ -127,25 +128,33 @@ export function WriteControlView({
           )}
 
           {currentStep === 1 && activeConnection && (
-            <WriteTestStep
+            <WriteConfigStep
               activeConnection={activeConnection}
               addLog={addLog}
-              onParameterSelected={handleParameterSelected}
               onNext={() => setCurrentStep(2)}
             />
           )}
 
-          {currentStep === 2 && selectedParameter && modbusConfig && (
-            <WriteValueStep
-              parameter={selectedParameter}
-              config={modbusConfig}
+          {currentStep === 2 && activeConnection && (
+            <WriteTestStep
+              activeConnection={activeConnection}
               addLog={addLog}
-              onValueReady={handleValueReady}
+              onParameterSelected={handleParameterSelected}
               onNext={() => setCurrentStep(3)}
             />
           )}
 
           {currentStep === 3 && selectedParameter && modbusConfig && (
+            <WriteValueStep
+              parameter={selectedParameter}
+              config={modbusConfig}
+              addLog={addLog}
+              onValueReady={handleValueReady}
+              onNext={() => setCurrentStep(4)}
+            />
+          )}
+
+          {currentStep === 4 && selectedParameter && modbusConfig && (
             <ExecuteWriteStep
               parameter={selectedParameter}
               config={modbusConfig}
