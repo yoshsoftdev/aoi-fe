@@ -6,7 +6,7 @@ import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Badge } from '@/components/ui/badge'
-import { Plus, Save, Trash2, CheckCircle2, Info, Edit } from 'lucide-react'
+import { Plus, Save, Trash2, CheckCircle2, Info, Edit, AlertCircle, X } from 'lucide-react'
 import { parameterService, ParameterDeleteError } from '@/services/parameterService'
 import { modbusService } from '@/services/modbusService'
 import { writeService } from '@/services/writeService'
@@ -47,18 +47,23 @@ export function WriteConfigStep({ activeConnection, addLog, onParameterCreated }
   const [paramToDelete, setParamToDelete] = useState<ConfiguredWriteParameter | null>(null)
   const [deleteError, setDeleteError] = useState<string | null>(null)
   const [formData, setFormData] = useState({
-    name: '',
-    slaveId: 1,
-    function: 'Write Single Register' as ModbusFunction,
-    address: 0,
-    value: '',
-    writeMode: 'single' as 'single' | 'multiple',
-    writeModeType: 'DYNAMIC' as 'DYNAMIC' | 'PRESET', // DYNAMIC or PRESET
-    presetValue: '', // JSON string for PRESET mode
-    registerCount: 1,
-    dataType: 'uint16' as DataType,
-    byteOrder: 'Big Endian (AB CD)' as ByteOrder,
+    nama: '',
+    slave_id: 1,
+    function_code: 6, // Default: Write Single Register
+    register_address: 0,
+    quantity: 1,
+    data_type: 'uint16',
+    byte_order: 'ABCD',
+    test_value: '', // Value untuk test write
+    write_mode: 'DYNAMIC' as 'PRESET' | 'DYNAMIC', // Write mode: PRESET or DYNAMIC
+    preset_value: '', // JSON string for PRESET mode
   })
+  const [testWriteResult, setTestWriteResult] = useState<{
+    success: boolean
+    message: string
+  } | null>(null)
+  const [isTestingWrite, setIsTestingWrite] = useState(false)
+  const [testWritePassed, setTestWritePassed] = useState(false)
 
   // Fetch existing parameters
   const { data: allParameters = [], refetch: refetchParameters } = useQuery({
@@ -190,18 +195,19 @@ export function WriteConfigStep({ activeConnection, addLog, onParameterCreated }
       setShowForm(false)
       setEditingParam(null)
       setFormData({
-        name: '',
-        slaveId: 1,
-        function: 'Write Single Register',
-        address: 0,
-        value: '',
-        writeMode: 'single',
-        writeModeType: 'DYNAMIC',
-        presetValue: '',
-        registerCount: 1,
-        dataType: 'uint16',
-        byteOrder: 'Big Endian (AB CD)',
+        nama: '',
+        slave_id: 1,
+        function_code: 6,
+        register_address: 0,
+        quantity: 1,
+        data_type: 'uint16',
+        byte_order: 'ABCD',
+        test_value: '',
+        write_mode: 'DYNAMIC',
+        preset_value: '',
       })
+      setTestWriteResult(null)
+      setTestWritePassed(false)
     },
     onError: (error: any) => {
       addLog(`Failed to create parameter: ${error.message}`, 'error', activeConnection.id)
@@ -315,104 +321,158 @@ export function WriteConfigStep({ activeConnection, addLog, onParameterCreated }
       setShowForm(false)
       setEditingParam(null)
       setFormData({
-        name: '',
-        slaveId: 1,
-        function: 'Write Single Register',
-        address: 0,
-        value: '',
-        writeMode: 'single',
-        writeModeType: 'DYNAMIC',
-        presetValue: '',
-        registerCount: 1,
-        dataType: 'uint16',
-        byteOrder: 'Big Endian (AB CD)',
+        nama: '',
+        slave_id: 1,
+        function_code: 6,
+        register_address: 0,
+        quantity: 1,
+        data_type: 'uint16',
+        byte_order: 'ABCD',
+        test_value: '',
+        write_mode: 'DYNAMIC',
+        preset_value: '',
       })
+      setTestWriteResult(null)
+      setTestWritePassed(false)
     },
     onError: (error: any) => {
       addLog(`Failed to update parameter: ${error.message}`, 'error', activeConnection.id)
     },
   })
 
-  const handleCreate = async () => {
-    if (!formData.name) {
-      addLog('Please enter a parameter name', 'error', activeConnection.id)
+  // Test write before saving parameter
+  // Uses test write endpoint that doesn't require parameter_id (no DB save)
+  const handleTestWrite = async () => {
+    if (!formData.nama.trim()) {
+      addLog('Please enter parameter name', 'error', activeConnection.id)
       return
     }
 
-    if (formData.slaveId < 1 || formData.slaveId > 247) {
+    if (formData.slave_id < 1 || formData.slave_id > 247) {
       addLog('Invalid Slave ID. Must be between 1-247', 'error', activeConnection.id)
       return
     }
 
-    let functionCode = 6 // Write Single Register
-    if (formData.function === 'Write Multiple Registers') {
-      functionCode = 16
-    } else if (formData.function === 'Write Single Coil') {
-      functionCode = 5
+    if (!formData.test_value.trim()) {
+      addLog('Please enter a test value', 'error', activeConnection.id)
+      return
     }
 
+    if (formData.write_mode === 'PRESET' && !formData.preset_value.trim()) {
+      addLog('Preset Value is required for PRESET mode', 'error', activeConnection.id)
+      return
+    }
+
+    setIsTestingWrite(true)
+    setTestWriteResult(null)
+    setTestWritePassed(false)
+
+    // Determine parameter type from connection
     const paramType = activeConnection.protocol === 'Modbus TCP' ? 'modbus_tcp' : 'modbus_rtu'
-    const byteOrderMap: Record<string, string> = {
-      'Big Endian (AB CD)': 'ABCD',
-      'Little Endian (CD AB)': 'CDAB',
-      'Big Endian Swap (BA DC)': 'BADC',
-      'Little Endian Swap (DC BA)': 'DCBA',
+
+    try {
+      addLog('Testing write operation (no parameter saved)...', 'info', activeConnection.id)
+
+      // Parse and encode test value to register values
+      let testRegisterValues: number[] = []
+      if (formData.test_value.trim()) {
+        // Parse test value - support single value or comma-separated values for multiple registers
+        if (formData.quantity > 1) {
+          // Multiple registers: parse comma-separated values
+          const values = formData.test_value.split(',').map(v => parseFloat(v.trim())).filter(v => !isNaN(v))
+          if (values.length === formData.quantity) {
+            testRegisterValues = values.map(v => Math.round(v))
+          } else {
+            throw new Error(`Please provide ${formData.quantity} comma-separated values for ${formData.quantity} registers`)
+          }
+        } else {
+          // Single register: parse single value
+          const value = parseFloat(formData.test_value.trim())
+          if (isNaN(value)) {
+            throw new Error('Invalid test value. Please enter a valid number.')
+          }
+          testRegisterValues = [Math.round(value)]
+        }
+      } else {
+        // Default: use 0 for test
+        testRegisterValues = formData.quantity === 1 ? [0] : new Array(formData.quantity).fill(0)
+      }
+
+      // Test write using test endpoint (no parameter_id required, no DB save)
+      const testWriteConfig = {
+        device_id: parseInt(activeConnection.id, 10),
+        protocol: paramType as 'modbus_rtu' | 'modbus_tcp',
+        slave_id: formData.slave_id || 1,
+        function_code: formData.function_code || 6,
+        register_address: formData.register_address ?? 0,
+        quantity: formData.quantity || 1,
+        data_type: formData.data_type || 'uint16',
+        byte_order: formData.byte_order || 'ABCD',
+        register_values: testRegisterValues,
+      }
+      
+      // Validate required fields
+      if (testWriteConfig.register_address < 0 || testWriteConfig.register_address > 65535) {
+        throw new Error('Register address must be between 0 and 65535')
+      }
+      
+      const writeResult = await writeService.testWrite(testWriteConfig)
+
+      if (writeResult.success) {
+        setTestWriteResult({
+          success: true,
+          message: writeResult.message || 'Test write successful',
+        })
+        setTestWritePassed(true)
+        addLog(`Test write successful: ${writeResult.message}`, 'success', activeConnection.id)
+      } else {
+        throw new Error(writeResult.error || writeResult.message || 'Test write failed')
+      }
+    } catch (error: any) {
+      setTestWriteResult({
+        success: false,
+        message: error.message || 'Test write failed',
+      })
+      setTestWritePassed(false)
+      addLog(`Test write failed: ${error.message}`, 'error', activeConnection.id)
+    } finally {
+      setIsTestingWrite(false)
+    }
+  }
+
+  // Save parameter after successful test write
+  // Only called after test write is successful, creates parameter in DB
+  const handleSaveParameter = async () => {
+    if (!testWritePassed) {
+      addLog('Please test write first before saving parameter', 'error', activeConnection.id)
+      return
     }
 
     try {
-      if (editingParam) {
-        // Update existing parameter
-        await updateParameterMutation.mutateAsync({
-          parameterId: editingParam.id,
-          modbusConfigId: editingParam.modbusConfig?.id || null,
-          nama: formData.name,
-          device_id: parseInt(activeConnection.id, 10),
-          type: paramType,
-          direction: 'WRITE',
-          slave_id: formData.slaveId,
-          function_code: functionCode,
-          register_address: formData.address,
-          quantity: formData.writeMode === 'multiple' ? formData.registerCount || 1 : 1,
-          data_type: formData.dataType,
-          byte_order: byteOrderMap[formData.byteOrder] || 'ABCD',
-        })
-      } else {
-        // Validate PRESET mode
-        if (formData.writeModeType === 'PRESET' && !formData.presetValue.trim()) {
-          addLog('Preset Value is required for PRESET mode', 'error', activeConnection.id)
-          return
-        }
-        
-        if (formData.writeModeType === 'PRESET' && formData.presetValue.trim()) {
-          // Validate JSON format
-          try {
-            JSON.parse(formData.presetValue)
-          } catch (e) {
-            addLog('Preset Value must be valid JSON format', 'error', activeConnection.id)
-            return
-          }
-        }
-        
-        // Create new parameter
-        await createParameterMutation.mutateAsync({
-          nama: formData.name,
-          device_id: parseInt(activeConnection.id, 10),
-          type: paramType,
-          direction: 'WRITE',
-          slave_id: formData.slaveId,
-          function_code: functionCode,
-          register_address: formData.address,
-          quantity: formData.writeMode === 'multiple' ? formData.registerCount || 1 : 1,
-          data_type: formData.dataType,
-          byte_order: byteOrderMap[formData.byteOrder] || 'ABCD',
-          write_mode_type: formData.writeModeType,
-          preset_value: formData.writeModeType === 'PRESET' ? formData.presetValue : undefined,
-        })
-      }
+      addLog('Saving parameter to database...', 'info', activeConnection.id)
+      
+      // Determine parameter type from connection
+      const paramType: 'modbus_rtu' | 'modbus_tcp' = activeConnection.protocol === 'Modbus TCP' ? 'modbus_tcp' : 'modbus_rtu'
+
+      await createParameterMutation.mutateAsync({
+        nama: formData.nama,
+        device_id: parseInt(activeConnection.id, 10),
+        type: paramType,
+        direction: 'WRITE',
+        slave_id: formData.slave_id,
+        function_code: formData.function_code,
+        register_address: formData.register_address,
+        quantity: formData.quantity,
+        data_type: formData.data_type,
+        byte_order: formData.byte_order,
+        write_mode_type: formData.write_mode,
+        preset_value: formData.write_mode === 'PRESET' ? formData.preset_value : undefined,
+      })
     } catch (error: any) {
       // Error already handled in mutation
     }
   }
+
 
   const handleEdit = (param: ConfiguredWriteParameter) => {
     setEditingParam(param)
@@ -430,17 +490,16 @@ export function WriteConfigStep({ activeConnection, addLog, onParameterCreated }
     }
 
     setFormData({
-      name: param.parameter.nama,
-      slaveId: param.slaveId,
-      function: functionName as ModbusFunction,
-      address: param.address,
-      value: param.value?.toString() || '',
-      writeMode: param.quantity > 1 ? 'multiple' : 'single',
-      writeModeType: ((param.parameter as any).write_mode as 'DYNAMIC' | 'PRESET') || 'DYNAMIC',
-      presetValue: ((param.parameter as any).preset_value as string) || '',
-      registerCount: param.quantity,
-      dataType: param.dataType as DataType,
-      byteOrder: (byteOrderReverseMap[param.byteOrder] || 'Big Endian (AB CD)') as ByteOrder,
+      nama: param.parameter.nama,
+      slave_id: param.slaveId,
+      function_code: param.functionCode,
+      register_address: param.address,
+      quantity: param.quantity,
+      data_type: param.dataType,
+      byte_order: param.byteOrder,
+      test_value: '',
+      write_mode: ((param.parameter as any).write_mode as 'DYNAMIC' | 'PRESET') || 'DYNAMIC',
+      preset_value: ((param.parameter as any).preset_value as string) || '',
     })
     setShowForm(true)
   }
@@ -580,18 +639,19 @@ export function WriteConfigStep({ activeConnection, addLog, onParameterCreated }
           onClick={() => {
             setEditingParam(null)
             setFormData({
-              name: '',
-              slaveId: 1,
-              function: 'Write Single Register',
-              address: 0,
-              value: '',
-              writeMode: 'single',
-              writeModeType: 'DYNAMIC',
-              presetValue: '',
-              registerCount: 1,
-              dataType: 'uint16',
-              byteOrder: 'Big Endian (AB CD)',
+              nama: '',
+              slave_id: 1,
+              function_code: 6,
+              register_address: 0,
+              quantity: 1,
+              data_type: 'uint16',
+              byte_order: 'ABCD',
+              test_value: '',
+              write_mode: 'DYNAMIC',
+              preset_value: '',
             })
+            setTestWriteResult(null)
+            setTestWritePassed(false)
             setShowForm(!showForm)
           }}
           size="sm"
@@ -601,230 +661,355 @@ export function WriteConfigStep({ activeConnection, addLog, onParameterCreated }
         </Button>
       </div>
 
-      {showForm && (
+      {showForm && !editingParam && (
         <Card>
           <CardHeader>
-            <CardTitle>{editingParam ? 'Edit Write Parameter' : 'Create Write Parameter'}</CardTitle>
-            <CardDescription>Define a write operation configuration</CardDescription>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle className="text-base">Create Write Parameter</CardTitle>
+                <CardDescription>
+                  Create a new writable parameter. <strong>Test write is required</strong> before parameter can be saved.
+                </CardDescription>
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setShowForm(false)
+                  setFormData({
+                    nama: '',
+                    slave_id: 1,
+                    function_code: 6,
+                    register_address: 0,
+                    quantity: 1,
+                    data_type: 'uint16',
+                    byte_order: 'ABCD',
+                    test_value: '',
+                    write_mode: 'DYNAMIC',
+                    preset_value: '',
+                  })
+                  setTestWriteResult(null)
+                  setTestWritePassed(false)
+                }}
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="paramName">Parameter Name *</Label>
+              <Label htmlFor="param-name">Parameter Name *</Label>
               <Input
-                id="paramName"
-                value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                placeholder="e.g., Set Motor Speed, Update Temperature"
+                id="param-name"
+                value={formData.nama}
+                onChange={(e) => setFormData({ ...formData, nama: e.target.value })}
+                placeholder="e.g., Set Motor Speed, Control Relay"
               />
             </div>
 
             <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2">
-                <Label htmlFor="slaveId">Slave ID (1-247) *</Label>
+                <Label htmlFor="slave-id">Slave ID (1-247) *</Label>
                 <Input
-                  id="slaveId"
+                  id="slave-id"
                   type="number"
                   min="1"
                   max="247"
-                  value={formData.slaveId}
-                  onChange={(e) => setFormData({ ...formData, slaveId: Number.parseInt(e.target.value) || 1 })}
+                  value={formData.slave_id}
+                  onChange={(e) => setFormData({ ...formData, slave_id: parseInt(e.target.value) || 1 })}
                 />
               </div>
               <div className="space-y-2">
-                <Label>Write Function</Label>
+                <Label htmlFor="function-code">Function Code *</Label>
                 <Select
-                  value={formData.function}
-                  onValueChange={(value) => setFormData({ ...formData, function: value as ModbusFunction })}
+                  value={formData.function_code?.toString() || '6'}
+                  onValueChange={(value) => setFormData({ ...formData, function_code: parseInt(value) || 6 })}
                 >
-                  <SelectTrigger>
+                  <SelectTrigger id="function-code">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="Write Single Coil">Write Single Coil (0x05)</SelectItem>
-                    <SelectItem value="Write Single Register">Write Single Register (0x06)</SelectItem>
-                    <SelectItem value="Write Multiple Registers">Write Multiple Registers (0x10)</SelectItem>
+                    <SelectItem value="5">5 - Write Single Coil</SelectItem>
+                    <SelectItem value="6">6 - Write Single Register</SelectItem>
+                    <SelectItem value="15">15 - Write Multiple Coils</SelectItem>
+                    <SelectItem value="16">16 - Write Multiple Registers</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
             </div>
 
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="register-address">Register Address *</Label>
+                <Input
+                  id="register-address"
+                  type="number"
+                  min="0"
+                  max="65535"
+                  value={formData.register_address}
+                  onChange={(e) => setFormData({ ...formData, register_address: parseInt(e.target.value) || 0 })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="quantity">Quantity *</Label>
+                <Input
+                  id="quantity"
+                  type="number"
+                  min="1"
+                  max="100"
+                  value={formData.quantity}
+                  onChange={(e) => setFormData({ ...formData, quantity: parseInt(e.target.value) || 1 })}
+                />
+              </div>
+            </div>
+
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="data-type">Data Type *</Label>
+                <Select
+                  value={formData.data_type}
+                  onValueChange={(value) => {
+                    setFormData((prev) => {
+                      let quantity = prev.quantity
+                      if (value === 'float64') {
+                        quantity = 4
+                      } else if (value === 'float32' || value === 'int32' || value === 'uint32') {
+                        quantity = 2
+                      } else {
+                        quantity = 1
+                      }
+                      return { ...prev, data_type: value, quantity }
+                    })
+                  }}
+                >
+                  <SelectTrigger id="data-type">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="uint16">uint16 (1 register)</SelectItem>
+                    <SelectItem value="int16">int16 (1 register)</SelectItem>
+                    <SelectItem value="uint32">uint32 (2 registers)</SelectItem>
+                    <SelectItem value="int32">int32 (2 registers)</SelectItem>
+                    <SelectItem value="float32">float32 (2 registers)</SelectItem>
+                    <SelectItem value="float64">float64 (4 registers)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="byte-order">Byte Order *</Label>
+                <Select
+                  value={formData.byte_order}
+                  onValueChange={(value) => setFormData({ ...formData, byte_order: value })}
+                >
+                  <SelectTrigger id="byte-order">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="ABCD">ABCD (Big Endian)</SelectItem>
+                    <SelectItem value="DCBA">DCBA (Little Endian)</SelectItem>
+                    <SelectItem value="BADC">BADC (Byte Swap)</SelectItem>
+                    <SelectItem value="CDAB">CDAB (Word Swap)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            {/* Write Mode Selection */}
             <div className="space-y-2">
-              <Label>Register Mode</Label>
+              <Label htmlFor="write-mode">Write Mode *</Label>
               <Select
-                value={formData.writeMode}
-                onValueChange={(value: 'single' | 'multiple') => {
+                value={formData.write_mode}
+                onValueChange={(value) => {
                   setFormData({
                     ...formData,
-                    writeMode: value,
-                    function:
-                      value === 'multiple'
-                        ? 'Write Multiple Registers'
-                        : formData.function === 'Write Multiple Registers'
-                          ? 'Write Single Register'
-                          : formData.function,
+                    write_mode: value as 'PRESET' | 'DYNAMIC',
+                    preset_value: value === 'DYNAMIC' ? '' : formData.preset_value, // Clear preset_value if switching to DYNAMIC
                   })
                 }}
               >
-                <SelectTrigger>
+                <SelectTrigger id="write-mode">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="single">Single Register</SelectItem>
-                  <SelectItem value="multiple">Multiple Registers</SelectItem>
+                  <SelectItem value="PRESET">PRESET (Value stored in parameter)</SelectItem>
+                  <SelectItem value="DYNAMIC">DYNAMIC (Value provided at write time)</SelectItem>
                 </SelectContent>
               </Select>
-            </div>
-
-            <div className="space-y-2">
-              <Label>Write Mode Type *</Label>
-              <div className="flex space-x-6">
-                <label className="flex items-center cursor-pointer">
-                  <input
-                    type="radio"
-                    name="writeModeType"
-                    checked={formData.writeModeType === 'PRESET'}
-                    onChange={() => setFormData({ ...formData, writeModeType: 'PRESET' })}
-                    className="mr-2 w-4 h-4 text-blue-600 border-gray-300 focus:ring-blue-500"
-                  />
-                  <span className="text-gray-700 font-medium">PRESET</span>
-                  <span className="text-xs text-gray-500 ml-2">- Value stored in parameter</span>
-                </label>
-                <label className="flex items-center cursor-pointer">
-                  <input
-                    type="radio"
-                    name="writeModeType"
-                    checked={formData.writeModeType === 'DYNAMIC'}
-                    onChange={() => setFormData({ ...formData, writeModeType: 'DYNAMIC', presetValue: '' })}
-                    className="mr-2 w-4 h-4 text-blue-600 border-gray-300 focus:ring-blue-500"
-                  />
-                  <span className="text-gray-700 font-medium">DYNAMIC</span>
-                  <span className="text-xs text-gray-500 ml-2">- Value provided at write time</span>
-                </label>
-              </div>
-              <p className="text-xs text-gray-500 mt-1">
-                PRESET: Value is stored in parameter (workflow triggers without sending value). 
-                DYNAMIC: Value must be provided when writing (workflow sends value).
+              <p className="text-xs text-muted-foreground">
+                PRESET: Value stored in parameter (used by Workflow trigger). DYNAMIC: Value provided when writing (used by Workflow with value or Manual write).
               </p>
             </div>
 
-            {formData.writeModeType === 'PRESET' && (
+            {/* Preset Value Field (only for PRESET mode) */}
+            {formData.write_mode === 'PRESET' && (
               <div className="space-y-2">
-                <Label htmlFor="presetValue">Preset Value * (JSON format)</Label>
+                <Label htmlFor="preset-value">Preset Value * (JSON format)</Label>
                 <Input
-                  id="presetValue"
-                  value={formData.presetValue}
-                  onChange={(e) => setFormData({ ...formData, presetValue: e.target.value })}
-                  placeholder='e.g., {"value": 100} or {"register_values": [100, 200]}'
+                  id="preset-value"
+                  type="text"
+                  value={formData.preset_value}
+                  onChange={(e) => setFormData({ ...formData, preset_value: e.target.value })}
+                  placeholder={
+                    formData.quantity > 1
+                      ? `{"register_values": [1, 1, 1, 1]} (for ${formData.quantity} registers)`
+                      : '{"value": 1} (single value)'
+                  }
+                  className="font-mono text-sm"
                 />
-                <p className="text-xs text-gray-500">
-                  For single register: {"{"}"value": 100{"}"}. For multiple registers: {"{"}"register_values": [100, 200, 300]{"]"}
+                <p className="text-xs text-muted-foreground">
+                  JSON format: {"{"}"value": 1{"}"} for single value, or {"{"}"register_values": [1, 1, 1, 1]{"}"} for multiple registers.
+                  This value will be used when workflow triggers this parameter.
                 </p>
               </div>
             )}
 
-            {formData.writeMode === 'multiple' && (
-              <div className="space-y-2">
-                <Label htmlFor="registerCount">Number of Registers</Label>
-                <Input
-                  id="registerCount"
-                  type="number"
-                  min="1"
-                  max="100"
-                  value={formData.registerCount}
-                  onChange={(e) => setFormData({ ...formData, registerCount: Number.parseInt(e.target.value) || 1 })}
-                />
+            {/* Test Value Field */}
+            <div className="space-y-2">
+              <Label htmlFor="test-value">
+                Test Value * {formData.quantity > 1 && `(Enter ${formData.quantity} comma-separated values)`}
+              </Label>
+              <Input
+                id="test-value"
+                type="text"
+                value={formData.test_value}
+                onChange={(e) => setFormData({ ...formData, test_value: e.target.value })}
+                placeholder={
+                  formData.quantity > 1
+                    ? `e.g., 100, 200, 300 (for ${formData.quantity} registers)`
+                    : 'e.g., 100 (single register value)'
+                }
+              />
+              <p className="text-xs text-muted-foreground">
+                Enter the value(s) to test write. For multiple registers, use comma-separated values.
+              </p>
+            </div>
+
+            {/* Test Write Result */}
+            {testWriteResult && (
+              <div
+                className={`rounded-lg border p-4 ${
+                  testWriteResult.success
+                    ? 'border-green-500 bg-green-50 dark:bg-green-950 text-green-900 dark:text-green-100'
+                    : 'border-red-500 bg-red-50 dark:bg-red-950 text-red-900 dark:text-red-100'
+                }`}
+              >
+                <div className="flex items-start gap-2">
+                  {testWriteResult.success ? (
+                    <Info className="h-5 w-5 mt-0.5 flex-shrink-0" />
+                  ) : (
+                    <AlertCircle className="h-5 w-5 mt-0.5 flex-shrink-0" />
+                  )}
+                  <div className="flex-1">
+                    <p className="text-sm font-medium">
+                      {testWriteResult.success ? 'Test Write Successful' : 'Test Write Failed'}
+                    </p>
+                    <p className="text-xs mt-1">{testWriteResult.message}</p>
+                    {testWriteResult.success && (
+                      <p className="text-xs mt-2 font-medium">
+                        Test write successful! Click "Save Parameter" to confirm and save the parameter.
+                      </p>
+                    )}
+                  </div>
+                </div>
               </div>
             )}
 
-            <div className="grid gap-4 md:grid-cols-2">
-              <div className="space-y-2">
-                <Label>Starting Address</Label>
-                <Input
-                  type="number"
-                  min="0"
-                  max="65535"
-                  value={formData.address}
-                  onChange={(e) => setFormData({ ...formData, address: Number.parseInt(e.target.value) || 0 })}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>
-                  Value{formData.writeMode === 'multiple' ? 's' : ''} *
-                  {formData.writeMode === 'multiple' && (
-                    <span className="text-xs text-muted-foreground ml-1">(comma-separated, e.g., 100, 200, 300)</span>
-                  )}
-                </Label>
-                <Input
-                  value={formData.value}
-                  onChange={(e) => setFormData({ ...formData, value: e.target.value })}
-                  placeholder={formData.writeMode === 'multiple' ? 'e.g., 100, 200, 300' : 'Enter value to write'}
-                />
-              </div>
-            </div>
-
-            <div className="grid gap-4 md:grid-cols-2">
-              <div className="space-y-2">
-                <Label>Data Type</Label>
-                <Select
-                  value={formData.dataType}
-                  onValueChange={(value) => setFormData({ ...formData, dataType: value as DataType })}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="uint16">UINT16</SelectItem>
-                    <SelectItem value="int16">INT16</SelectItem>
-                    <SelectItem value="uint32">UINT32</SelectItem>
-                    <SelectItem value="int32">INT32</SelectItem>
-                    <SelectItem value="float32">FLOAT32</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label>Byte Order</Label>
-                <Select
-                  value={formData.byteOrder}
-                  onValueChange={(value) => setFormData({ ...formData, byteOrder: value as ByteOrder })}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Big Endian (AB CD)">Big Endian (AB CD)</SelectItem>
-                    <SelectItem value="Little Endian (CD AB)">Little Endian (CD AB)</SelectItem>
-                    <SelectItem value="Big Endian Swap (BA DC)">Big Endian Swap (BA DC)</SelectItem>
-                    <SelectItem value="Little Endian Swap (DC BA)">Little Endian Swap (DC BA)</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-
             <div className="flex gap-2">
-              <Button
-                onClick={handleCreate}
-                className="flex-1"
-                disabled={createParameterMutation.isPending || updateParameterMutation.isPending}
-              >
-                <Save className="h-4 w-4 mr-2" />
-                {createParameterMutation.isPending || updateParameterMutation.isPending
-                  ? editingParam
-                    ? 'Updating...'
-                    : 'Creating...'
-                  : editingParam
-                    ? 'Update Parameter'
-                    : 'Create Parameter'}
-              </Button>
-              <Button
-                onClick={() => {
-                  setShowForm(false)
-                  setEditingParam(null)
-                }}
-                variant="outline"
-              >
-                Cancel
-              </Button>
+              {!testWritePassed ? (
+                <>
+                  <Button
+                    onClick={handleTestWrite}
+                    disabled={
+                      isTestingWrite ||
+                      !formData.nama.trim() ||
+                      !formData.test_value.trim() ||
+                      (formData.write_mode === 'PRESET' && !formData.preset_value.trim())
+                    }
+                    className="flex-1"
+                  >
+                    {isTestingWrite ? 'Testing Write...' : 'Test Write'}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setShowForm(false)
+                      setFormData({
+                        nama: '',
+                        slave_id: 1,
+                        function_code: 6,
+                        register_address: 0,
+                        quantity: 1,
+                        data_type: 'uint16',
+                        byte_order: 'ABCD',
+                        test_value: '',
+                        write_mode: 'DYNAMIC',
+                        preset_value: '',
+                      })
+                      setTestWriteResult(null)
+                      setTestWritePassed(false)
+                    }}
+                    disabled={isTestingWrite}
+                  >
+                    Cancel
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <Button
+                    onClick={handleSaveParameter}
+                    className="flex-1"
+                    variant="default"
+                  >
+                    Save Parameter
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setShowForm(false)
+                      setFormData({
+                        nama: '',
+                        slave_id: 1,
+                        function_code: 6,
+                        register_address: 0,
+                        quantity: 1,
+                        data_type: 'uint16',
+                        byte_order: 'ABCD',
+                        test_value: '',
+                        write_mode: 'DYNAMIC',
+                        preset_value: '',
+                      })
+                      setTestWriteResult(null)
+                      setTestWritePassed(false)
+                    }}
+                  >
+                    Cancel
+                  </Button>
+                </>
+              )}
             </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Edit Form (for existing parameters) */}
+      {showForm && editingParam && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Edit Write Parameter</CardTitle>
+            <CardDescription>Update write parameter configuration</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {/* Edit form will be implemented separately if needed */}
+            <p className="text-sm text-muted-foreground">Edit functionality will be implemented here</p>
+            <Button
+              onClick={() => {
+                setShowForm(false)
+                setEditingParam(null)
+              }}
+              variant="outline"
+            >
+              Cancel
+            </Button>
           </CardContent>
         </Card>
       )}
