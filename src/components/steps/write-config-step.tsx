@@ -53,6 +53,8 @@ export function WriteConfigStep({ activeConnection, addLog, onParameterCreated }
     address: 0,
     value: '',
     writeMode: 'single' as 'single' | 'multiple',
+    writeModeType: 'DYNAMIC' as 'DYNAMIC' | 'PRESET', // DYNAMIC or PRESET
+    presetValue: '', // JSON string for PRESET mode
     registerCount: 1,
     dataType: 'uint16' as DataType,
     byteOrder: 'Big Endian (AB CD)' as ByteOrder,
@@ -117,12 +119,14 @@ export function WriteConfigStep({ activeConnection, addLog, onParameterCreated }
       quantity: number
       data_type: string
       byte_order: string
+      write_mode_type?: 'DYNAMIC' | 'PRESET'
+      preset_value?: string
     }) => {
       const direction: 'READ' | 'WRITE' = data.direction === 'READ' || data.direction === 'WRITE' ? data.direction : 'WRITE'
       const type: 'modbus_rtu' | 'modbus_tcp' =
         data.type === 'modbus_rtu' || data.type === 'modbus_tcp' ? data.type : 'modbus_rtu'
 
-      // Set default write_mode for WRITE parameters
+      // Set write_mode for WRITE parameters
       const createData: any = {
         nama: data.nama,
         device_id: data.device_id,
@@ -133,7 +137,18 @@ export function WriteConfigStep({ activeConnection, addLog, onParameterCreated }
       
       // WRITE parameters must have write_mode set
       if (direction === 'WRITE') {
-        createData.write_mode = 'DYNAMIC' // Default to DYNAMIC for new parameters
+        createData.write_mode = data.write_mode_type || 'DYNAMIC'
+        
+        // Add preset_value if PRESET mode
+        if (createData.write_mode === 'PRESET' && data.preset_value) {
+          // Validate JSON format
+          try {
+            JSON.parse(data.preset_value)
+            createData.preset_value = data.preset_value
+          } catch (e) {
+            throw new Error('Preset Value must be valid JSON format')
+          }
+        }
       }
       
       const param = await parameterService.create(createData)
@@ -181,6 +196,8 @@ export function WriteConfigStep({ activeConnection, addLog, onParameterCreated }
         address: 0,
         value: '',
         writeMode: 'single',
+        writeModeType: 'DYNAMIC',
+        presetValue: '',
         registerCount: 1,
         dataType: 'uint16',
         byteOrder: 'Big Endian (AB CD)',
@@ -304,6 +321,8 @@ export function WriteConfigStep({ activeConnection, addLog, onParameterCreated }
         address: 0,
         value: '',
         writeMode: 'single',
+        writeModeType: 'DYNAMIC',
+        presetValue: '',
         registerCount: 1,
         dataType: 'uint16',
         byteOrder: 'Big Endian (AB CD)',
@@ -358,6 +377,22 @@ export function WriteConfigStep({ activeConnection, addLog, onParameterCreated }
           byte_order: byteOrderMap[formData.byteOrder] || 'ABCD',
         })
       } else {
+        // Validate PRESET mode
+        if (formData.writeModeType === 'PRESET' && !formData.presetValue.trim()) {
+          addLog('Preset Value is required for PRESET mode', 'error', activeConnection.id)
+          return
+        }
+        
+        if (formData.writeModeType === 'PRESET' && formData.presetValue.trim()) {
+          // Validate JSON format
+          try {
+            JSON.parse(formData.presetValue)
+          } catch (e) {
+            addLog('Preset Value must be valid JSON format', 'error', activeConnection.id)
+            return
+          }
+        }
+        
         // Create new parameter
         await createParameterMutation.mutateAsync({
           nama: formData.name,
@@ -370,6 +405,8 @@ export function WriteConfigStep({ activeConnection, addLog, onParameterCreated }
           quantity: formData.writeMode === 'multiple' ? formData.registerCount || 1 : 1,
           data_type: formData.dataType,
           byte_order: byteOrderMap[formData.byteOrder] || 'ABCD',
+          write_mode_type: formData.writeModeType,
+          preset_value: formData.writeModeType === 'PRESET' ? formData.presetValue : undefined,
         })
       }
     } catch (error: any) {
@@ -399,6 +436,8 @@ export function WriteConfigStep({ activeConnection, addLog, onParameterCreated }
       address: param.address,
       value: param.value?.toString() || '',
       writeMode: param.quantity > 1 ? 'multiple' : 'single',
+      writeModeType: ((param.parameter as any).write_mode as 'DYNAMIC' | 'PRESET') || 'DYNAMIC',
+      presetValue: ((param.parameter as any).preset_value as string) || '',
       registerCount: param.quantity,
       dataType: param.dataType as DataType,
       byteOrder: (byteOrderReverseMap[param.byteOrder] || 'Big Endian (AB CD)') as ByteOrder,
@@ -547,6 +586,8 @@ export function WriteConfigStep({ activeConnection, addLog, onParameterCreated }
               address: 0,
               value: '',
               writeMode: 'single',
+              writeModeType: 'DYNAMIC',
+              presetValue: '',
               registerCount: 1,
               dataType: 'uint16',
               byteOrder: 'Big Endian (AB CD)',
@@ -608,7 +649,7 @@ export function WriteConfigStep({ activeConnection, addLog, onParameterCreated }
             </div>
 
             <div className="space-y-2">
-              <Label>Write Mode</Label>
+              <Label>Register Mode</Label>
               <Select
                 value={formData.writeMode}
                 onValueChange={(value: 'single' | 'multiple') => {
@@ -633,6 +674,53 @@ export function WriteConfigStep({ activeConnection, addLog, onParameterCreated }
                 </SelectContent>
               </Select>
             </div>
+
+            <div className="space-y-2">
+              <Label>Write Mode Type *</Label>
+              <div className="flex space-x-6">
+                <label className="flex items-center cursor-pointer">
+                  <input
+                    type="radio"
+                    name="writeModeType"
+                    checked={formData.writeModeType === 'PRESET'}
+                    onChange={() => setFormData({ ...formData, writeModeType: 'PRESET' })}
+                    className="mr-2 w-4 h-4 text-blue-600 border-gray-300 focus:ring-blue-500"
+                  />
+                  <span className="text-gray-700 font-medium">PRESET</span>
+                  <span className="text-xs text-gray-500 ml-2">- Value stored in parameter</span>
+                </label>
+                <label className="flex items-center cursor-pointer">
+                  <input
+                    type="radio"
+                    name="writeModeType"
+                    checked={formData.writeModeType === 'DYNAMIC'}
+                    onChange={() => setFormData({ ...formData, writeModeType: 'DYNAMIC', presetValue: '' })}
+                    className="mr-2 w-4 h-4 text-blue-600 border-gray-300 focus:ring-blue-500"
+                  />
+                  <span className="text-gray-700 font-medium">DYNAMIC</span>
+                  <span className="text-xs text-gray-500 ml-2">- Value provided at write time</span>
+                </label>
+              </div>
+              <p className="text-xs text-gray-500 mt-1">
+                PRESET: Value is stored in parameter (workflow triggers without sending value). 
+                DYNAMIC: Value must be provided when writing (workflow sends value).
+              </p>
+            </div>
+
+            {formData.writeModeType === 'PRESET' && (
+              <div className="space-y-2">
+                <Label htmlFor="presetValue">Preset Value * (JSON format)</Label>
+                <Input
+                  id="presetValue"
+                  value={formData.presetValue}
+                  onChange={(e) => setFormData({ ...formData, presetValue: e.target.value })}
+                  placeholder='e.g., {"value": 100} or {"register_values": [100, 200]}'
+                />
+                <p className="text-xs text-gray-500">
+                  For single register: {"{"}"value": 100{"}"}. For multiple registers: {"{"}"register_values": [100, 200, 300]{"]"}
+                </p>
+              </div>
+            )}
 
             {formData.writeMode === 'multiple' && (
               <div className="space-y-2">
