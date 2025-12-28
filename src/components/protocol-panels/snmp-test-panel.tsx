@@ -7,12 +7,21 @@ import { Download, Upload } from 'lucide-react'
 import type { Connection } from '@/types'
 import { testConnectionService } from '@/services/testConnectionService'
 
+import type { RawDataField } from '@/types'
+
 interface SNMPTestPanelProps {
   connection: Connection
   addLog: (message: string, type?: 'info' | 'error' | 'success') => void
+  onRawDataReceived?: (
+    data: RawDataField[],
+    config?: {
+      oid?: string
+    }
+  ) => void
+  onTestResult?: (result: string) => void
 }
 
-export function SNMPTestPanel({ connection, addLog }: SNMPTestPanelProps) {
+export function SNMPTestPanel({ connection, addLog, onRawDataReceived, onTestResult }: SNMPTestPanelProps) {
   const [oid, setOid] = useState('1.3.6.1.2.1.1.1.0')
   const [setValue, setSetValue] = useState('')
   const [response, setResponse] = useState<string | null>(null)
@@ -41,10 +50,34 @@ export function SNMPTestPanel({ connection, addLog }: SNMPTestPanelProps) {
         const responseText = `OID: ${oid}\nValue: ${result.raw_value}\nMessage: ${result.message}\nTimestamp: ${new Date().toISOString()}`
         setResponse(responseText)
         addLog(`SNMP GET successful: ${result.raw_value}`, 'success')
+        
+        // Set test result for button visibility
+        if (onTestResult) {
+          onTestResult(responseText)
+        }
+        
+        // Pass raw data to parent for data mapping
+        if (onRawDataReceived) {
+          const rawDataFields: RawDataField[] = [
+            {
+              id: `${connection.id}-${oid}`,
+              name: `OID ${oid}`,
+              value: typeof result.raw_value === 'number' ? result.raw_value : parseFloat(String(result.raw_value)) || 0,
+              timestamp: new Date(),
+              source: `${connection.name} (OID: ${oid})`,
+            }
+          ]
+          onRawDataReceived(rawDataFields, { oid })
+        }
       } else {
         const errorMsg = `${result.message}${result.details ? ` - ${result.details}` : ''}`
         setResponse(`Error: ${errorMsg}`)
         addLog(`SNMP GET failed: ${errorMsg}`, 'error')
+        
+        // Set error result
+        if (onTestResult) {
+          onTestResult(`Error: ${errorMsg}`)
+        }
       }
     } catch (error: any) {
       const errorMessage = error.response?.data?.error || error.message || 'Unknown error'

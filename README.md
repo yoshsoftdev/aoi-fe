@@ -19,8 +19,8 @@ npm install
 
 2. Create `.env` file:
 ```env
-VITE_API_URL=http://localhost:8080/api/v1
-VITE_WS_URL=ws://localhost:8080/api/v1/ws
+VITE_API_URL=http://192.168.113.145:8071/api/v1
+VITE_WS_URL=ws://192.168.113.145:8071/api/v1/ws
 ```
 
 3. Run development server:

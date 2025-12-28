@@ -44,6 +44,10 @@ export interface SaveMappingResponse {
     koneksi_id: number
     koneksi_name: string
     parameters_count: number
+    clean_parameters: Array<{
+      id: number
+      nama: string
+    }>
   }
   message: string
 }
