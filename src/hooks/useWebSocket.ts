@@ -19,14 +19,14 @@ const getWebSocketURL = (): string => {
   // Check both MODE and DEV/PROD flags
   const isProduction = import.meta.env.MODE === 'production' || 
                        import.meta.env.PROD === true ||
-                       (!import.meta.env.DEV && window.location.hostname !== '192.168.113.145')
+                       (!import.meta.env.DEV && window.location.hostname !== 'localhost')
   
   if (isProduction) {
     return `${protocol}//${host}/api/v1/ws`
   }
   
   // Development fallback
-  return 'ws://192.168.113.145:8071/api/v1/ws'
+  return 'ws://localhost:8071/api/v1/ws'
 }
 
 const WS_URL = getWebSocketURL()

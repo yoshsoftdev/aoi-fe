@@ -2,7 +2,7 @@ import axios from 'axios'
 
 // Detect if running in production (embedded) or development
 // In production, use relative path since frontend and backend are on same server
-// In development, use environment variable or default 192.168.113.145
+// In development, use environment variable or default localhost
 const getApiBaseURL = (): string => {
   // Check if VITE_API_URL is explicitly set (development)
   if (import.meta.env.VITE_API_URL && import.meta.env.VITE_API_URL !== '') {
@@ -14,14 +14,14 @@ const getApiBaseURL = (): string => {
   // Check both MODE and DEV/PROD flags
   const isProduction = import.meta.env.MODE === 'production' || 
                        import.meta.env.PROD === true ||
-                       (!import.meta.env.DEV && window.location.hostname !== '192.168.113.145')
+                       (!import.meta.env.DEV && window.location.hostname !== 'localhost')
   
   if (isProduction) {
     return '/api/v1'
   }
   
   // Development fallback
-  return 'http://192.168.113.145:8071/api/v1'
+  return 'http://localhost:8071/api/v1'
 }
 
 const API_BASE_URL = getApiBaseURL()

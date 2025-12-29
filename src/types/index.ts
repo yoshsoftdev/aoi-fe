@@ -92,9 +92,10 @@ export type OperationType = 'add' | 'subtract' | 'multiply' | 'divide' | 'merge'
 export interface RawDataField {
   id: string
   name: string
-  value: number
+  value: number | string // Can be number or string (for SNMP string values)
   timestamp: Date
   source: string // e.g., "Slave 1, Address 100"
+  type?: 'string' | 'numeric' // Type of value (for SNMP string detection)
 }
 
 export interface MappingConfig {
