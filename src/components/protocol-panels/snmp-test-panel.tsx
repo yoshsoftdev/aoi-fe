@@ -40,7 +40,7 @@ export function SNMPTestPanel({ connection, addLog, onRawDataReceived, onTestRes
         config: {
           ip_address: config.host,
           port: config.port || 161,
-          community: config.community || 'public',
+          community: config.community || '', // Use community from config, don't default to 'public'
           version: config.version || 'v2c',
           oid: oid,
         },

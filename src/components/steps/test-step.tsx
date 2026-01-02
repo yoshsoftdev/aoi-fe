@@ -167,11 +167,12 @@ export function TestStep({ activeConnection, addLog, onRawDataReceived, onNext }
           byte_order: byteOrder,
           data_type: testData.dataType === 'float' ? 'float32' : testData.dataType,
         }
-      } else if (activeConnection.protocol === 'SNMP' && 'host' in activeConnection.config && 'community' in activeConnection.config && 'version' in activeConnection.config) {
+      } else if (activeConnection.protocol === 'SNMP' && 'host' in activeConnection.config && 'version' in activeConnection.config) {
+        // Community is required, but don't default to 'public' - use what's in config or empty
         config = {
           ip_address: activeConnection.config.host,
           port: activeConnection.config.port || 161,
-          community: activeConnection.config.community || 'public',
+          community: activeConnection.config.community || '', // Use empty if not provided, backend will validate
           version: activeConnection.config.version || 'v2c',
           oid: '1.3.6.1.2.1.1.1.0', // Default OID for test
         }
