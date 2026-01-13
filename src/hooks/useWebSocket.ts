@@ -208,7 +208,68 @@ export const useWebSocket = () => {
         return
       }
       
-      if (message.type === 'data_update' && message.data) {
+      // Handle batch updates (optimized for many parameters)
+      // Format: {"batch":true,"data":{"count":N,"updates":[...]},"type":"data_update_batch"}
+      if (message.type === 'data_update_batch' && message.batch === true && message.data) {
+        const batchData = message.data as { updates?: DashboardData[]; count?: number }
+        const updates = batchData.updates || []
+        
+        if (updates.length === 0) {
+          return
+        }
+        
+        console.log(`[WebSocket] Received batch update: ${updates.length} parameters`)
+        
+        setData(prev => {
+          const newMap = new Map(prev)
+          
+          // Process all updates in batch
+          updates.forEach((dashboardData: DashboardData) => {
+            // Ensure parameter_id exists
+            if (!dashboardData.parameter_id) {
+              console.warn('[WebSocket] Received batch update without parameter_id, skipping')
+              return
+            }
+            
+            // Ensure parameter_nama is not empty
+            if (!dashboardData.parameter_nama || dashboardData.parameter_nama === '') {
+              dashboardData.parameter_nama = `Parameter ${dashboardData.parameter_id}`
+            }
+            
+            // Ensure device_nama is not empty
+            if (!dashboardData.device_nama || dashboardData.device_nama === '') {
+              dashboardData.device_nama = 'All Devices'
+            }
+            
+            // Ensure value is never null/undefined (default to 0)
+            if (dashboardData.value === null || dashboardData.value === undefined) {
+              dashboardData.value = 0
+            }
+            
+            // Ensure status is never empty (default to offline)
+            if (!dashboardData.status || dashboardData.status === '') {
+              dashboardData.status = 'offline'
+            }
+            
+            // Ensure timestamp is string format
+            const timestampStr = typeof dashboardData.timestamp === 'string' 
+              ? dashboardData.timestamp 
+              : new Date(dashboardData.timestamp).toISOString()
+            
+            // Use parameter_id as key (more reliable than name)
+            const key = `param_${dashboardData.parameter_id}`
+            // CRITICAL: Always update, never remove parameter from Map
+            newMap.set(key, {
+              ...dashboardData,
+              timestamp: timestampStr,
+            })
+          })
+          
+          return newMap
+        })
+      } else if (message.type === 'data_update' && message.data && message.batch !== true) {
+        // Handle single update
+        // Format: {"data":{...},"type":"data_update"}
         // Backend sends DashboardData format with device_nama and parameter_nama
         const dashboardData: DashboardData = message.data
         
