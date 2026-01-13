@@ -197,9 +197,8 @@ export default function ParameterForm({ mode = 'create', paramId = null, queryPa
           preparedConfig.description = configData.description
         }
         if (createdParam.type === 'snmp') {
-          if (configData.community) {
-            preparedConfig.community = configData.community
-          }
+          // Community is required for SNMP, always include it
+          preparedConfig.community = configData.community || ''
           if (configData.oid) {
             preparedConfig.oid = configData.oid
           }
@@ -1142,7 +1141,7 @@ export default function ParameterForm({ mode = 'create', paramId = null, queryPa
                   value={configData.community || ''}
                   onChange={(e) => setConfigData({ ...configData, community: e.target.value })}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="public"
+                  placeholder="public (or your custom community)"
                 />
               </div>
               <div className="col-span-2">

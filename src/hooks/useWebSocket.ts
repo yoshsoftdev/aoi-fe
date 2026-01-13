@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { DashboardData } from '@/types'
 import { parameterService } from '@/services/parameterService'
+import { snapsService } from '@/services/snapsService'
 import type { Parameter } from '@/types/parameter'
 import { useToast } from '@/contexts/ToastContext'
 
@@ -26,7 +27,7 @@ const getWebSocketURL = (): string => {
   }
   
   // Development fallback
-  return 'ws://localhost:8080/api/v1/ws'
+  return 'ws://localhost:8071/api/v1/ws'
 }
 
 const WS_URL = getWebSocketURL()
@@ -44,73 +45,130 @@ export const useWebSocket = () => {
   const initializedRef = useRef(false)
   const { showToast } = useToast()
 
-  // CRITICAL: Load parameter list from API to initialize dashboard
-  // This ensures parameters remain visible even when device is offline
+  // CRITICAL: Load snapshot from cache first, then load parameter list as fallback
+  // This ensures parameters have values immediately without waiting for WebSocket
   // Using useEffect + fetch directly to avoid dependency on QueryClientProvider
   useEffect(() => {
     if (initializedRef.current) return // Already initialized
     
-    const loadParameters = async () => {
+    const loadInitialData = async () => {
       try {
-        const allParameters = await parameterService.getAll()
-        
-        if (allParameters.length === 0) {
-          console.log('[WebSocket] No parameters found in database')
-          return
-        }
-        
-        const initialData = new Map<string, DashboardData>()
-        
-        allParameters.forEach((param: Parameter) => {
-          // Only include READ parameters with DIRECT, CLEAN, or FORMULA mode
-          const isRead = param.direction === 'READ' || (param.direction === undefined && !param.read_write)
-          if (!isRead) return
+        // Step 1: Fetch snapshot from cache (contains current values)
+        let snapshotData: Map<string, DashboardData> = new Map()
+        try {
+          const snaps = await snapsService.getAll()
+          console.log(`[WebSocket] Loaded ${snaps.length} parameter snapshots from cache`)
           
-          const paramMode = (param as any).parameter_mode || (param as any).parameterMode
-          const isFormula = (param as any).is_formula === true || (param as any).isFormula === true
-          
-          // Include DIRECT, CLEAN, FORMULA parameters
-          const shouldInclude = paramMode === 'DIRECT' || 
-                               paramMode === 'CLEAN' || 
-                               paramMode === 'FORMULA' || 
-                               isFormula ||
-                               (!paramMode && !isFormula) // Default to DIRECT for backward compatibility
-          
-          if (shouldInclude) {
-            const key = `param_${param.id}`
-            // Get device name from device relation (preloaded by backend)
-            let deviceNama = 'All Devices'
-            if (param.device) {
-              // Device relation is preloaded by backend
-              deviceNama = (param.device as any).nama || `Device ${param.device_id}` || 'All Devices'
-            } else if (param.device_id) {
-              // Fallback: use device_id if device relation not loaded
-              deviceNama = `Device ${param.device_id}`
+          snaps.forEach((snap) => {
+            const key = `param_${snap.parameter_id}`
+            // Convert value to number, default to 0 if null/undefined
+            let value = 0
+            if (snap.value !== null && snap.value !== undefined) {
+              if (typeof snap.value === 'number') {
+                value = snap.value
+              } else if (typeof snap.value === 'string') {
+                const numValue = parseFloat(snap.value)
+                value = isNaN(numValue) ? 0 : numValue
+              } else {
+                value = Number(snap.value) || 0
+              }
             }
             
-            // Initialize with default values (will be updated by WebSocket)
-            // CRITICAL: Parameter remains visible even when device is offline
-            initialData.set(key, {
-              parameter_id: param.id,
-              device_nama: deviceNama,
-              parameter_nama: param.nama || `Parameter ${param.id}`,
-              value: 0, // Default to 0 until WebSocket updates
-              timestamp: new Date().toISOString(),
-              status: 'offline', // Default to offline until WebSocket confirms online
+            snapshotData.set(key, {
+              parameter_id: snap.parameter_id,
+              device_nama: snap.device_nama || 'All Devices',
+              parameter_nama: snap.parameter_nama || `Parameter ${snap.parameter_id}`,
+              value: value,
+              timestamp: snap.timestamp || new Date().toISOString(),
+              status: snap.status || 'offline',
             })
-          }
-        })
+          })
+          
+          console.log(`[WebSocket] Initialized ${snapshotData.size} parameters from snapshot cache`)
+        } catch (snapError) {
+          console.warn('[WebSocket] Failed to load snapshot from cache, falling back to parameter list:', snapError)
+        }
         
-        setData(initialData)
+        // Step 2: Load parameter list from API as fallback/backup
+        // This ensures parameters remain visible even when device is offline
+        try {
+          const allParameters = await parameterService.getAll()
+          
+          if (allParameters.length === 0) {
+            console.log('[WebSocket] No parameters found in database')
+            // If we have snapshot data, use it; otherwise set empty map
+            if (snapshotData.size > 0) {
+              setData(snapshotData)
+              initializedRef.current = true
+            }
+            return
+          }
+          
+          // Merge parameter list with snapshot data
+          // Parameters from snapshot take precedence (they have values)
+          allParameters.forEach((param: Parameter) => {
+            // Only include READ parameters with DIRECT, CLEAN, or FORMULA mode
+            const isRead = param.direction === 'READ' || (param.direction === undefined && !param.read_write)
+            if (!isRead) return
+            
+            const paramMode = (param as any).parameter_mode || (param as any).parameterMode
+            const isFormula = (param as any).is_formula === true || (param as any).isFormula === true
+            
+            // Include DIRECT, CLEAN, FORMULA parameters
+            const shouldInclude = paramMode === 'DIRECT' || 
+                                 paramMode === 'CLEAN' || 
+                                 paramMode === 'FORMULA' || 
+                                 isFormula ||
+                                 (!paramMode && !isFormula) // Default to DIRECT for backward compatibility
+            
+            if (shouldInclude) {
+              const key = `param_${param.id}`
+              
+              // Only add if not already in snapshot data
+              if (!snapshotData.has(key)) {
+                // Get device name from device relation (preloaded by backend)
+                let deviceNama = 'All Devices'
+                if (param.device) {
+                  // Device relation is preloaded by backend
+                  deviceNama = (param.device as any).nama || `Device ${param.device_id}` || 'All Devices'
+                } else if (param.device_id) {
+                  // Fallback: use device_id if device relation not loaded
+                  deviceNama = `Device ${param.device_id}`
+                }
+                
+                // Initialize with default values (will be updated by WebSocket)
+                // CRITICAL: Parameter remains visible even when device is offline
+                snapshotData.set(key, {
+                  parameter_id: param.id,
+                  device_nama: deviceNama,
+                  parameter_nama: param.nama || `Parameter ${param.id}`,
+                  value: 0, // Default to 0 until WebSocket updates
+                  timestamp: new Date().toISOString(),
+                  status: 'offline', // Default to offline until WebSocket confirms online
+                })
+              }
+            }
+          })
+          
+          console.log(`[WebSocket] Merged parameter list: total ${snapshotData.size} parameters initialized`)
+        } catch (paramError) {
+          console.error('[WebSocket] Failed to load parameters from API:', paramError)
+          // If we have snapshot data, still use it
+          if (snapshotData.size > 0) {
+            console.log('[WebSocket] Using snapshot data only due to parameter load failure')
+          }
+        }
+        
+        setData(snapshotData)
         initializedRef.current = true
-        console.log(`[WebSocket] Initialized ${initialData.size} parameters from API`)
+        console.log(`[WebSocket] Final initialization: ${snapshotData.size} parameters ready`)
       } catch (error) {
-        console.error('[WebSocket] Failed to load parameters from API:', error)
-        // Don't block WebSocket connection if parameter loading fails
+        console.error('[WebSocket] Failed to load initial data:', error)
+        // Don't block WebSocket connection if loading fails
       }
     }
     
-    loadParameters()
+    loadInitialData()
   }, []) // Only run once on mount
 
   useEffect(() => {
@@ -150,7 +208,68 @@ export const useWebSocket = () => {
         return
       }
       
-      if (message.type === 'data_update' && message.data) {
+      // Handle batch updates (optimized for many parameters)
+      // Format: {"batch":true,"data":{"count":N,"updates":[...]},"type":"data_update_batch"}
+      if (message.type === 'data_update_batch' && message.batch === true && message.data) {
+        const batchData = message.data as { updates?: DashboardData[]; count?: number }
+        const updates = batchData.updates || []
+        
+        if (updates.length === 0) {
+          return
+        }
+        
+        console.log(`[WebSocket] Received batch update: ${updates.length} parameters`)
+        
+        setData(prev => {
+          const newMap = new Map(prev)
+          
+          // Process all updates in batch
+          updates.forEach((dashboardData: DashboardData) => {
+            // Ensure parameter_id exists
+            if (!dashboardData.parameter_id) {
+              console.warn('[WebSocket] Received batch update without parameter_id, skipping')
+              return
+            }
+            
+            // Ensure parameter_nama is not empty
+            if (!dashboardData.parameter_nama || dashboardData.parameter_nama === '') {
+              dashboardData.parameter_nama = `Parameter ${dashboardData.parameter_id}`
+            }
+            
+            // Ensure device_nama is not empty
+            if (!dashboardData.device_nama || dashboardData.device_nama === '') {
+              dashboardData.device_nama = 'All Devices'
+            }
+            
+            // Ensure value is never null/undefined (default to 0)
+            if (dashboardData.value === null || dashboardData.value === undefined) {
+              dashboardData.value = 0
+            }
+            
+            // Ensure status is never empty (default to offline)
+            if (!dashboardData.status || dashboardData.status === '') {
+              dashboardData.status = 'offline'
+            }
+            
+            // Ensure timestamp is string format
+            const timestampStr = typeof dashboardData.timestamp === 'string' 
+              ? dashboardData.timestamp 
+              : new Date(dashboardData.timestamp).toISOString()
+            
+            // Use parameter_id as key (more reliable than name)
+            const key = `param_${dashboardData.parameter_id}`
+            // CRITICAL: Always update, never remove parameter from Map
+            newMap.set(key, {
+              ...dashboardData,
+              timestamp: timestampStr,
+            })
+          })
+          
+          return newMap
+        })
+      } else if (message.type === 'data_update' && message.data && message.batch !== true) {
+        // Handle single update
+        // Format: {"data":{...},"type":"data_update"}
         // Backend sends DashboardData format with device_nama and parameter_nama
         const dashboardData: DashboardData = message.data
         

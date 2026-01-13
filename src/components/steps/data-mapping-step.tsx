@@ -37,8 +37,14 @@ export function DataMappingStep({
   const [mappings, setMappings] = useState<MappingConfig[]>([])
   const [mappedValues, setMappedValues] = useState<MappedValue[]>([])
   const [isSaving, setIsSaving] = useState(false)
+  // String mapping state for SNMP string values
+  const [stringMapping, setStringMapping] = useState<{ [key: string]: number }>({})
 
   const hasRawData = rawData.length > 0
+  
+  // Check if any raw data field is a string (SNMP string value)
+  const hasStringValue = rawData.some(field => field.type === 'string' || typeof field.value === 'string')
+  const stringField = rawData.find(field => field.type === 'string' || typeof field.value === 'string')
 
   const addMapping = () => {
     const newMapping: MappingConfig = {
@@ -96,7 +102,11 @@ export function DataMappingStep({
 
     const dataMap = new Map<string, number>()
     rawData.forEach((field) => {
-      dataMap.set(field.name, field.value)
+      // Convert value to number (handle string values)
+      const numValue = typeof field.value === 'string' 
+        ? ((stringMapping[field.value] ?? parseFloat(field.value)) || 0)
+        : (typeof field.value === 'number' ? field.value : 0)
+      dataMap.set(field.name, numValue)
     })
 
     for (const mapping of mappings) {
@@ -132,16 +142,18 @@ export function DataMappingStep({
             continue
           }
 
+          const numValue = typeof sourceValue === 'number' ? sourceValue : parseFloat(String(sourceValue)) || 0
+
           results.push({
             id: mapping.id,
             outputName: mapping.outputName,
-            rawValues: [{ name: mapping.sourceField, value: sourceValue }],
-            mappedValue: sourceValue,
+            rawValues: [{ name: mapping.sourceField, value: numValue }],
+            mappedValue: numValue,
             formula: `DIRECT: ${mapping.sourceField}`,
             timestamp: new Date(),
           })
 
-          addLog(`Mapped ${mapping.outputName} = ${parseFloat(sourceValue.toFixed(3))} (DIRECT from ${mapping.sourceField})`, 'success')
+          addLog(`Mapped ${mapping.outputName} = ${parseFloat(numValue.toFixed(3))} (DIRECT from ${mapping.sourceField})`, 'success')
         } else if (mapping.outputType === 'FORMULA') {
           // FORMULA: Calculate using expression
           if (!mapping.formula || mapping.formula.trim() === '') {
@@ -283,6 +295,7 @@ export function DataMappingStep({
         dataType?: string
         byteOrder?: string
         oid?: string
+        string_mapping?: string // JSON string for SNMP string mapping
       }> = []
 
       // Track created raw parameters: fieldRef -> parameterName
@@ -409,8 +422,18 @@ export function DataMappingStep({
         }
       }
 
+      // Validate string mapping if string value exists
+      if (hasStringValue && stringField) {
+        const mappedValue = stringMapping[String(stringField.value)]
+        if (mappedValue === undefined || (mappedValue !== 0 && mappedValue !== 1)) {
+          addLog('Error: String mapping is required. Map string value to 0 or 1.', 'error')
+          setIsSaving(false)
+          return
+        }
+      }
+
       // Build request payload
-      const request = {
+      const request: any = {
         connection: {
           name: activeConnection.name,
           protocol: activeConnection.protocol,
@@ -418,6 +441,22 @@ export function DataMappingStep({
         },
         ...(koneksiId && { koneksi_id: koneksiId }),
         mappings: payloadMappings,
+      }
+
+      // Add string mapping for SNMP if exists
+      if (hasStringValue && stringField && Object.keys(stringMapping).length > 0) {
+        // Add string_mapping to the first SNMP mapping (if OID exists)
+        if (testConfig?.oid) {
+          // Find first mapping with OID and add string_mapping
+          const snmpMapping = payloadMappings.find(m => m.oid === testConfig.oid)
+          if (snmpMapping) {
+            snmpMapping.string_mapping = JSON.stringify(stringMapping)
+          } else {
+            // If no mapping found, add to request level
+            request.string_mapping = JSON.stringify(stringMapping)
+            request.oid = testConfig.oid
+          }
+        }
       }
 
       const response = await mappingService.save(request)
@@ -496,34 +535,39 @@ export function DataMappingStep({
                       </div>
                       <div className="text-right">
                         <p className="text-sm font-mono font-semibold text-primary break-all">
-                          {(() => {
-                            // Format value with exactly 3 decimal places
-                            const val = Number(field.value)
-                            if (isNaN(val) || !isFinite(val)) {
-                              return '0.000'
-                            }
-                            
-                            // For very large numbers, toFixed might still return scientific notation
-                            // So we need to handle it manually
-                            const fixedStr = val.toFixed(3)
-                            
-                            // Check if result is still in scientific notation
-                            if (fixedStr.includes('e') || fixedStr.includes('E')) {
-                              // Parse scientific notation and extract only the base part
-                              const parts = fixedStr.split(/[eE]/)
-                              const base = parts[0]
-                              const baseNum = parseFloat(base)
-                              
-                              // Return only the base with 3 decimal places (without exponent)
-                              // This will show as "1.190" for very large numbers like 1.190e+25
-                              return baseNum.toFixed(3)
-                            }
-                            
-                            // Normal number, remove trailing zeros but keep at least .000 if needed
-                            const withoutTrailingZeros = fixedStr.replace(/\.?0+$/, '')
-                            return withoutTrailingZeros || '0'
-                          })()}
+                          {field.type === 'string' || typeof field.value === 'string' 
+                            ? `"${field.value}"` 
+                            : (() => {
+                                // Format value with exactly 3 decimal places
+                                const val = Number(field.value)
+                                if (isNaN(val) || !isFinite(val)) {
+                                  return '0.000'
+                                }
+                                
+                                // For very large numbers, toFixed might still return scientific notation
+                                // So we need to handle it manually
+                                const fixedStr = val.toFixed(3)
+                                
+                                // Check if result is still in scientific notation
+                                if (fixedStr.includes('e') || fixedStr.includes('E')) {
+                                  // Parse scientific notation and extract only the base part
+                                  const parts = fixedStr.split(/[eE]/)
+                                  const base = parts[0]
+                                  const baseNum = parseFloat(base)
+                                  
+                                  // Return only the base with 3 decimal places (without exponent)
+                                  // This will show as "1.190" for very large numbers like 1.190e+25
+                                  return baseNum.toFixed(3)
+                                }
+                                
+                                // Normal number, remove trailing zeros but keep at least .000 if needed
+                                const withoutTrailingZeros = fixedStr.replace(/\.?0+$/, '')
+                                return withoutTrailingZeros || '0'
+                              })()}
                         </p>
+                        {field.type === 'string' && (
+                          <p className="text-xs text-orange-500 font-semibold">STRING</p>
+                        )}
                         <p className="text-xs text-muted-foreground">{field.timestamp.toLocaleTimeString()}</p>
                       </div>
                     </button>
@@ -531,6 +575,53 @@ export function DataMappingStep({
                 </div>
               </CardContent>
             </Card>
+
+            {/* SNMP String Mapping UI */}
+            {hasStringValue && stringField && (
+              <Card className="border-orange-500">
+                <CardHeader>
+                  <CardTitle className="text-sm text-orange-600">SNMP String Mapping *</CardTitle>
+                  <CardDescription>
+                    Map string value "{stringField.value}" to numeric (0 or 1)
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="space-y-2">
+                    <Label>String Value: "{stringField.value}"</Label>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="space-y-1">
+                        <Label className="text-xs">Map to:</Label>
+                        <Input
+                          type="number"
+                          placeholder="0 or 1"
+                          value={stringMapping[String(stringField.value)] ?? ''}
+                          onChange={(e) => {
+                            const val = e.target.value === '' ? undefined : Number(e.target.value)
+                            if (val !== undefined && (val === 0 || val === 1)) {
+                              setStringMapping({
+                                ...stringMapping,
+                                [String(stringField.value)]: val
+                              })
+                            } else if (val === undefined) {
+                              const newMapping = { ...stringMapping }
+                              delete newMapping[String(stringField.value)]
+                              setStringMapping(newMapping)
+                            }
+                          }}
+                          className="text-sm"
+                        />
+                      </div>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Required: Map string to 0 (abnormal) or 1 (normal). Value 0 will force alarmstatus = abnormal.
+                    </p>
+                    {stringMapping[String(stringField.value)] === undefined && (
+                      <p className="text-xs text-red-500">⚠️ String mapping is required</p>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
 
             <Card>
               <CardHeader>
@@ -697,7 +788,12 @@ export function DataMappingStep({
                               <p className="text-2xl font-bold text-primary">
                                 {(() => {
                                   // Format with 3 decimal places, avoiding scientific notation
-                                  const val = result.mappedValue
+                                  const val = typeof result.mappedValue === 'number' 
+                                    ? result.mappedValue 
+                                    : parseFloat(String(result.mappedValue)) || 0
+                                  if (isNaN(val) || !isFinite(val)) {
+                                    return '0.000'
+                                  }
                                   if (Math.abs(val) >= 1e6 || (Math.abs(val) < 0.001 && val !== 0)) {
                                     return val.toFixed(3)
                                   }

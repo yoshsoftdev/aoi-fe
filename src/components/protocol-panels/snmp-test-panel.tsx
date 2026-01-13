@@ -7,12 +7,21 @@ import { Download, Upload } from 'lucide-react'
 import type { Connection } from '@/types'
 import { testConnectionService } from '@/services/testConnectionService'
 
+import type { RawDataField } from '@/types'
+
 interface SNMPTestPanelProps {
   connection: Connection
   addLog: (message: string, type?: 'info' | 'error' | 'success') => void
+  onRawDataReceived?: (
+    data: RawDataField[],
+    config?: {
+      oid?: string
+    }
+  ) => void
+  onTestResult?: (result: string) => void
 }
 
-export function SNMPTestPanel({ connection, addLog }: SNMPTestPanelProps) {
+export function SNMPTestPanel({ connection, addLog, onRawDataReceived, onTestResult }: SNMPTestPanelProps) {
   const [oid, setOid] = useState('1.3.6.1.2.1.1.1.0')
   const [setValue, setSetValue] = useState('')
   const [response, setResponse] = useState<string | null>(null)
@@ -31,20 +40,52 @@ export function SNMPTestPanel({ connection, addLog }: SNMPTestPanelProps) {
         config: {
           ip_address: config.host,
           port: config.port || 161,
-          community: config.community || 'public',
+          community: config.community || '', // Use community from config, don't default to 'public'
           version: config.version || 'v2c',
           oid: oid,
         },
       })
 
       if (result.connected && result.raw_value !== undefined) {
-        const responseText = `OID: ${oid}\nValue: ${result.raw_value}\nMessage: ${result.message}\nTimestamp: ${new Date().toISOString()}`
+        const isString = typeof result.raw_value === 'string'
+        const responseText = `OID: ${oid}\nValue: ${result.raw_value}\nType: ${isString ? 'STRING' : 'NUMERIC'}\nMessage: ${result.message}\nTimestamp: ${new Date().toISOString()}`
         setResponse(responseText)
-        addLog(`SNMP GET successful: ${result.raw_value}`, 'success')
+        addLog(`SNMP GET successful: ${result.raw_value} (${isString ? 'STRING' : 'NUMERIC'})`, 'success')
+        
+        // Set test result for button visibility
+        if (onTestResult) {
+          onTestResult(responseText)
+        }
+        
+        // Pass raw data to parent for data mapping
+        // Include type information for string mapping
+        if (onRawDataReceived) {
+          const rawDataFields: RawDataField[] = [
+            {
+              id: `${connection.id}-${oid}`,
+              name: `OID ${oid}`,
+              value: isString ? result.raw_value : (typeof result.raw_value === 'number' ? result.raw_value : parseFloat(String(result.raw_value)) || 0),
+              timestamp: new Date(),
+              source: `${connection.name} (OID: ${oid})`,
+              // Add type info for string detection
+              type: isString ? 'string' : 'numeric',
+            }
+          ]
+          onRawDataReceived(rawDataFields, { 
+            oid,
+            isString: isString, // Pass string flag
+            rawStringValue: isString ? result.raw_value : undefined,
+          })
+        }
       } else {
         const errorMsg = `${result.message}${result.details ? ` - ${result.details}` : ''}`
         setResponse(`Error: ${errorMsg}`)
         addLog(`SNMP GET failed: ${errorMsg}`, 'error')
+        
+        // Set error result
+        if (onTestResult) {
+          onTestResult(`Error: ${errorMsg}`)
+        }
       }
     } catch (error: any) {
       const errorMessage = error.response?.data?.error || error.message || 'Unknown error'

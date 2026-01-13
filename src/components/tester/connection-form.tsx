@@ -274,7 +274,12 @@ export function ConnectionForm({ onSave, onCancel, initialData }: ConnectionForm
                 value={protocol}
                 onValueChange={(value) => {
                   setProtocol(value as ProtocolType)
-                  setConfig({})
+                  // Reset config but preserve some defaults for SNMP
+                  if (value === 'SNMP') {
+                    setConfig({ version: 'v2c', port: 161 })
+                  } else {
+                    setConfig({})
+                  }
                 }}
               >
                 <SelectTrigger id="protocol">

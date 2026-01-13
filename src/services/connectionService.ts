@@ -100,8 +100,8 @@ function mapBackendKoneksiToConnection(koneksi: any): Connection {
       config = {
         host: koneksi.ip_address || '',
         port: koneksi.tcp_port || 161,
-        community: 'public',
-        version: 'v2c',
+        community: koneksi.community || '', // Get from koneksi table
+        version: koneksi.version || 'v2c', // Get from koneksi table
       }
       break
     case 'digital':
@@ -179,6 +179,8 @@ function mapConnectionToBackendPayload(connection: Connection): any {
       payload.type = type
       payload.ip_address = cfg.host || ''
       payload.tcp_port = cfg.port || 161
+      payload.community = cfg.community || '' // Include community in payload
+      payload.version = cfg.version || 'v2c' // Include version in payload
       payload.polling_ms = 1000
       payload.timeout_ms = 1000
       break
@@ -248,10 +250,11 @@ function convertConfigToBackend(protocol: ProtocolType, config: any): any {
         data_type: 'uint16',
       }
     case 'SNMP':
+      // Community is required for SNMP, use empty string if not provided (will be validated by backend)
       return {
         ip_address: config.host,
         port: config.port || 161,
-        community: config.community || 'public',
+        community: config.community || '', // Don't default to 'public', let user specify
         version: config.version || 'v2c',
         oid: '1.3.6.1.2.1.1.1.0', // sysDescr - default OID untuk test
       }

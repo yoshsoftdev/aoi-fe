@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Separator } from '@/components/ui/separator'
 import { Activity, AlertCircle, ArrowRight } from 'lucide-react'
-import type { Connection, ModbusFunction, DataType, ByteOrder, RawDataField } from '@/types'
+import type { Connection, ModbusFunction, DataType, ByteOrder, RawDataField, ModbusRTUConfig, ModbusTCPConfig } from '@/types'
 // import { ModbusTestPanel } from '@/components/protocol-panels/modbus-test-panel'
 import { DigitalIOTestPanel } from '@/components/protocol-panels/digital-io-test-panel'
 import { SNMPTestPanel } from '@/components/protocol-panels/snmp-test-panel'
@@ -135,40 +135,44 @@ export function TestStep({ activeConnection, addLog, onRawDataReceived, onNext }
       let config: any = {}
 
       if (activeConnection.protocol === 'Modbus TCP' && 'host' in activeConnection.config) {
+        const tcpConfig = activeConnection.config as ModbusTCPConfig
         config = {
-          ip_address: activeConnection.config.host,
-          port: activeConnection.config.port || 502,
-          slave_id: testData.slaveId,
+          ip_address: tcpConfig.host,
+          port: tcpConfig.port || 502,
+          device_slave_id: (activeConnection.config as any).slaveId || testData.slaveId, // Device-level slave ID
+          slave_id: testData.slaveId, // Parameter-level slave ID
           function_code: functionCode,
           register_address: testData.startAddress,
           quantity: testData.quantity,
           byte_order: byteOrder,
-          data_type: testData.dataType === 'float' ? 'float' : testData.dataType,
+          data_type: testData.dataType === 'float' ? 'float32' : testData.dataType,
         }
       } else if (activeConnection.protocol === 'Modbus RTU' && 'serialPort' in activeConnection.config) {
+        const rtuConfig = activeConnection.config as ModbusRTUConfig
         config = {
-          port: activeConnection.config.serialPort,
-          baud: activeConnection.config.baudRate || 9600,
-          data_bits: activeConnection.config.dataBits || 8,
+          port: rtuConfig.serialPort,
+          baud: rtuConfig.baudRate || 9600,
+          data_bits: rtuConfig.dataBits || 8,
           parity:
-            activeConnection.config.parity === 'none'
+            rtuConfig.parity === 'none'
               ? 'N'
-              : activeConnection.config.parity === 'even'
+              : rtuConfig.parity === 'even'
                 ? 'E'
                 : 'O',
-          stop_bits: activeConnection.config.stopBits || 1,
+          stop_bits: rtuConfig.stopBits || 1,
           slave_id: testData.slaveId,
           function_code: functionCode,
           register_address: testData.startAddress,
           quantity: testData.quantity,
           byte_order: byteOrder,
-          data_type: testData.dataType === 'float' ? 'float' : testData.dataType,
+          data_type: testData.dataType === 'float' ? 'float32' : testData.dataType,
         }
-      } else if (activeConnection.protocol === 'SNMP' && 'host' in activeConnection.config && 'community' in activeConnection.config && 'version' in activeConnection.config) {
+      } else if (activeConnection.protocol === 'SNMP' && 'host' in activeConnection.config && 'version' in activeConnection.config) {
+        // Community is required, but don't default to 'public' - use what's in config or empty
         config = {
           ip_address: activeConnection.config.host,
           port: activeConnection.config.port || 161,
-          community: activeConnection.config.community || 'public',
+          community: activeConnection.config.community || '', // Use empty if not provided, backend will validate
           version: activeConnection.config.version || 'v2c',
           oid: '1.3.6.1.2.1.1.1.0', // Default OID for test
         }
@@ -528,7 +532,14 @@ export function TestStep({ activeConnection, addLog, onRawDataReceived, onNext }
 
         {isDigitalIO && <DigitalIOTestPanel connection={activeConnection} addLog={addLog} />}
 
-        {isSNMP && <SNMPTestPanel connection={activeConnection} addLog={addLog} />}
+        {isSNMP && (
+          <SNMPTestPanel
+            connection={activeConnection}
+            addLog={addLog}
+            onRawDataReceived={onRawDataReceived}
+            onTestResult={setTestResult}
+          />
+        )}
       </div>
 
       {testResult && onNext && (
