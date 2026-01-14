@@ -11,6 +11,7 @@ import { formatNumber } from '@/utils/formatters'
 import { parameterService } from '@/services/parameterService'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { useAuth } from '@/contexts/AuthContext'
 
 interface DashboardViewProps {
   savedData: SavedDashboardData[]
@@ -19,6 +20,7 @@ interface DashboardViewProps {
 
 export function DashboardView({ savedData, onParameterUpdate }: DashboardViewProps) {
   const queryClient = useQueryClient()
+  const { isAdmin } = useAuth()
   const [editDialogOpen, setEditDialogOpen] = useState(false)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [selectedParameter, setSelectedParameter] = useState<MappedValue | null>(null)
@@ -128,16 +130,16 @@ export function DashboardView({ savedData, onParameterUpdate }: DashboardViewPro
     <div className="space-y-6">
       <div>
         <h2 className="text-2xl font-bold text-foreground">Dashboard</h2>
-        <p className="text-sm text-muted-foreground mt-1">Monitor your mapped data values</p>
+        <p className="text-sm text-muted-foreground mt-1">Pantau nilai data yang telah dipetakan</p>
       </div>
 
       {savedData.length === 0 ? (
         <Card>
           <CardContent className="flex flex-col items-center justify-center p-12 text-center">
             <Database className="h-12 w-12 text-muted-foreground mb-4" />
-            <p className="font-medium text-foreground">No data saved yet</p>
+            <p className="font-medium text-foreground">Belum ada data tersimpan</p>
             <p className="text-sm text-muted-foreground mt-2">
-              Complete the Communication Tester workflow and save your mapped data to see it here
+              Selesaikan alur Communication Tester dan simpan data yang telah dipetakan untuk melihatnya di sini
             </p>
           </CardContent>
         </Card>
@@ -146,18 +148,18 @@ export function DashboardView({ savedData, onParameterUpdate }: DashboardViewPro
           <div className="grid gap-4 md:grid-cols-3">
             <Card>
               <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="text-sm font-medium">Total Metrics</CardTitle>
+                <CardTitle className="text-sm font-medium">Total Metrik</CardTitle>
                 <Activity className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">{totalMetrics}</div>
-                <p className="text-xs text-muted-foreground">Active mapped values</p>
+                <p className="text-xs text-muted-foreground">Nilai yang dipetakan aktif</p>
               </CardContent>
             </Card>
 
             <Card>
               <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="text-sm font-medium">Last Update</CardTitle>
+                <CardTitle className="text-sm font-medium">Pembaruan Terakhir</CardTitle>
                 <Zap className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
@@ -165,19 +167,19 @@ export function DashboardView({ savedData, onParameterUpdate }: DashboardViewPro
                   {latestUpdate ? latestUpdate.toLocaleTimeString() : '--:--'}
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  {latestUpdate ? latestUpdate.toLocaleDateString() : 'No updates yet'}
+                  {latestUpdate ? latestUpdate.toLocaleDateString() : 'Belum ada pembaruan'}
                 </p>
               </CardContent>
             </Card>
 
             <Card>
               <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="text-sm font-medium">Success Rate</CardTitle>
+                <CardTitle className="text-sm font-medium">Tingkat Keberhasilan</CardTitle>
                 <TrendingUp className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">{successRate.toFixed(0)}%</div>
-                <p className="text-xs text-muted-foreground">Values calculated successfully</p>
+                <p className="text-xs text-muted-foreground">Nilai berhasil dihitung</p>
               </CardContent>
             </Card>
           </div>
@@ -231,7 +233,7 @@ export function DashboardView({ savedData, onParameterUpdate }: DashboardViewPro
                               <CardTitle className="text-base">{value.outputName}</CardTitle>
                               <CardDescription className="font-mono text-xs">{value.formula}</CardDescription>
                             </div>
-                            {value.parameterId && (
+                            {value.parameterId && isAdmin && (
                               <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                                 <Button
                                   variant="ghost"
@@ -247,7 +249,7 @@ export function DashboardView({ savedData, onParameterUpdate }: DashboardViewPro
                                   size="icon"
                                   className="h-8 w-8 text-destructive hover:text-destructive"
                                   onClick={() => handleDelete(value)}
-                                  title="Delete parameter"
+                                  title="Hapus parameter"
                                 >
                                   <Trash2 className="h-4 w-4" />
                                 </Button>
@@ -268,7 +270,7 @@ export function DashboardView({ savedData, onParameterUpdate }: DashboardViewPro
                               </p>
                               {value.rawValues.length > 0 && (
                                 <div className="mt-3 pt-3 border-t border-border space-y-1">
-                                  <p className="text-xs font-medium text-muted-foreground">Source values:</p>
+                                  <p className="text-xs font-medium text-muted-foreground">Nilai sumber:</p>
                                   {value.rawValues.map((rv, i) => (
                                     <div key={i} className="flex items-center justify-between text-xs">
                                       <span className="text-muted-foreground">{rv.name}</span>
@@ -296,17 +298,17 @@ export function DashboardView({ savedData, onParameterUpdate }: DashboardViewPro
           <DialogHeader>
             <DialogTitle>Edit Parameter</DialogTitle>
             <DialogDescription>
-              Update parameter name and formula. Changes will be applied immediately.
+              Perbarui nama parameter dan formula. Perubahan akan diterapkan segera.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="space-y-2">
-              <Label htmlFor="nama">Parameter Name</Label>
+              <Label htmlFor="nama">Nama Parameter</Label>
               <Input
                 id="nama"
                 value={editFormData.nama}
                 onChange={(e) => setEditFormData({ ...editFormData, nama: e.target.value })}
-                placeholder="Enter parameter name"
+                placeholder="Masukkan nama parameter"
               />
             </div>
             <div className="space-y-2">
@@ -321,10 +323,10 @@ export function DashboardView({ savedData, onParameterUpdate }: DashboardViewPro
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setEditDialogOpen(false)}>
-              Cancel
+              Batal
             </Button>
             <Button onClick={handleSaveEdit} disabled={updateMutation.isPending}>
-              {updateMutation.isPending ? 'Saving...' : 'Save Changes'}
+              {updateMutation.isPending ? 'Menyimpan...' : 'Simpan Perubahan'}
             </Button>
           </DialogFooter>
           <DialogClose />
@@ -342,8 +344,8 @@ export function DashboardView({ savedData, onParameterUpdate }: DashboardViewPro
           }
         }}
         onConfirm={handleConfirmDelete}
-        title="Delete Parameter"
-        description="Are you sure you want to delete this parameter? This action cannot be undone."
+        title="Hapus Parameter"
+        description="Apakah Anda yakin ingin menghapus parameter ini? Tindakan ini tidak dapat dibatalkan."
         itemName={selectedParameter?.outputName}
         isDeleting={deleteMutation.isPending}
         error={deleteError}

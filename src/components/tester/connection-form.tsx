@@ -80,7 +80,7 @@ export function ConnectionForm({ onSave, onCancel, initialData }: ConnectionForm
         return (
           <>
             <div className="space-y-2">
-              <Label htmlFor="serialPort">Serial Port</Label>
+              <Label htmlFor="serialPort">Port Serial</Label>
               <Input
                 id="serialPort"
                 placeholder="/dev/ttyUSB0"
@@ -182,7 +182,7 @@ export function ConnectionForm({ onSave, onCancel, initialData }: ConnectionForm
                   })
                 }
               />
-              <p className="text-xs text-muted-foreground">Example: 0,1,2,3 for pins 0 through 3</p>
+              <p className="text-xs text-muted-foreground">Contoh: 0,1,2,3 untuk pin 0 sampai 3</p>
             </div>
             <div className="space-y-2">
               <Label>Mode</Label>
@@ -218,7 +218,7 @@ export function ConnectionForm({ onSave, onCancel, initialData }: ConnectionForm
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="version">SNMP Version</Label>
+              <Label htmlFor="version">Versi SNMP</Label>
               <Select
                 value={config.version || 'v2c'}
                 onValueChange={(value) => setConfig({ ...config, version: value })}
@@ -252,24 +252,24 @@ export function ConnectionForm({ onSave, onCancel, initialData }: ConnectionForm
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-base">{initialData ? 'Edit Connection' : 'New Connection'}</CardTitle>
-        <CardDescription>Configure the transport layer for your device</CardDescription>
+        <CardTitle className="text-base">{initialData ? 'Edit Koneksi' : 'Koneksi Baru'}</CardTitle>
+        <CardDescription>Konfigurasi transport layer untuk perangkat Anda</CardDescription>
       </CardHeader>
       <CardContent>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="grid gap-4 md:grid-cols-2">
             <div className="space-y-2">
-              <Label htmlFor="name">Connection Name</Label>
+              <Label htmlFor="name">Nama Koneksi</Label>
               <Input
                 id="name"
-                placeholder="My Device Connection"
+                placeholder="Koneksi Perangkat Saya"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 required
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="protocol">Protocol Type</Label>
+              <Label htmlFor="protocol">Tipe Protokol</Label>
               <Select
                 value={protocol}
                 onValueChange={(value) => {
@@ -300,10 +300,10 @@ export function ConnectionForm({ onSave, onCancel, initialData }: ConnectionForm
 
           <div className="flex gap-2 pt-2">
             <Button type="submit" className="flex-1">
-              {initialData ? 'Update' : 'Create'}
+              {initialData ? 'Perbarui' : 'Buat'}
             </Button>
             <Button type="button" variant="secondary" onClick={onCancel}>
-              Cancel
+              Batal
             </Button>
           </div>
         </form>

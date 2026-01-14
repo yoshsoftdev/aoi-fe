@@ -88,7 +88,7 @@ export default function WritableParameterList() {
       if (error instanceof ParameterDeleteError) {
         setDeleteError(error.message)
       } else {
-        setDeleteError(error?.message || 'Failed to delete parameter')
+        setDeleteError(error?.message || 'Gagal menghapus parameter')
       }
     },
   })
@@ -115,7 +115,7 @@ export default function WritableParameterList() {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center p-12">
-        <p className="text-muted-foreground">Loading parameters...</p>
+        <p className="text-muted-foreground">Memuat parameter...</p>
       </div>
     )
   }
@@ -125,7 +125,7 @@ export default function WritableParameterList() {
       <div className="flex items-center justify-center p-12">
         <div className="text-center">
           <AlertCircle className="h-12 w-12 text-red-500 mx-auto mb-4" />
-          <p className="text-red-600 font-medium">Failed to load parameters</p>
+          <p className="text-red-600 font-medium">Gagal memuat parameter</p>
           <p className="text-sm text-muted-foreground mt-2">{String(error)}</p>
         </div>
       </div>
@@ -137,38 +137,38 @@ export default function WritableParameterList() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-foreground">Writable Parameters</h1>
+          <h1 className="text-3xl font-bold text-foreground">Parameter Tulis</h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Manage parameters that support write operations (Read/Write mode)
+            Kelola parameter yang mendukung operasi tulis (mode Baca/Tulis)
           </p>
           <p className="text-xs text-muted-foreground mt-1">
-            Total parameters: {allParameters.length} | Writable: {writableParameters.length}
+            Total parameter: {allParameters.length} | Tulis: {writableParameters.length}
           </p>
         </div>
         <Button onClick={handleCreate}>
           <Plus className="h-4 w-4 mr-2" />
-          Create Writable Parameter
+          Buat Parameter Tulis
         </Button>
       </div>
 
       {/* Filters */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Filters</CardTitle>
+          <CardTitle className="text-base">Filter</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="grid gap-4 md:grid-cols-2">
             <div className="space-y-2">
-              <label className="text-sm font-medium text-foreground">Device</label>
+              <label className="text-sm font-medium text-foreground">Perangkat</label>
               <Select
                 value={selectedDeviceId?.toString() || ''}
                 onValueChange={(value) => setSelectedDeviceId(value ? parseInt(value, 10) : null)}
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="All devices" />
+                  <SelectValue placeholder="Semua perangkat" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">All devices</SelectItem>
+                  <SelectItem value="">Semua perangkat</SelectItem>
                   {devices.map((device) => (
                     <SelectItem key={device.id} value={device.id.toString()}>
                       {device.nama || (device as any).name || `Device ${device.id}`} ({device.type})
@@ -178,9 +178,9 @@ export default function WritableParameterList() {
               </Select>
             </div>
             <div className="space-y-2">
-              <label className="text-sm font-medium text-foreground">Search</label>
+              <label className="text-sm font-medium text-foreground">Cari</label>
               <Input
-                placeholder="Search by parameter name..."
+                placeholder="Cari berdasarkan nama parameter..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
               />
@@ -195,7 +195,7 @@ export default function WritableParameterList() {
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-muted-foreground">Total Writable</p>
+                <p className="text-sm text-muted-foreground">Total Tulis</p>
                 <p className="text-2xl font-bold text-foreground">{writableParameters.length}</p>
               </div>
               <Settings className="h-8 w-8 text-primary opacity-50" />
@@ -253,22 +253,22 @@ export default function WritableParameterList() {
             <AlertCircle className="h-12 w-12 text-muted-foreground mb-4" />
             <p className="font-medium text-foreground">
               {writableParameters.length === 0
-                ? 'No writable parameters found'
-                : 'No parameters match your filters'}
+                ? 'Tidak ada parameter tulis ditemukan'
+                : 'Tidak ada parameter yang sesuai dengan filter Anda'}
             </p>
             <p className="text-sm text-muted-foreground mt-2">
               {writableParameters.length === 0
-                ? 'Create your first writable parameter to start controlling devices. Parameters must have read_write=true and type=modbus_rtu or modbus_tcp.'
-                : 'Try adjusting your filters'}
+                ? 'Buat parameter tulis pertama Anda untuk mulai mengontrol perangkat. Parameter harus memiliki read_write=true dan type=modbus_rtu atau modbus_tcp.'
+                : 'Coba sesuaikan filter Anda'}
             </p>
             {writableParameters.length === 0 && (
               <div className="mt-4 space-y-2">
                 <Button onClick={handleCreate}>
                   <Plus className="h-4 w-4 mr-2" />
-                  Create Writable Parameter
+                  Buat Parameter Tulis
                 </Button>
                 <p className="text-xs text-muted-foreground">
-                  Or go to Parameters page and edit existing parameters to set Access Mode = Read/Write
+                  Atau buka halaman Parameter dan edit parameter yang ada untuk mengatur Mode Akses = Baca/Tulis
                 </p>
               </div>
             )}
@@ -327,7 +327,7 @@ export default function WritableParameterList() {
                         onClick={() => navigate(`/write?device_id=${param.device_id}&parameter_id=${param.id}`)}
                       >
                         <Settings className="h-3 w-3 mr-1" />
-                        Write
+                        Tulis
                       </Button>
                       <Button
                         variant="outline"

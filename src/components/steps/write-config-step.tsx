@@ -190,7 +190,7 @@ export function WriteConfigStep({ activeConnection, addLog, onParameterCreated }
       queryClient.invalidateQueries({ queryKey: ['parameters'] })
       queryClient.invalidateQueries({ queryKey: ['modbus-rtu'] })
       queryClient.invalidateQueries({ queryKey: ['modbus-tcp'] })
-      addLog(`Created write parameter: ${param.nama}`, 'success', activeConnection.id)
+      addLog(`Parameter tulis dibuat: ${param.nama}`, 'success', activeConnection.id)
       onParameterCreated?.(param)
       setShowForm(false)
       setEditingParam(null)
@@ -210,7 +210,7 @@ export function WriteConfigStep({ activeConnection, addLog, onParameterCreated }
       setTestWritePassed(false)
     },
     onError: (error: any) => {
-      addLog(`Failed to create parameter: ${error.message}`, 'error', activeConnection.id)
+      addLog(`Gagal membuat parameter: ${error.message}`, 'error', activeConnection.id)
     },
   })
 
@@ -317,7 +317,7 @@ export function WriteConfigStep({ activeConnection, addLog, onParameterCreated }
       queryClient.invalidateQueries({ queryKey: ['parameters'] })
       queryClient.invalidateQueries({ queryKey: ['modbus-rtu'] })
       queryClient.invalidateQueries({ queryKey: ['modbus-tcp'] })
-      addLog(`Updated write parameter: ${param.nama}`, 'success', activeConnection.id)
+      addLog(`Parameter tulis diperbarui: ${param.nama}`, 'success', activeConnection.id)
       setShowForm(false)
       setEditingParam(null)
       setFormData({
@@ -336,7 +336,7 @@ export function WriteConfigStep({ activeConnection, addLog, onParameterCreated }
       setTestWritePassed(false)
     },
     onError: (error: any) => {
-      addLog(`Failed to update parameter: ${error.message}`, 'error', activeConnection.id)
+      addLog(`Gagal memperbarui parameter: ${error.message}`, 'error', activeConnection.id)
     },
   })
 
@@ -344,22 +344,22 @@ export function WriteConfigStep({ activeConnection, addLog, onParameterCreated }
   // Uses test write endpoint that doesn't require parameter_id (no DB save)
   const handleTestWrite = async () => {
     if (!formData.nama.trim()) {
-      addLog('Please enter parameter name', 'error', activeConnection.id)
+      addLog('Mohon masukkan nama parameter', 'error', activeConnection.id)
       return
     }
 
     if (formData.slave_id < 1 || formData.slave_id > 247) {
-      addLog('Invalid Slave ID. Must be between 1-247', 'error', activeConnection.id)
+      addLog('Slave ID tidak valid. Harus antara 1-247', 'error', activeConnection.id)
       return
     }
 
     if (!formData.test_value.trim()) {
-      addLog('Please enter a test value', 'error', activeConnection.id)
+      addLog('Mohon masukkan nilai uji', 'error', activeConnection.id)
       return
     }
 
     if (formData.write_mode === 'PRESET' && !formData.preset_value.trim()) {
-      addLog('Preset Value is required for PRESET mode', 'error', activeConnection.id)
+      addLog('Nilai Preset wajib untuk mode PRESET', 'error', activeConnection.id)
       return
     }
 
@@ -371,7 +371,7 @@ export function WriteConfigStep({ activeConnection, addLog, onParameterCreated }
     const paramType = activeConnection.protocol === 'Modbus TCP' ? 'modbus_tcp' : 'modbus_rtu'
 
     try {
-      addLog('Testing write operation (no parameter saved)...', 'info', activeConnection.id)
+      addLog('Menguji operasi tulis (parameter belum disimpan)...', 'info', activeConnection.id)
 
       // Parse and encode test value to register values
       let testRegisterValues: number[] = []
@@ -413,7 +413,7 @@ export function WriteConfigStep({ activeConnection, addLog, onParameterCreated }
       
       // Validate required fields
       if (testWriteConfig.register_address < 0 || testWriteConfig.register_address > 65535) {
-        throw new Error('Register address must be between 0 and 65535')
+        throw new Error('Alamat register harus antara 0 dan 65535')
       }
       
       const writeResult = await writeService.testWrite(testWriteConfig)
@@ -424,17 +424,17 @@ export function WriteConfigStep({ activeConnection, addLog, onParameterCreated }
           message: writeResult.message || 'Test write successful',
         })
         setTestWritePassed(true)
-        addLog(`Test write successful: ${writeResult.message}`, 'success', activeConnection.id)
+        addLog(`Uji tulis berhasil: ${writeResult.message}`, 'success', activeConnection.id)
       } else {
-        throw new Error(writeResult.error || writeResult.message || 'Test write failed')
+        throw new Error(writeResult.error || writeResult.message || 'Uji tulis gagal')
       }
     } catch (error: any) {
       setTestWriteResult({
         success: false,
-        message: error.message || 'Test write failed',
+        message: error.message || 'Uji tulis gagal',
       })
       setTestWritePassed(false)
-      addLog(`Test write failed: ${error.message}`, 'error', activeConnection.id)
+      addLog(`Uji tulis gagal: ${error.message}`, 'error', activeConnection.id)
     } finally {
       setIsTestingWrite(false)
     }
@@ -444,12 +444,12 @@ export function WriteConfigStep({ activeConnection, addLog, onParameterCreated }
   // Only called after test write is successful, creates parameter in DB
   const handleSaveParameter = async () => {
     if (!testWritePassed) {
-      addLog('Please test write first before saving parameter', 'error', activeConnection.id)
+      addLog('Mohon uji tulis terlebih dahulu sebelum menyimpan parameter', 'error', activeConnection.id)
       return
     }
 
     try {
-      addLog('Saving parameter to database...', 'info', activeConnection.id)
+      addLog('Menyimpan parameter ke database...', 'info', activeConnection.id)
       
       // Determine parameter type from connection
       const paramType: 'modbus_rtu' | 'modbus_tcp' = activeConnection.protocol === 'Modbus TCP' ? 'modbus_tcp' : 'modbus_rtu'
@@ -518,7 +518,7 @@ export function WriteConfigStep({ activeConnection, addLog, onParameterCreated }
       queryClient.invalidateQueries({ queryKey: ['parameters'] })
       queryClient.invalidateQueries({ queryKey: ['modbus-rtu'] })
       queryClient.invalidateQueries({ queryKey: ['modbus-tcp'] })
-      addLog(`Deleted write parameter: ${paramToDelete.parameter.nama}`, 'info', activeConnection.id)
+      addLog(`Parameter tulis dihapus: ${paramToDelete.parameter.nama}`, 'info', activeConnection.id)
       setDeleteDialogOpen(false)
       setParamToDelete(null)
       setDeleteError(null)
@@ -526,9 +526,9 @@ export function WriteConfigStep({ activeConnection, addLog, onParameterCreated }
       if (error instanceof ParameterDeleteError) {
         setDeleteError(error.message)
       } else {
-        const errorMsg = error?.message || 'Failed to delete parameter'
+        const errorMsg = error?.message || 'Gagal menghapus parameter'
         setDeleteError(errorMsg)
-        addLog(`Failed to delete parameter: ${errorMsg}`, 'error', activeConnection.id)
+        addLog(`Gagal menghapus parameter: ${errorMsg}`, 'error', activeConnection.id)
       }
     }
   }
@@ -588,7 +588,7 @@ export function WriteConfigStep({ activeConnection, addLog, onParameterCreated }
     registerValues = registerValues.map(v => Math.max(0, Math.min(65535, Math.floor(v))))
 
     addLog(
-      `Executing write: ${param.parameter.nama} - Slave ${param.slaveId}, Address ${param.address}, Values: [${registerValues.join(', ')}]`,
+      `Menjalankan tulis: ${param.parameter.nama} - Slave ${param.slaveId}, Alamat ${param.address}, Nilai: [${registerValues.join(', ')}]`,
       'info',
       activeConnection.id,
       param.slaveId,
@@ -598,16 +598,16 @@ export function WriteConfigStep({ activeConnection, addLog, onParameterCreated }
       const response = await writeService.execute(param.parameter.id, 'manual', undefined, registerValues)
       if (response.success) {
         addLog(
-          `Write successful: ${param.parameter.nama} - Values [${registerValues.join(', ')}] written`,
+          `Tulis berhasil: ${param.parameter.nama} - Nilai [${registerValues.join(', ')}] ditulis`,
           'success',
           activeConnection.id,
           param.slaveId,
         )
       } else {
-        addLog(`Write failed: ${response.error || response.message}`, 'error', activeConnection.id, param.slaveId)
+        addLog(`Tulis gagal: ${response.error || response.message}`, 'error', activeConnection.id, param.slaveId)
       }
     } catch (error: any) {
-      addLog(`Write failed: ${error.message}`, 'error', activeConnection.id, param.slaveId)
+      addLog(`Tulis gagal: ${error.message}`, 'error', activeConnection.id, param.slaveId)
     }
   }
 
@@ -632,8 +632,8 @@ export function WriteConfigStep({ activeConnection, addLog, onParameterCreated }
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold text-foreground">Step 2: Write Configuration</h2>
-          <p className="text-sm text-muted-foreground mt-1">Configure write parameters for {activeConnection.name}</p>
+          <h2 className="text-2xl font-bold text-foreground">Langkah 2: Konfigurasi Tulis</h2>
+          <p className="text-sm text-muted-foreground mt-1">Konfigurasi parameter tulis untuk {activeConnection.name}</p>
         </div>
         <Button
           onClick={() => {
@@ -657,7 +657,7 @@ export function WriteConfigStep({ activeConnection, addLog, onParameterCreated }
           size="sm"
         >
           <Plus className="h-4 w-4 mr-2" />
-          New Write Parameter
+          Parameter Tulis Baru
         </Button>
       </div>
 
@@ -666,9 +666,9 @@ export function WriteConfigStep({ activeConnection, addLog, onParameterCreated }
           <CardHeader>
             <div className="flex items-center justify-between">
               <div>
-                <CardTitle className="text-base">Create Write Parameter</CardTitle>
+                <CardTitle className="text-base">Buat Parameter Tulis</CardTitle>
                 <CardDescription>
-                  Create a new writable parameter. <strong>Test write is required</strong> before parameter can be saved.
+                  Buat parameter tulis baru. <strong>Uji tulis wajib dilakukan</strong> sebelum parameter dapat disimpan.
                 </CardDescription>
               </div>
               <Button
@@ -698,12 +698,12 @@ export function WriteConfigStep({ activeConnection, addLog, onParameterCreated }
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="param-name">Parameter Name *</Label>
+              <Label htmlFor="param-name">Nama Parameter *</Label>
               <Input
                 id="param-name"
                 value={formData.nama}
                 onChange={(e) => setFormData({ ...formData, nama: e.target.value })}
-                placeholder="e.g., Set Motor Speed, Control Relay"
+                placeholder="contoh: Set Kecepatan Motor, Kontrol Relay"
               />
             </div>
 
@@ -720,7 +720,7 @@ export function WriteConfigStep({ activeConnection, addLog, onParameterCreated }
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="function-code">Function Code *</Label>
+                <Label htmlFor="function-code">Kode Fungsi *</Label>
                 <Select
                   value={formData.function_code?.toString() || '6'}
                   onValueChange={(value) => setFormData({ ...formData, function_code: parseInt(value) || 6 })}
@@ -729,10 +729,10 @@ export function WriteConfigStep({ activeConnection, addLog, onParameterCreated }
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="5">5 - Write Single Coil</SelectItem>
-                    <SelectItem value="6">6 - Write Single Register</SelectItem>
-                    <SelectItem value="15">15 - Write Multiple Coils</SelectItem>
-                    <SelectItem value="16">16 - Write Multiple Registers</SelectItem>
+                    <SelectItem value="5">5 - Tulis Single Coil</SelectItem>
+                    <SelectItem value="6">6 - Tulis Single Register</SelectItem>
+                    <SelectItem value="15">15 - Tulis Multiple Coils</SelectItem>
+                    <SelectItem value="16">16 - Tulis Multiple Registers</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -740,7 +740,7 @@ export function WriteConfigStep({ activeConnection, addLog, onParameterCreated }
 
             <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2">
-                <Label htmlFor="register-address">Register Address *</Label>
+                <Label htmlFor="register-address">Alamat Register *</Label>
                 <Input
                   id="register-address"
                   type="number"
@@ -751,7 +751,7 @@ export function WriteConfigStep({ activeConnection, addLog, onParameterCreated }
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="quantity">Quantity *</Label>
+                <Label htmlFor="quantity">Kuantitas *</Label>
                 <Input
                   id="quantity"
                   type="number"
@@ -765,7 +765,7 @@ export function WriteConfigStep({ activeConnection, addLog, onParameterCreated }
 
             <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2">
-                <Label htmlFor="data-type">Data Type *</Label>
+                <Label htmlFor="data-type">Tipe Data *</Label>
                 <Select
                   value={formData.data_type}
                   onValueChange={(value) => {
@@ -796,7 +796,7 @@ export function WriteConfigStep({ activeConnection, addLog, onParameterCreated }
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="byte-order">Byte Order *</Label>
+                <Label htmlFor="byte-order">Urutan Byte *</Label>
                 <Select
                   value={formData.byte_order}
                   onValueChange={(value) => setFormData({ ...formData, byte_order: value })}
@@ -816,7 +816,7 @@ export function WriteConfigStep({ activeConnection, addLog, onParameterCreated }
 
             {/* Write Mode Selection */}
             <div className="space-y-2">
-              <Label htmlFor="write-mode">Write Mode *</Label>
+              <Label htmlFor="write-mode">Mode Tulis *</Label>
               <Select
                 value={formData.write_mode}
                 onValueChange={(value) => {
@@ -831,19 +831,19 @@ export function WriteConfigStep({ activeConnection, addLog, onParameterCreated }
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="PRESET">PRESET (Value stored in parameter)</SelectItem>
-                  <SelectItem value="DYNAMIC">DYNAMIC (Value provided at write time)</SelectItem>
+                  <SelectItem value="PRESET">PRESET (Nilai disimpan dalam parameter)</SelectItem>
+                  <SelectItem value="DYNAMIC">DYNAMIC (Nilai disediakan saat waktu tulis)</SelectItem>
                 </SelectContent>
               </Select>
               <p className="text-xs text-muted-foreground">
-                PRESET: Value stored in parameter (used by Workflow trigger). DYNAMIC: Value provided when writing (used by Workflow with value or Manual write).
+                PRESET: Nilai disimpan dalam parameter (digunakan oleh pemicu Alur Kerja). DYNAMIC: Nilai disediakan saat menulis (digunakan oleh Alur Kerja dengan nilai atau tulis manual).
               </p>
             </div>
 
             {/* Preset Value Field (only for PRESET mode) */}
             {formData.write_mode === 'PRESET' && (
               <div className="space-y-2">
-                <Label htmlFor="preset-value">Preset Value * (JSON format)</Label>
+                <Label htmlFor="preset-value">Nilai Preset * (format JSON)</Label>
                 <Input
                   id="preset-value"
                   type="text"
@@ -851,14 +851,14 @@ export function WriteConfigStep({ activeConnection, addLog, onParameterCreated }
                   onChange={(e) => setFormData({ ...formData, preset_value: e.target.value })}
                   placeholder={
                     formData.quantity > 1
-                      ? `{"register_values": [1, 1, 1, 1]} (for ${formData.quantity} registers)`
-                      : '{"value": 1} (single value)'
+                      ? `{"register_values": [1, 1, 1, 1]} (untuk ${formData.quantity} register)`
+                      : '{"value": 1} (nilai tunggal)'
                   }
                   className="font-mono text-sm"
                 />
                 <p className="text-xs text-muted-foreground">
-                  JSON format: {"{"}"value": 1{"}"} for single value, or {"{"}"register_values": [1, 1, 1, 1]{"}"} for multiple registers.
-                  This value will be used when workflow triggers this parameter.
+                  Format JSON: {"{"}"value": 1{"}"} untuk nilai tunggal, atau {"{"}"register_values": [1, 1, 1, 1]{"}"} untuk beberapa register.
+                  Nilai ini akan digunakan saat alur kerja memicu parameter ini.
                 </p>
               </div>
             )}
@@ -866,7 +866,7 @@ export function WriteConfigStep({ activeConnection, addLog, onParameterCreated }
             {/* Test Value Field */}
             <div className="space-y-2">
               <Label htmlFor="test-value">
-                Test Value * {formData.quantity > 1 && `(Enter ${formData.quantity} comma-separated values)`}
+                Nilai Uji * {formData.quantity > 1 && `(Masukkan ${formData.quantity} nilai yang dipisahkan koma)`}
               </Label>
               <Input
                 id="test-value"
@@ -875,12 +875,12 @@ export function WriteConfigStep({ activeConnection, addLog, onParameterCreated }
                 onChange={(e) => setFormData({ ...formData, test_value: e.target.value })}
                 placeholder={
                   formData.quantity > 1
-                    ? `e.g., 100, 200, 300 (for ${formData.quantity} registers)`
-                    : 'e.g., 100 (single register value)'
+                    ? `contoh: 100, 200, 300 (untuk ${formData.quantity} register)`
+                    : 'contoh: 100 (nilai register tunggal)'
                 }
               />
               <p className="text-xs text-muted-foreground">
-                Enter the value(s) to test write. For multiple registers, use comma-separated values.
+                Masukkan nilai untuk uji tulis. Untuk beberapa register, gunakan nilai yang dipisahkan koma.
               </p>
             </div>
 
@@ -901,12 +901,12 @@ export function WriteConfigStep({ activeConnection, addLog, onParameterCreated }
                   )}
                   <div className="flex-1">
                     <p className="text-sm font-medium">
-                      {testWriteResult.success ? 'Test Write Successful' : 'Test Write Failed'}
+                      {testWriteResult.success ? 'Uji Tulis Berhasil' : 'Uji Tulis Gagal'}
                     </p>
                     <p className="text-xs mt-1">{testWriteResult.message}</p>
                     {testWriteResult.success && (
                       <p className="text-xs mt-2 font-medium">
-                        Test write successful! Click "Save Parameter" to confirm and save the parameter.
+                        Uji tulis berhasil! Klik "Simpan Parameter" untuk mengonfirmasi dan menyimpan parameter.
                       </p>
                     )}
                   </div>
@@ -927,7 +927,7 @@ export function WriteConfigStep({ activeConnection, addLog, onParameterCreated }
                     }
                     className="flex-1"
                   >
-                    {isTestingWrite ? 'Testing Write...' : 'Test Write'}
+                    {isTestingWrite ? 'Menguji Tulis...' : 'Uji Tulis'}
                   </Button>
                   <Button
                     variant="outline"
@@ -950,7 +950,7 @@ export function WriteConfigStep({ activeConnection, addLog, onParameterCreated }
                     }}
                     disabled={isTestingWrite}
                   >
-                    Cancel
+                    Batal
                   </Button>
                 </>
               ) : (
@@ -960,7 +960,7 @@ export function WriteConfigStep({ activeConnection, addLog, onParameterCreated }
                     className="flex-1"
                     variant="default"
                   >
-                    Save Parameter
+                    Simpan Parameter
                   </Button>
                   <Button
                     variant="outline"
@@ -982,7 +982,7 @@ export function WriteConfigStep({ activeConnection, addLog, onParameterCreated }
                       setTestWritePassed(false)
                     }}
                   >
-                    Cancel
+                    Batal
                   </Button>
                 </>
               )}
@@ -995,12 +995,12 @@ export function WriteConfigStep({ activeConnection, addLog, onParameterCreated }
       {showForm && editingParam && (
         <Card>
           <CardHeader>
-            <CardTitle>Edit Write Parameter</CardTitle>
-            <CardDescription>Update write parameter configuration</CardDescription>
+            <CardTitle>Edit Parameter Tulis</CardTitle>
+            <CardDescription>Perbarui konfigurasi parameter tulis</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             {/* Edit form will be implemented separately if needed */}
-            <p className="text-sm text-muted-foreground">Edit functionality will be implemented here</p>
+            <p className="text-sm text-muted-foreground">Fungsi edit akan diimplementasikan di sini</p>
             <Button
               onClick={() => {
                 setShowForm(false)
@@ -1008,7 +1008,7 @@ export function WriteConfigStep({ activeConnection, addLog, onParameterCreated }
               }}
               variant="outline"
             >
-              Cancel
+              Batal
             </Button>
           </CardContent>
         </Card>
@@ -1020,9 +1020,9 @@ export function WriteConfigStep({ activeConnection, addLog, onParameterCreated }
           <CardContent className="pt-6">
             <div className="flex flex-col items-center justify-center py-12 text-center">
               <Plus className="h-12 w-12 text-muted-foreground mb-4" />
-              <h3 className="text-lg font-semibold text-foreground mb-2">No Write Parameters Yet</h3>
+              <h3 className="text-lg font-semibold text-foreground mb-2">Belum Ada Parameter Tulis</h3>
               <p className="text-sm text-muted-foreground max-w-md">
-                Create write parameters to configure values that can be written to your Modbus device
+                Buat parameter tulis untuk mengonfigurasi nilai yang dapat ditulis ke perangkat Modbus Anda
               </p>
             </div>
           </CardContent>
@@ -1054,7 +1054,7 @@ export function WriteConfigStep({ activeConnection, addLog, onParameterCreated }
                         )}
                       </CardTitle>
                       <CardDescription className="mt-1">
-                        Slave {param.slaveId} • Address {param.address === 0 ? 'O' : param.address}
+                        Slave {param.slaveId} • Alamat {param.address === 0 ? 'O' : param.address}
                       </CardDescription>
                     </div>
                   </div>
@@ -1062,15 +1062,15 @@ export function WriteConfigStep({ activeConnection, addLog, onParameterCreated }
                 <CardContent className="space-y-3">
                   <div className="text-sm space-y-1">
                     <div className="flex justify-between">
-                      <span className="text-muted-foreground">Value:</span>
+                      <span className="text-muted-foreground">Nilai:</span>
                       <span className="font-mono font-semibold">{param.value ?? 1}</span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-muted-foreground">Data Type:</span>
+                      <span className="text-muted-foreground">Tipe Data:</span>
                       <span className="font-mono">{param.dataType.toUpperCase()}</span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-muted-foreground">Byte Order:</span>
+                      <span className="text-muted-foreground">Urutan Byte:</span>
                       <span className="font-mono">{getByteOrderDisplay(param.byteOrder)}</span>
                     </div>
                   </div>
@@ -1083,12 +1083,12 @@ export function WriteConfigStep({ activeConnection, addLog, onParameterCreated }
                       disabled={(param.parameter as any).write_mode === 'DYNAMIC'}
                       title={
                         (param.parameter as any).write_mode === 'DYNAMIC'
-                          ? 'DYNAMIC write parameters cannot be executed directly. Use workflow or write API with value.'
-                          : 'Execute write operation'
+                          ? 'Parameter tulis DYNAMIC tidak dapat dieksekusi langsung. Gunakan alur kerja atau API tulis dengan nilai.'
+                          : 'Jalankan operasi tulis'
                       }
                     >
                       <CheckCircle2 className="h-4 w-4 mr-2" />
-                      Execute
+                      Jalankan
                     </Button>
                     <Button onClick={() => handleEdit(param)} variant="outline" size="sm">
                       <Edit className="h-4 w-4 mr-2" />
@@ -1108,10 +1108,10 @@ export function WriteConfigStep({ activeConnection, addLog, onParameterCreated }
               <CardContent className="flex items-center justify-between py-4">
                 <div>
                   <p className="text-sm font-medium text-foreground">
-                    {configuredParameters.length} Write Parameter{configuredParameters.length > 1 ? 's' : ''}{' '}
-                    Configured
+                    {configuredParameters.length} Parameter Tulis{' '}
+                    Terkonfigurasi
                   </p>
-                  <p className="text-xs text-muted-foreground mt-1">Ready to execute on {activeConnection.name}</p>
+                  <p className="text-xs text-muted-foreground mt-1">Siap dieksekusi pada {activeConnection.name}</p>
                 </div>
                 <Badge variant="outline" className="bg-green-500/10 text-green-600 border-green-500/20">
                   <CheckCircle2 className="h-3 w-3 mr-1" />
@@ -1134,8 +1134,8 @@ export function WriteConfigStep({ activeConnection, addLog, onParameterCreated }
           }
         }}
         onConfirm={handleConfirmDelete}
-        title="Delete Write Parameter"
-        description="Are you sure you want to delete this write parameter? This action cannot be undone."
+        title="Hapus Parameter Tulis"
+        description="Apakah Anda yakin ingin menghapus parameter tulis ini? Tindakan ini tidak dapat dibatalkan."
         itemName={paramToDelete?.parameter.nama}
         isDeleting={false}
         error={deleteError}

@@ -5,8 +5,10 @@ import { Plus, Settings } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
+import { useAuth } from '@/contexts/AuthContext'
 
 export default function ParameterList() {
+  const { isAdmin } = useAuth()
   const { data: parameters, isLoading } = useQuery({
     queryKey: ['parameters'],
     queryFn: parameterService.getAll,
@@ -24,32 +26,36 @@ export default function ParameterList() {
     <div className="space-y-6">
       <div>
         <h2 className="text-2xl font-bold text-foreground">Parameters</h2>
-        <p className="text-sm text-muted-foreground mt-1">Configure data parameters</p>
+        <p className="text-sm text-muted-foreground mt-1">Konfigurasi parameter data</p>
       </div>
 
       <div className="flex items-center justify-between">
         <div className="text-sm text-muted-foreground">
-          {parameters?.length || 0} {parameters?.length === 1 ? 'parameter' : 'parameters'}
+          {parameters?.length || 0} {parameters?.length === 1 ? 'parameter' : 'parameter'}
         </div>
-        <Button>
-          <Link to="/parameters/new" className="flex items-center">
-            <Plus className="h-4 w-4 mr-2" />
-            New Parameter
-          </Link>
-        </Button>
+        {isAdmin && (
+          <Button>
+            <Link to="/parameters/new" className="flex items-center">
+              <Plus className="h-4 w-4 mr-2" />
+              Parameter Baru
+            </Link>
+          </Button>
+        )}
       </div>
 
       {parameters && parameters.length === 0 ? (
         <Card>
           <CardContent className="flex flex-col items-center justify-center p-12 text-center">
             <Settings className="h-12 w-12 text-muted-foreground mb-4" />
-            <p className="font-medium text-foreground">No parameters configured</p>
+            <p className="font-medium text-foreground">Belum ada parameter yang dikonfigurasi</p>
             <p className="text-sm text-muted-foreground mt-2">
-              Click "New Parameter" to create your first parameter
+              Klik "Parameter Baru" untuk membuat parameter pertama
             </p>
-            <Button className="mt-4">
-              <Link to="/parameters/new">Create First Parameter</Link>
-            </Button>
+            {isAdmin && (
+              <Button className="mt-4">
+                <Link to="/parameters/new">Buat Parameter Pertama</Link>
+              </Button>
+            )}
           </CardContent>
         </Card>
       ) : (
@@ -83,14 +89,16 @@ export default function ParameterList() {
                     </div>
                   )}
                 </div>
-                <div className="flex gap-2 mt-4 pt-4 border-t border-border">
-                  <Button variant="outline" size="sm" className="flex-1">
-                    Edit
-                  </Button>
-                  <Button variant="outline" size="sm" className="flex-1">
-                    Delete
-                  </Button>
-                </div>
+                {isAdmin && (
+                  <div className="flex gap-2 mt-4 pt-4 border-t border-border">
+                    <Button variant="outline" size="sm" className="flex-1">
+                      Edit
+                    </Button>
+                    <Button variant="outline" size="sm" className="flex-1">
+                      Hapus
+                    </Button>
+                  </div>
+                )}
               </CardContent>
             </Card>
           ))}

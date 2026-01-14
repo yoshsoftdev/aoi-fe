@@ -12,12 +12,21 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
 import { Separator } from '@/components/ui/separator'
+import { useAuth } from '@/contexts/AuthContext'
 
 export default function DeviceForm() {
   const navigate = useNavigate()
   const { id } = useParams<{ id: string }>()
   const queryClient = useQueryClient()
+  const { isAdmin } = useAuth()
   const isEdit = !!id
+
+  // Redirect to devices list if not admin
+  useEffect(() => {
+    if (!isAdmin) {
+      navigate('/devices')
+    }
+  }, [isAdmin, navigate])
 
   const { data: device } = useQuery({
     queryKey: ['device', id],
@@ -78,25 +87,25 @@ export default function DeviceForm() {
         </Button>
         <div>
           <h2 className="text-2xl font-bold text-foreground">
-            {isEdit ? 'Edit Connection' : 'New Connection'}
+            {isEdit ? 'Edit Koneksi' : 'Koneksi Baru'}
           </h2>
           <p className="text-sm text-muted-foreground mt-1">
-            {isEdit ? 'Update connection configuration' : 'Create a new connection'}
+            {isEdit ? 'Perbarui konfigurasi koneksi' : 'Buat koneksi baru'}
           </p>
         </div>
       </div>
 
       <Card>
         <CardHeader>
-          <CardTitle>{isEdit ? 'Edit Connection' : 'New Connection'}</CardTitle>
+          <CardTitle>{isEdit ? 'Edit Koneksi' : 'Koneksi Baru'}</CardTitle>
           <CardDescription>
-            Configure connection settings for {formData.type}
+            Konfigurasi pengaturan koneksi untuk {formData.type}
           </CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-6">
             <div className="space-y-2">
-              <Label htmlFor="nama">Connection Name *</Label>
+              <Label htmlFor="nama">Nama Koneksi *</Label>
               <Input
                 id="nama"
                 required
@@ -107,7 +116,7 @@ export default function DeviceForm() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="type">Connection Type *</Label>
+              <Label htmlFor="type">Tipe Koneksi *</Label>
               <Select
                 value={formData.type}
                 onValueChange={(value) => setFormData({ ...formData, type: value as Device['type'] })}
@@ -130,7 +139,7 @@ export default function DeviceForm() {
               <>
                 <Separator />
                 <div className="space-y-4">
-                  <h3 className="text-sm font-semibold">Modbus RTU Configuration</h3>
+                  <h3 className="text-sm font-semibold">Konfigurasi Modbus RTU</h3>
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label htmlFor="port">Port *</Label>
@@ -222,7 +231,7 @@ export default function DeviceForm() {
               <>
                 <Separator />
                 <div className="space-y-4">
-                  <h3 className="text-sm font-semibold">Modbus TCP Configuration</h3>
+                  <h3 className="text-sm font-semibold">Konfigurasi Modbus TCP</h3>
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label htmlFor="ip_address">IP Address *</Label>
@@ -263,10 +272,10 @@ export default function DeviceForm() {
             {/* Polling Configuration */}
             <Separator />
             <div className="space-y-4">
-              <h3 className="text-sm font-semibold">Polling Configuration</h3>
+              <h3 className="text-sm font-semibold">Konfigurasi Polling</h3>
               <div className="grid grid-cols-3 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="polling_ms">Polling Interval (ms) *</Label>
+                  <Label htmlFor="polling_ms">Interval Polling (ms) *</Label>
                   <Input
                     id="polling_ms"
                     type="number"
@@ -286,7 +295,7 @@ export default function DeviceForm() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="retry_count">Retry Count *</Label>
+                  <Label htmlFor="retry_count">Jumlah Percobaan Ulang *</Label>
                   <Input
                     id="retry_count"
                     type="number"
@@ -305,27 +314,27 @@ export default function DeviceForm() {
                 onCheckedChange={(checked) => setFormData({ ...formData, enabled: checked })}
               />
               <Label htmlFor="enabled" className="cursor-pointer">
-                Connection Enabled
+                Koneksi Aktif
               </Label>
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="description">Description</Label>
+              <Label htmlFor="description">Deskripsi</Label>
               <Textarea
                 id="description"
                 value={formData.description || ''}
                 onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                 rows={3}
-                placeholder="Optional connection description"
+                placeholder="Deskripsi koneksi (opsional)"
               />
             </div>
 
             <div className="flex justify-end gap-2 pt-4">
               <Button type="button" variant="secondary" onClick={() => navigate('/devices')}>
-                Cancel
+                Batal
               </Button>
               <Button type="submit" disabled={mutation.isPending}>
-                {mutation.isPending ? 'Saving...' : isEdit ? 'Update' : 'Create'}
+                {mutation.isPending ? 'Menyimpan...' : isEdit ? 'Perbarui' : 'Buat'}
               </Button>
             </div>
           </form>

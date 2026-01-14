@@ -10,19 +10,24 @@ import { LogsPanel } from '@/components/tester/logs-panel'
 import { WriteControlView } from '@/components/write/write-control-view'
 import { WriteControlViewStepper } from '@/components/write/write-control-stepper'
 import { WorkflowView } from '@/components/workflow/workflow-view'
-import { Activity, LayoutDashboard, TestTube2, PenTool, Menu, X, Workflow } from 'lucide-react'
+import { LayoutDashboard, TestTube2, PenTool, Menu, X, Workflow, Lock, Unlock, LogOut } from 'lucide-react'
+import logoctg1 from '../logoctg1.png'
 import type { Connection, LogEntry, RawDataField, SavedDashboardData, MappedValue, DashboardData } from '@/types'
 import { cn } from '@/lib/utils'
 import { useWebSocket } from '@/hooks/useWebSocket'
 import { ToastProvider, useToast } from '@/contexts/ToastContext'
+import { AuthProvider, useAuth } from '@/contexts/AuthContext'
 import { ToastContainer } from '@/components/ui/toast'
+import { AdminLoginDialog } from '@/components/auth/AdminLoginDialog'
 
 const queryClient = new QueryClient()
 
 function AppContent() {
   const { toasts, removeToast } = useToast()
+  const { isAdmin, logout } = useAuth()
   const [currentView, setCurrentView] = useState<'dashboard' | 'tester' | 'write' | 'workflow'>('dashboard')
   const [isSidebarOpen, setIsSidebarOpen] = useState(true)
+  const [loginDialogOpen, setLoginDialogOpen] = useState(false)
 
   // Tester state
   const [currentStep, setCurrentStep] = useState(0)
@@ -154,6 +159,10 @@ function AppContent() {
   
   // Force refresh WebSocket data when switching to dashboard
   const handleViewChange = (view: 'dashboard' | 'tester' | 'write' | 'workflow') => {
+    // Only allow tester/write/workflow views if admin
+    if ((view === 'tester' || view === 'write' || view === 'workflow') && !isAdmin) {
+      return // Don't allow switching to admin-only views
+    }
     setCurrentView(view)
     // If switching to dashboard, give WebSocket a moment to update
     if (view === 'dashboard') {
@@ -183,18 +192,18 @@ function AppContent() {
 
   const steps = [
     {
-      title: 'Connection Setup',
-      description: 'Configure transport layer',
+      title: 'Pengaturan Koneksi',
+      description: 'Konfigurasi transport layer',
       disabled: false,
     },
     {
-      title: 'Read/Write Test',
-      description: 'Test operations',
+      title: 'Uji Read/Write',
+      description: 'Uji operasi',
       disabled: !canProceedToStep2,
     },
     {
-      title: 'Data Mapping',
-      description: 'Transform raw data',
+      title: 'Pemetaan Data',
+      description: 'Transformasi data mentah',
       disabled: !canProceedToStep3,
     },
   ]
@@ -211,11 +220,11 @@ function AppContent() {
           <div className="p-4 space-y-2">
             <div className="flex items-center gap-3 mb-6">
               <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
-                <Activity className="h-5 w-5 text-primary" />
+                <img src={logoctg1} alt="CTG IMC Logo" className="h-8 w-8 object-contain" />
               </div>
               <div>
-                <h1 className="text-sm font-semibold text-foreground">AOI System</h1>
-                <p className="text-xs text-muted-foreground">Industrial Comm</p>
+                <h1 className="text-sm font-semibold text-foreground">CTG IMC</h1>
+                <p className="text-xs text-muted-foreground">Immersion Control System</p>
               </div>
             </div>
 
@@ -228,32 +237,36 @@ function AppContent() {
               Dashboard
             </Button>
 
-            <Button
-              variant={currentView === 'tester' ? 'default' : 'ghost'}
-              className="w-full justify-start"
-              onClick={() => handleViewChange('tester')}
-            >
-              <TestTube2 className="h-4 w-4 mr-2" />
-              Communication Tester
-            </Button>
+            {isAdmin && (
+              <>
+                <Button
+                  variant={currentView === 'tester' ? 'default' : 'ghost'}
+                  className="w-full justify-start"
+                  onClick={() => handleViewChange('tester')}
+                >
+                  <TestTube2 className="h-4 w-4 mr-2" />
+                  Communication Tester
+                </Button>
 
-            <Button
-              variant={currentView === 'write' ? 'default' : 'ghost'}
-              className="w-full justify-start"
-              onClick={() => handleViewChange('write')}
-            >
-              <PenTool className="h-4 w-4 mr-2" />
-              Write / Control
-            </Button>
+                <Button
+                  variant={currentView === 'write' ? 'default' : 'ghost'}
+                  className="w-full justify-start"
+                  onClick={() => handleViewChange('write')}
+                >
+                  <PenTool className="h-4 w-4 mr-2" />
+                  Write / Control
+                </Button>
 
-            <Button
-              variant={currentView === 'workflow' ? 'default' : 'ghost'}
-              className="w-full justify-start"
-              onClick={() => handleViewChange('workflow')}
-            >
-              <Workflow className="h-4 w-4 mr-2" />
-              Workflow
-            </Button>
+                <Button
+                  variant={currentView === 'workflow' ? 'default' : 'ghost'}
+                  className="w-full justify-start"
+                  onClick={() => handleViewChange('workflow')}
+                >
+                  <Workflow className="h-4 w-4 mr-2" />
+                  Workflow
+                </Button>
+              </>
+            )}
           </div>
         </aside>
 
@@ -268,7 +281,7 @@ function AppContent() {
               >
                 {isSidebarOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
               </Button>
-              <div>
+              <div className="flex-1">
                 <h1 className="text-lg font-semibold text-foreground">
                   {currentView === 'dashboard'
                     ? 'Dashboard'
@@ -280,13 +293,42 @@ function AppContent() {
                 </h1>
                 <p className="text-xs text-muted-foreground">
                   {currentView === 'dashboard'
-                    ? 'Monitor mapped data values'
+                    ? 'Pantau nilai data yang telah dipetakan'
                     : currentView === 'tester'
-                      ? 'Test → Map → Transform'
+                      ? 'Uji → Petakan → Transformasi'
                       : currentView === 'write'
-                        ? 'Write values to Modbus devices'
-                        : 'IF condition THEN action'}
+                        ? 'Tulis nilai ke perangkat Modbus'
+                        : 'JIKA kondisi MAKA aksi'}
                 </p>
+              </div>
+              <div className="flex items-center gap-2">
+                {isAdmin ? (
+                  <>
+                    <div className="flex items-center gap-2 px-3 py-1.5 rounded-md bg-primary/10 text-primary text-sm">
+                      <Unlock className="h-4 w-4" />
+                      <span>Admin Mode</span>
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={logout}
+                      className="gap-2"
+                    >
+                      <LogOut className="h-4 w-4" />
+                      <span>Logout</span>
+                    </Button>
+                  </>
+                ) : (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setLoginDialogOpen(true)}
+                    className="gap-2"
+                  >
+                    <Lock className="h-4 w-4" />
+                    <span>Admin Mode</span>
+                  </Button>
+                )}
               </div>
             </div>
             {currentView === 'tester' && (
@@ -306,7 +348,7 @@ function AppContent() {
           </header>
 
           <div className="flex flex-1 h-[calc(100vh-4rem)]">
-            {currentView === 'write' ? (
+            {currentView === 'write' && isAdmin ? (
               <WriteControlView
                 currentStep={writeStep}
                 setCurrentStep={setWriteStep}
@@ -321,10 +363,24 @@ function AppContent() {
                   setWriteActiveConnection(connection)
                 }}
               />
-            ) : currentView === 'workflow' ? (
+            ) : currentView === 'workflow' && isAdmin ? (
               <main className="flex-1 overflow-y-auto">
                 <div className="p-6">
                   <WorkflowView />
+                </div>
+              </main>
+            ) : (!isAdmin && (currentView === 'tester' || currentView === 'write' || currentView === 'workflow')) ? (
+              <main className="flex-1 overflow-y-auto">
+                <div className="p-6">
+                  <div className="flex flex-col items-center justify-center h-full text-center">
+                    <h2 className="text-2xl font-bold mb-2">Mode Admin Diperlukan</h2>
+                    <p className="text-muted-foreground mb-4">
+                      Silakan aktifkan Mode Admin untuk mengakses fitur ini.
+                    </p>
+                    <Button onClick={() => handleViewChange('dashboard')}>
+                      Kembali ke Dashboard
+                    </Button>
+                  </div>
                 </div>
               </main>
             ) : (
@@ -384,6 +440,10 @@ function AppContent() {
         </div>
       </div>
       <ToastContainer toasts={toasts} onClose={removeToast} />
+      <AdminLoginDialog
+        open={loginDialogOpen}
+        onOpenChange={setLoginDialogOpen}
+      />
     </>
   )
 }
@@ -391,9 +451,11 @@ function AppContent() {
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <ToastProvider>
-        <AppContent />
-      </ToastProvider>
+      <AuthProvider>
+        <ToastProvider>
+          <AppContent />
+        </ToastProvider>
+      </AuthProvider>
     </QueryClientProvider>
   )
 }

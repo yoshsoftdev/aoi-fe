@@ -13,13 +13,13 @@ export function WriteControlViewStepper({
 }: WriteControlViewStepperProps) {
   const steps = [
     {
-      title: 'Connection Setup',
-      description: 'Configure transport layer',
+      title: 'Pengaturan Koneksi',
+      description: 'Konfigurasi lapisan transport',
       disabled: false,
     },
     {
-      title: 'Write Configuration',
-      description: 'Configure write parameters',
+      title: 'Konfigurasi Tulis',
+      description: 'Konfigurasi parameter tulis',
       disabled: !canProceedToStep2,
     },
   ]

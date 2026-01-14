@@ -5,7 +5,7 @@ import { Label } from '@/components/ui/label'
 import { Input, Textarea } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
-import { Plus, Trash2, Calculator, AlertCircle, ArrowRight, Save, Loader2 } from 'lucide-react'
+import { Plus, Trash2, Calculator, AlertCircle, ArrowRight, Save, Loader2, Copy, Check } from 'lucide-react'
 import type { RawDataField, MappingConfig, MappedValue, Connection } from '@/types'
 import { mappingService } from '@/services/mappingService'
 
@@ -39,6 +39,8 @@ export function DataMappingStep({
   const [isSaving, setIsSaving] = useState(false)
   // String mapping state for SNMP string values
   const [stringMapping, setStringMapping] = useState<{ [key: string]: number }>({})
+  // Copy state for showing copy feedback
+  const [copiedField, setCopiedField] = useState<string | null>(null)
 
   const hasRawData = rawData.length > 0
   
@@ -175,7 +177,7 @@ export function DataMappingStep({
             .filter((field) => mapping.formula.includes(field.name))
             .map((field) => ({
               name: field.name,
-              value: field.value,
+              value: typeof field.value === 'number' ? field.value : (typeof field.value === 'string' ? parseFloat(field.value) || 0 : 0),
             }))
 
           results.push({
@@ -473,11 +475,11 @@ export function DataMappingStep({
           onSaveSuccess()
         }, 1000)
       } else {
-        addLog('Failed to save mappings', 'error')
+        addLog('Gagal menyimpan pemetaan', 'error')
       }
     } catch (error: any) {
       const errorMessage = error.response?.data?.error || error.message || 'Unknown error'
-      addLog(`Save failed: ${errorMessage}`, 'error')
+        addLog(`Penyimpanan gagal: ${errorMessage}`, 'error')
     } finally {
       setIsSaving(false)
     }
@@ -487,12 +489,12 @@ export function DataMappingStep({
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold text-foreground">Step 3: Data Mapping</h2>
-          <p className="text-sm text-muted-foreground mt-1">Transform raw data using custom formulas</p>
+          <h2 className="text-2xl font-bold text-foreground">Langkah 3: Pemetaan Data</h2>
+          <p className="text-sm text-muted-foreground mt-1">Transformasi data mentah menggunakan formula kustom</p>
         </div>
         <Button onClick={addMapping} disabled={!hasRawData}>
           <Plus className="h-4 w-4 mr-2" />
-          Add Mapping
+          Tambah Pemetaan
         </Button>
       </div>
 
@@ -501,9 +503,9 @@ export function DataMappingStep({
           <CardContent className="flex items-center gap-3 p-6">
             <AlertCircle className="h-5 w-5 text-muted-foreground" />
             <div>
-              <p className="font-medium text-foreground">No raw data available</p>
+              <p className="font-medium text-foreground">Tidak ada data mentah tersedia</p>
               <p className="text-sm text-muted-foreground">
-                Please execute a test operation to generate raw data first
+                Silakan jalankan operasi uji terlebih dahulu untuk menghasilkan data mentah
               </p>
             </div>
           </CardContent>
@@ -515,63 +517,115 @@ export function DataMappingStep({
           <div className="space-y-4">
             <Card>
               <CardHeader>
-                <CardTitle className="text-base">Raw Data Sources</CardTitle>
-                <CardDescription>Click field names to copy for use in formulas</CardDescription>
+                <CardTitle className="text-base">Sumber Data Mentah</CardTitle>
+                <CardDescription>Klik nama field untuk menyalin untuk digunakan dalam formula</CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="space-y-2">
-                  {rawData.map((field) => (
-                    <button
-                      key={field.id}
-                      onClick={() => {
-                        navigator.clipboard.writeText(field.name)
-                        addLog(`Copied "${field.name}" to clipboard`, 'info')
-                      }}
-                      className="w-full flex items-center justify-between rounded-lg border border-border bg-muted/30 p-3 hover:bg-muted/50 transition-colors cursor-pointer text-left"
-                    >
-                      <div className="flex-1">
-                        <p className="text-sm font-medium text-foreground">{field.name}</p>
-                        <p className="text-xs text-muted-foreground">{field.source}</p>
+                  {rawData.map((field) => {
+                    const fieldKey = `${field.id}-name`
+                    const valueKey = `${field.id}-value`
+                    const isNameCopied = copiedField === fieldKey
+                    const isValueCopied = copiedField === valueKey
+                    
+                    // Format value for display
+                    const formattedValue = field.type === 'string' || typeof field.value === 'string' 
+                      ? `"${field.value}"` 
+                      : (() => {
+                          const val = Number(field.value)
+                          if (isNaN(val) || !isFinite(val)) {
+                            return '0.000'
+                          }
+                          const fixedStr = val.toFixed(3)
+                          if (fixedStr.includes('e') || fixedStr.includes('E')) {
+                            const parts = fixedStr.split(/[eE]/)
+                            const base = parts[0]
+                            const baseNum = parseFloat(base)
+                            return baseNum.toFixed(3)
+                          }
+                          const withoutTrailingZeros = fixedStr.replace(/\.?0+$/, '')
+                          return withoutTrailingZeros || '0'
+                        })()
+                    
+                    const handleCopyName = async (e: React.MouseEvent) => {
+                      e.stopPropagation()
+                      try {
+                        await navigator.clipboard.writeText(field.name)
+                        setCopiedField(fieldKey)
+                        addLog(`Menyalin "${field.name}" ke clipboard`, 'info')
+                        setTimeout(() => setCopiedField(null), 2000)
+                      } catch (err) {
+                        addLog('Gagal menyalin ke clipboard', 'error')
+                      }
+                    }
+                    
+                    const handleCopyValue = async (e: React.MouseEvent) => {
+                      e.stopPropagation()
+                      try {
+                        await navigator.clipboard.writeText(field.name)
+                        setCopiedField(valueKey)
+                        addLog(`Menyalin "${field.name}" ke clipboard`, 'info')
+                        setTimeout(() => setCopiedField(null), 2000)
+                      } catch (err) {
+                        addLog('Gagal menyalin ke clipboard', 'error')
+                      }
+                    }
+                    
+                    return (
+                      <div
+                        key={field.id}
+                        className="w-full flex items-center justify-between rounded-lg border border-border bg-muted/30 p-3 hover:bg-muted/50 transition-colors"
+                      >
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-1">
+                            <p 
+                              className="text-sm font-medium text-foreground select-all cursor-text"
+                              onDoubleClick={handleCopyName}
+                            >
+                              {field.name}
+                            </p>
+                            <button
+                              onClick={handleCopyName}
+                              className="p-1 hover:bg-muted rounded transition-colors"
+                              title="Salin nama field"
+                            >
+                              {isNameCopied ? (
+                                <Check className="h-3 w-3 text-green-500" />
+                              ) : (
+                                <Copy className="h-3 w-3 text-muted-foreground" />
+                              )}
+                            </button>
+                          </div>
+                          <p className="text-xs text-muted-foreground select-all">{field.source}</p>
+                        </div>
+                        <div className="text-right ml-4">
+                          <div className="flex items-center gap-2">
+                            <p 
+                              className="text-sm font-mono font-semibold text-primary break-all select-all cursor-text"
+                              onDoubleClick={handleCopyValue}
+                            >
+                              {formattedValue}
+                            </p>
+                            <button
+                              onClick={handleCopyValue}
+                              className="p-1 hover:bg-muted rounded transition-colors"
+                              title="Salin nama field (untuk formula)"
+                            >
+                              {isValueCopied ? (
+                                <Check className="h-3 w-3 text-green-500" />
+                              ) : (
+                                <Copy className="h-3 w-3 text-muted-foreground" />
+                              )}
+                            </button>
+                          </div>
+                          {field.type === 'string' && (
+                            <p className="text-xs text-orange-500 font-semibold">STRING</p>
+                          )}
+                          <p className="text-xs text-muted-foreground">{field.timestamp.toLocaleTimeString()}</p>
+                        </div>
                       </div>
-                      <div className="text-right">
-                        <p className="text-sm font-mono font-semibold text-primary break-all">
-                          {field.type === 'string' || typeof field.value === 'string' 
-                            ? `"${field.value}"` 
-                            : (() => {
-                                // Format value with exactly 3 decimal places
-                                const val = Number(field.value)
-                                if (isNaN(val) || !isFinite(val)) {
-                                  return '0.000'
-                                }
-                                
-                                // For very large numbers, toFixed might still return scientific notation
-                                // So we need to handle it manually
-                                const fixedStr = val.toFixed(3)
-                                
-                                // Check if result is still in scientific notation
-                                if (fixedStr.includes('e') || fixedStr.includes('E')) {
-                                  // Parse scientific notation and extract only the base part
-                                  const parts = fixedStr.split(/[eE]/)
-                                  const base = parts[0]
-                                  const baseNum = parseFloat(base)
-                                  
-                                  // Return only the base with 3 decimal places (without exponent)
-                                  // This will show as "1.190" for very large numbers like 1.190e+25
-                                  return baseNum.toFixed(3)
-                                }
-                                
-                                // Normal number, remove trailing zeros but keep at least .000 if needed
-                                const withoutTrailingZeros = fixedStr.replace(/\.?0+$/, '')
-                                return withoutTrailingZeros || '0'
-                              })()}
-                        </p>
-                        {field.type === 'string' && (
-                          <p className="text-xs text-orange-500 font-semibold">STRING</p>
-                        )}
-                        <p className="text-xs text-muted-foreground">{field.timestamp.toLocaleTimeString()}</p>
-                      </div>
-                    </button>
-                  ))}
+                    )
+                  })}
                 </div>
               </CardContent>
             </Card>
@@ -582,7 +636,7 @@ export function DataMappingStep({
                 <CardHeader>
                   <CardTitle className="text-sm text-orange-600">SNMP String Mapping *</CardTitle>
                   <CardDescription>
-                    Map string value "{stringField.value}" to numeric (0 or 1)
+                    Petakan nilai string "{stringField.value}" ke numerik (0 atau 1)
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
@@ -590,7 +644,7 @@ export function DataMappingStep({
                     <Label>String Value: "{stringField.value}"</Label>
                     <div className="grid grid-cols-2 gap-2">
                       <div className="space-y-1">
-                        <Label className="text-xs">Map to:</Label>
+                        <Label className="text-xs">Petakan ke:</Label>
                         <Input
                           type="number"
                           placeholder="0 or 1"
@@ -613,10 +667,10 @@ export function DataMappingStep({
                       </div>
                     </div>
                     <p className="text-xs text-muted-foreground">
-                      Required: Map string to 0 (abnormal) or 1 (normal). Value 0 will force alarmstatus = abnormal.
+                      Wajib: Petakan string ke 0 (abnormal) atau 1 (normal). Nilai 0 akan memaksa alarmstatus = abnormal.
                     </p>
                     {stringMapping[String(stringField.value)] === undefined && (
-                      <p className="text-xs text-red-500">⚠️ String mapping is required</p>
+                      <p className="text-xs text-red-500">⚠️ String mapping wajib diisi</p>
                     )}
                   </div>
                 </CardContent>
@@ -625,7 +679,7 @@ export function DataMappingStep({
 
             <Card>
               <CardHeader>
-                <CardTitle className="text-sm">Example Formulas</CardTitle>
+                <CardTitle className="text-sm">Contoh Formula</CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="space-y-2 text-xs font-mono text-muted-foreground">
@@ -633,7 +687,7 @@ export function DataMappingStep({
                   <p>Slave 2 Addr 0 * 0.5 + 273.15</p>
                   <p>(Slave 1 Addr 5 - 32) * 5 / 9</p>
                   <p className="text-xs text-muted-foreground mt-2 font-sans">
-                    Supports: +, -, *, /, ( ), numbers
+                    Mendukung: +, -, *, /, ( ), angka
                   </p>
                 </div>
               </CardContent>
@@ -651,7 +705,7 @@ export function DataMappingStep({
                           value={mapping.outputName}
                           onChange={(e) => updateMapping(mapping.id, { outputName: e.target.value })}
                           className="text-base font-semibold h-8 mb-2"
-                          placeholder="Output variable name"
+                          placeholder="Nama variabel output"
                         />
                       </div>
                       <div className="flex items-center gap-2">
@@ -673,7 +727,7 @@ export function DataMappingStep({
                   <CardContent className="space-y-4">
                     {/* Output Type Selector */}
                     <div className="space-y-2">
-                      <Label>Output Type *</Label>
+                      <Label>Tipe Output *</Label>
                       <RadioGroup
                         value={mapping.outputType}
                         onValueChange={(value) => updateMapping(mapping.id, { 
@@ -685,13 +739,13 @@ export function DataMappingStep({
                         <div className="flex items-center space-x-2">
                           <RadioGroupItem value="DIRECT" id={`direct-${mapping.id}`} />
                           <Label htmlFor={`direct-${mapping.id}`} className="cursor-pointer">
-                            Direct (use source value as-is)
+                            Direct (gunakan nilai sumber apa adanya)
                           </Label>
                         </div>
                         <div className="flex items-center space-x-2">
                           <RadioGroupItem value="FORMULA" id={`formula-${mapping.id}`} />
                           <Label htmlFor={`formula-${mapping.id}`} className="cursor-pointer">
-                            Formula (calculate using expression)
+                            Formula (hitung menggunakan ekspresi)
                           </Label>
                         </div>
                       </RadioGroup>
@@ -700,21 +754,57 @@ export function DataMappingStep({
                     {/* DIRECT: Source Field Selector */}
                     {mapping.outputType === 'DIRECT' && (
                       <div className="space-y-2">
-                        <Label>Source Field *</Label>
+                        <div className="flex items-center justify-between">
+                          <Label>Field Sumber *</Label>
+                          {mapping.sourceField && (
+                            <button
+                              type="button"
+                              onClick={async () => {
+                                if (!mapping.sourceField) return
+                                try {
+                                  await navigator.clipboard.writeText(mapping.sourceField)
+                                  addLog(`Menyalin "${mapping.sourceField}" ke clipboard`, 'info')
+                                } catch (err) {
+                                  addLog('Gagal menyalin ke clipboard', 'error')
+                                }
+                              }}
+                              className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                            >
+                              <Copy className="h-3 w-3" />
+                              Salin
+                            </button>
+                          )}
+                        </div>
                         <select
                           value={mapping.sourceField || ''}
                           onChange={(e) => updateMapping(mapping.id, { sourceField: e.target.value })}
                           className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                         >
-                          <option value="">Select source field...</option>
+                          <option value="">Pilih field sumber...</option>
                           {rawData.map((field) => (
                             <option key={field.id} value={field.name}>
                               {field.name} ({field.value})
                             </option>
                           ))}
                         </select>
+                        {mapping.sourceField && (
+                          <p 
+                            className="text-xs text-muted-foreground font-mono select-all cursor-text break-all"
+                            onDoubleClick={async () => {
+                              if (!mapping.sourceField) return
+                              try {
+                                await navigator.clipboard.writeText(mapping.sourceField)
+                                addLog(`Copied "${mapping.sourceField}" to clipboard`, 'info')
+                              } catch (err) {
+                                addLog('Gagal menyalin ke clipboard', 'error')
+                              }
+                            }}
+                          >
+                            Terpilih: {mapping.sourceField}
+                          </p>
+                        )}
                         <p className="text-xs text-muted-foreground">
-                          Select a single source field to use its value directly
+                          Pilih satu field sumber untuk menggunakan nilainya langsung. Klik ganda pada field terpilih untuk menyalin.
                         </p>
                       </div>
                     )}
@@ -726,12 +816,12 @@ export function DataMappingStep({
                         <Textarea
                           value={mapping.formula}
                           onChange={(e) => updateMapping(mapping.id, { formula: e.target.value })}
-                          placeholder="e.g., (Slave 1 Addr 7 + Slave 1 Addr 8) / 10"
+                          placeholder="contoh: (Slave 1 Addr 7 + Slave 1 Addr 8) / 10"
                           className="font-mono text-sm"
                           rows={3}
                         />
                         <p className="text-xs text-muted-foreground">
-                          Copy field names from the left panel and use +, -, *, /, ( )
+                          Salin nama field dari panel kiri dan gunakan +, -, *, /, ( )
                         </p>
                       </div>
                     )}
@@ -743,7 +833,7 @@ export function DataMappingStep({
             {mappings.length > 0 && (
               <Button onClick={executeMappings} className="w-full" disabled={mappings.every((m) => !m.enabled)}>
                 <Calculator className="h-4 w-4 mr-2" />
-                Execute Mappings
+                Eksekusi Pemetaan
               </Button>
             )}
 
@@ -752,12 +842,12 @@ export function DataMappingStep({
                 {isSaving ? (
                   <>
                     <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    Saving...
+                    Menyimpan...
                   </>
                 ) : (
                   <>
                     <Save className="h-4 w-4 mr-2" />
-                    Save to Dashboard
+                    Simpan ke Dashboard
                   </>
                 )}
               </Button>
@@ -766,8 +856,8 @@ export function DataMappingStep({
             {mappedValues.length > 0 && (
               <Card>
                 <CardHeader>
-                  <CardTitle className="text-base">Mapped Results</CardTitle>
-                  <CardDescription>Processed values after transformation</CardDescription>
+                  <CardTitle className="text-base">Hasil Pemetaan</CardTitle>
+                  <CardDescription>Nilai yang telah diproses setelah transformasi</CardDescription>
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-3">
@@ -806,7 +896,7 @@ export function DataMappingStep({
                         </div>
                         {result.rawValues.length > 0 && (
                           <div className="flex items-center gap-2 text-xs text-muted-foreground pt-2 border-t border-border">
-                            <span>Used:</span>
+                            <span>Digunakan:</span>
                             {result.rawValues.map((rv, i) => (
                               <span key={i} className="font-mono">
                                 {rv.name}={rv.value}

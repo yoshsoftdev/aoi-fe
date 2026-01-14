@@ -201,8 +201,8 @@ export function ConnectionStep({
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold text-foreground">Step 1: Connection Setup</h2>
-          <p className="text-sm text-muted-foreground mt-1">Configure transport layer (no Slave ID required)</p>
+          <h2 className="text-2xl font-bold text-foreground">Langkah 1: Pengaturan Koneksi</h2>
+          <p className="text-sm text-muted-foreground mt-1">Konfigurasi transport layer (tidak perlu Slave ID)</p>
         </div>
         <Button
           onClick={() => {
@@ -212,7 +212,7 @@ export function ConnectionStep({
           size="sm"
         >
           <Plus className="h-4 w-4 mr-2" />
-          New Connection
+          Koneksi Baru
         </Button>
       </div>
 
@@ -240,7 +240,7 @@ export function ConnectionStep({
                     {connection.name}
                     {activeConnection?.id === connection.id && (
                       <Badge variant="outline" className="text-xs">
-                        Active
+                        Aktif
                       </Badge>
                     )}
                   </CardTitle>
@@ -317,7 +317,7 @@ export function ConnectionStep({
                 {connection.status === 'connected' ? (
                   <Button onClick={() => handleDisconnect(connection)} variant="outline" size="sm" className="flex-1">
                     <Plug className="h-4 w-4 mr-2" />
-                    Disconnect
+                    Putuskan
                   </Button>
                 ) : (
                   <>
@@ -331,7 +331,7 @@ export function ConnectionStep({
                         disabled={connection.status === 'connecting' || testingConnectionId === connection.id}
                       >
                         <TestTube className="h-4 w-4 mr-2" />
-                        {testingConnectionId === connection.id ? 'Testing...' : 'Test'}
+                        {testingConnectionId === connection.id ? 'Menguji...' : 'Uji'}
                       </Button>
                     )}
                     <Button
@@ -342,7 +342,7 @@ export function ConnectionStep({
                       disabled={connection.status === 'connecting' || testingConnectionId === connection.id}
                     >
                       <PlugZap className="h-4 w-4 mr-2" />
-                      {connection.status === 'connecting' ? 'Connecting...' : 'Connect'}
+                      {connection.status === 'connecting' ? 'Menyambungkan...' : 'Sambungkan'}
                     </Button>
                   </>
                 )}
@@ -379,8 +379,8 @@ export function ConnectionStep({
                 <PlugZap className="h-5 w-5 text-primary" />
               </div>
               <div>
-                <p className="font-medium text-foreground">Connection Established</p>
-                <p className="text-sm text-muted-foreground">Navigating to test panel...</p>
+                <p className="font-medium text-foreground">Koneksi Terhubung</p>
+                <p className="text-sm text-muted-foreground">Beralih ke panel uji...</p>
               </div>
             </div>
           </CardContent>

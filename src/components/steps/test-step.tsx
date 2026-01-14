@@ -103,13 +103,13 @@ export function TestStep({ activeConnection, addLog, onRawDataReceived, onNext }
 
   const handleTest = async () => {
     if (testData.slaveId < 1 || testData.slaveId > 247) {
-      addLog('Invalid Slave ID. Must be between 1-247', 'error', activeConnection.id)
+      addLog('Slave ID tidak valid. Harus antara 1-247', 'error', activeConnection.id)
       return
     }
 
     if (isConnectionBusy) {
       addLog(
-        `Connection busy - Please wait for current operation to complete`,
+        `Koneksi sibuk - Silakan tunggu operasi saat ini selesai`,
         'warning',
         activeConnection.id,
         testData.slaveId
@@ -345,11 +345,11 @@ export function TestStep({ activeConnection, addLog, onRawDataReceived, onNext }
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold text-foreground">Step 2: Read/Write Test Panel</h2>
+          <h2 className="text-2xl font-bold text-foreground">Langkah 2: Panel Uji Read/Write</h2>
           <p className="text-sm text-muted-foreground mt-1">
-            {isModbus && 'Direct Modbus operations on any slave ID'}
-            {isDigitalIO && 'Digital I/O control and monitoring'}
-            {isSNMP && 'SNMP GET and SET operations'}
+            {isModbus && 'Operasi Modbus langsung pada slave ID apa pun'}
+            {isDigitalIO && 'Kontrol dan monitoring Digital I/O'}
+            {isSNMP && 'Operasi SNMP GET dan SET'}
           </p>
         </div>
       </div>
@@ -358,14 +358,14 @@ export function TestStep({ activeConnection, addLog, onRawDataReceived, onNext }
         {isModbus && (
           <Card>
             <CardHeader>
-              <CardTitle>Manual Test Panel - Modbus</CardTitle>
-              <CardDescription>Test operations on any slave ID</CardDescription>
+              <CardTitle>Panel Uji Manual - Modbus</CardTitle>
+              <CardDescription>Uji operasi pada slave ID apa pun</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               {isConnectionBusy && (
                 <div className="flex items-center gap-2 rounded-lg border border-yellow-500/20 bg-yellow-500/10 p-3 text-sm text-yellow-600 dark:text-yellow-500">
                   <AlertCircle className="h-4 w-4" />
-                  <span className="font-medium">Connection Busy - Operation in progress</span>
+                  <span className="font-medium">Koneksi Sibuk - Operasi sedang berlangsung</span>
                 </div>
               )}
 
@@ -378,11 +378,11 @@ export function TestStep({ activeConnection, addLog, onRawDataReceived, onNext }
                   max="247"
                   value={testData.slaveId}
                   onChange={(e) => setTestData({ ...testData, slaveId: parseInt(e.target.value) || 1 })}
-                  placeholder="Enter slave ID"
+                  placeholder="Masukkan slave ID"
                 />
                 <p className="text-xs text-muted-foreground flex items-start gap-1.5">
                   <AlertCircle className="h-3 w-3 mt-0.5 flex-shrink-0" />
-                  <span>Modbus requests on the same connection are executed sequentially</span>
+                  <span>Request Modbus pada koneksi yang sama dieksekusi secara berurutan</span>
                 </p>
               </div>
 
@@ -412,7 +412,7 @@ export function TestStep({ activeConnection, addLog, onRawDataReceived, onNext }
 
               <div className="grid gap-4 md:grid-cols-2">
                 <div className="space-y-2">
-                  <Label>Start Address</Label>
+                  <Label>Alamat Awal</Label>
                   <Input
                     type="number"
                     min="0"
@@ -438,7 +438,7 @@ export function TestStep({ activeConnection, addLog, onRawDataReceived, onNext }
                     }}
                   />
                   <p className="text-xs text-muted-foreground">
-                    Minimum: {getRequiredQuantity(testData.dataType)} register(s) for {testData.dataType}
+                    Minimum: {getRequiredQuantity(testData.dataType)} register untuk {testData.dataType}
                   </p>
                 </div>
               </div>
@@ -472,8 +472,8 @@ export function TestStep({ activeConnection, addLog, onRawDataReceived, onNext }
                   </Select>
                   <p className="text-xs text-muted-foreground">
                     {getRequiredQuantity(testData.dataType) > 1
-                      ? `Requires ${getRequiredQuantity(testData.dataType)} registers`
-                      : 'Requires 1 register'}
+                      ? `Memerlukan ${getRequiredQuantity(testData.dataType)} register`
+                      : 'Memerlukan 1 register'}
                   </p>
                 </div>
                 <div className="space-y-2">
@@ -546,7 +546,7 @@ export function TestStep({ activeConnection, addLog, onRawDataReceived, onNext }
         <div className="max-w-2xl mt-6">
           <Button onClick={onNext} className="w-full" size="lg">
             <ArrowRight className="h-4 w-4 mr-2" />
-            Next: Data Mapping
+            Selanjutnya: Pemetaan Data
           </Button>
         </div>
       )}

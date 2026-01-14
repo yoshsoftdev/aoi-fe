@@ -94,24 +94,24 @@ export function WorkflowView() {
         <div>
           <h2 className="text-2xl font-bold text-foreground">Workflows</h2>
           <p className="text-sm text-muted-foreground mt-1">
-            Create automation rules: IF condition THEN action
+            Buat aturan otomasi: JIKA kondisi MAKA aksi
           </p>
         </div>
         <Button onClick={handleCreate}>
           <Plus className="h-4 w-4 mr-2" />
-          Create Workflow
+          Buat Workflow
         </Button>
       </div>
 
       {isLoading ? (
-        <div className="text-center py-8 text-muted-foreground">Loading workflows...</div>
+        <div className="text-center py-8 text-muted-foreground">Memuat workflow...</div>
       ) : workflows.length === 0 ? (
         <Card>
           <CardContent className="py-12 text-center">
-            <p className="text-muted-foreground mb-4">No workflows created yet</p>
+            <p className="text-muted-foreground mb-4">Belum ada workflow yang dibuat</p>
             <Button onClick={handleCreate}>
               <Plus className="h-4 w-4 mr-2" />
-              Create Your First Workflow
+              Buat Workflow Pertama
             </Button>
           </CardContent>
         </Card>
@@ -125,7 +125,7 @@ export function WorkflowView() {
                     <div className="flex items-center gap-2 mb-2">
                       <CardTitle className="text-lg">{workflow.nama}</CardTitle>
                       <Badge variant={workflow.enabled ? 'default' : 'secondary'}>
-                        {workflow.enabled ? 'Enabled' : 'Disabled'}
+                        {workflow.enabled ? 'Aktif' : 'Nonaktif'}
                       </Badge>
                     </div>
                     {workflow.description && (
@@ -141,12 +141,12 @@ export function WorkflowView() {
                       {workflow.enabled ? (
                         <>
                           <Pause className="h-4 w-4 mr-1" />
-                          Disable
+                          Nonaktifkan
                         </>
                       ) : (
                         <>
                           <Play className="h-4 w-4 mr-1" />
-                          Enable
+                          Aktifkan
                         </>
                       )}
                     </Button>
@@ -172,7 +172,7 @@ export function WorkflowView() {
                 <div className="space-y-4">
                   {/* Conditions */}
                   <div>
-                    <h4 className="text-sm font-semibold mb-2">Conditions (IF)</h4>
+                    <h4 className="text-sm font-semibold mb-2">Kondisi (JIKA)</h4>
                     <div className="space-y-2">
                       {workflow.conditions?.map((condition, idx) => (
                         <div key={idx} className="text-sm bg-muted/50 p-2 rounded">
@@ -191,7 +191,7 @@ export function WorkflowView() {
 
                   {/* Actions */}
                   <div>
-                    <h4 className="text-sm font-semibold mb-2">Actions (THEN)</h4>
+                    <h4 className="text-sm font-semibold mb-2">Aksi (MAKA)</h4>
                     <div className="space-y-2">
                       {workflow.actions && workflow.actions.length > 0 ? (
                         workflow.actions.map((action, idx) => (
@@ -199,7 +199,7 @@ export function WorkflowView() {
                             {action.action_type === 'TRIGGER_WRITE' && (
                               <>
                                 <span className="font-medium">Trigger Write</span>{' '}
-                                <span className="text-muted-foreground">to</span>{' '}
+                                <span className="text-muted-foreground">ke</span>{' '}
                                 <span className="font-medium">
                                   {action.parameter?.nama || `Parameter ${action.parameter_id}`}
                                 </span>
@@ -211,8 +211,8 @@ export function WorkflowView() {
                             )}
                             {action.action_type === 'WRITE_WITH_VALUE' && (
                               <>
-                                <span className="font-medium">Write</span>{' '}
-                                <span className="text-muted-foreground">to</span>{' '}
+                                <span className="font-medium">Tulis</span>{' '}
+                                <span className="text-muted-foreground">ke</span>{' '}
                                 <span className="font-medium">
                                   {action.parameter?.nama || `Parameter ${action.parameter_id}`}
                                 </span>{' '}
@@ -226,8 +226,8 @@ export function WorkflowView() {
                             )}
                             {action.action_type === 'write' && (
                               <>
-                                <span className="font-medium">Write</span>{' '}
-                                <span className="text-muted-foreground">to</span>{' '}
+                                <span className="font-medium">Tulis</span>{' '}
+                                <span className="text-muted-foreground">ke</span>{' '}
                                 <span className="font-medium">
                                   {action.parameter?.nama || `Parameter ${action.parameter_id}`}
                                 </span>{' '}
@@ -240,26 +240,26 @@ export function WorkflowView() {
                             )}
                             {action.action_type === 'event' && (
                               <>
-                                <span className="font-medium">Emit Event:</span>{' '}
+                                <span className="font-medium">Kirim Event:</span>{' '}
                                 <span className="font-medium">{action.event_name}</span>
                               </>
                             )}
                             {action.action_type === 'delay' && (
                               <>
-                                <span className="font-medium">Delay:</span>{' '}
+                                <span className="font-medium">Tunda:</span>{' '}
                                 <span className="font-medium">{action.delay_ms}ms</span>
                               </>
                             )}
                             {action.action_type === 'alarm' && (
                               <>
                                 <span className="font-medium">Alarm:</span>{' '}
-                                <span className="font-medium">{action.alarm_message || 'No message'}</span>
+                                <span className="font-medium">{action.alarm_message || 'Tidak ada pesan'}</span>
                               </>
                             )}
                           </div>
                         ))
                       ) : (
-                        <div className="text-sm text-muted-foreground italic">No actions defined</div>
+                        <div className="text-sm text-muted-foreground italic">Tidak ada aksi yang didefinisikan</div>
                       )}
                     </div>
                   </div>
@@ -280,8 +280,8 @@ export function WorkflowView() {
           }
         }}
         onConfirm={handleConfirmDelete}
-        title="Delete Workflow"
-        description="Are you sure you want to delete this workflow? This action cannot be undone."
+        title="Hapus Workflow"
+        description="Apakah Anda yakin ingin menghapus workflow ini? Tindakan ini tidak dapat dibatalkan."
         itemName={workflowToDelete?.nama}
         isDeleting={deleteMutation.isPending}
         error={null}

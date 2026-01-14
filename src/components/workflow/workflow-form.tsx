@@ -171,7 +171,7 @@ export function WorkflowForm({ workflow, onCancel, onSuccess }: WorkflowFormProp
   // ✅ 6. ADD ACTION (GUARD)
   const addAction = () => {
     if (writeParameters.length === 0) {
-      alert('No WRITE parameters available')
+      alert('Tidak ada parameter WRITE tersedia')
       return
     }
 
@@ -187,7 +187,7 @@ export function WorkflowForm({ workflow, onCancel, onSuccess }: WorkflowFormProp
 
   const addCondition = () => {
     if (cleanParameters.length === 0) {
-      alert('No clean parameters available. Create formula parameters first.')
+      alert('Tidak ada parameter clean tersedia. Buat parameter formula terlebih dahulu.')
       return
     }
 
@@ -223,12 +223,12 @@ export function WorkflowForm({ workflow, onCancel, onSuccess }: WorkflowFormProp
     e.preventDefault()
 
     if (conditions.length === 0) {
-      alert('Please add at least one condition')
+      alert('Silakan tambahkan setidaknya satu kondisi')
       return
     }
 
     if (actions.length === 0) {
-      alert('Please add at least one action')
+      alert('Silakan tambahkan setidaknya satu aksi')
       return
     }
 
@@ -250,25 +250,25 @@ export function WorkflowForm({ workflow, onCancel, onSuccess }: WorkflowFormProp
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-2xl font-bold text-foreground">
-            {workflow ? 'Edit Workflow' : 'Create Workflow'}
+            {workflow ? 'Edit Workflow' : 'Buat Workflow'}
           </h2>
           <p className="text-sm text-muted-foreground mt-1">
-            Define automation rule: IF condition THEN action
+            Definisikan aturan otomasi: JIKA kondisi MAKA aksi
           </p>
         </div>
         <Button type="button" variant="outline" onClick={onCancel}>
           <X className="h-4 w-4 mr-2" />
-          Cancel
+          Batal
         </Button>
       </div>
 
       <Card>
         <CardHeader>
-          <CardTitle>Basic Information</CardTitle>
+          <CardTitle>Informasi Dasar</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="nama">Workflow Name *</Label>
+            <Label htmlFor="nama">Nama Workflow *</Label>
             <Input
               id="nama"
               value={formData.nama}
@@ -278,12 +278,12 @@ export function WorkflowForm({ workflow, onCancel, onSuccess }: WorkflowFormProp
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="description">Description</Label>
+            <Label htmlFor="description">Deskripsi</Label>
             <Textarea
               id="description"
               value={formData.description}
               onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-              placeholder="Describe what this workflow does"
+              placeholder="Jelaskan fungsi workflow ini"
               rows={3}
             />
           </div>
@@ -295,7 +295,7 @@ export function WorkflowForm({ workflow, onCancel, onSuccess }: WorkflowFormProp
               onChange={(e) => setFormData({ ...formData, enabled: e.target.checked })}
               className="h-4 w-4"
             />
-            <Label htmlFor="enabled">Enabled</Label>
+            <Label htmlFor="enabled">Aktif</Label>
           </div>
         </CardContent>
       </Card>
@@ -304,25 +304,25 @@ export function WorkflowForm({ workflow, onCancel, onSuccess }: WorkflowFormProp
         <CardHeader>
           <div className="flex items-center justify-between">
             <div>
-              <CardTitle>Conditions (IF)</CardTitle>
-              <CardDescription>All conditions must be met for workflow to trigger</CardDescription>
+              <CardTitle>Kondisi (JIKA)</CardTitle>
+              <CardDescription>Semua kondisi harus terpenuhi agar workflow terpicu</CardDescription>
             </div>
             <Button type="button" variant="outline" size="sm" onClick={addCondition}>
               <Plus className="h-4 w-4 mr-2" />
-              Add Condition
+              Tambah Kondisi
             </Button>
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
           {conditions.length === 0 ? (
             <p className="text-sm text-muted-foreground text-center py-4">
-              No conditions added. Click "Add Condition" to add one.
+              Belum ada kondisi yang ditambahkan. Klik "Tambah Kondisi" untuk menambahkan.
             </p>
           ) : (
             conditions.map((condition, index) => (
               <div key={index} className="border rounded-lg p-4 space-y-3">
                 <div className="flex items-center justify-between mb-2">
-                  <Badge variant="outline">Condition {index + 1}</Badge>
+                  <Badge variant="outline">Kondisi {index + 1}</Badge>
                   <Button
                     type="button"
                     variant="ghost"
@@ -342,12 +342,12 @@ export function WorkflowForm({ workflow, onCancel, onSuccess }: WorkflowFormProp
                       }
                     >
                       <SelectTrigger>
-                        <SelectValue placeholder="Select clean parameter" />
+                        <SelectValue placeholder="Pilih parameter clean" />
                       </SelectTrigger>
                       <SelectContent>
                         {cleanParameters.length === 0 ? (
                           <div className="px-2 py-1.5 text-sm text-muted-foreground">
-                            No clean parameters available. Create formula parameters first.
+                            Tidak ada parameter clean tersedia. Buat parameter formula terlebih dahulu.
                           </div>
                         ) : (
                           cleanParameters.map(p => (
@@ -369,17 +369,17 @@ export function WorkflowForm({ workflow, onCancel, onSuccess }: WorkflowFormProp
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value=">">{'>'} Greater Than</SelectItem>
-                        <SelectItem value="<">{'<'} Less Than</SelectItem>
-                        <SelectItem value=">=">{'>='} Greater or Equal</SelectItem>
-                        <SelectItem value="<=">{'<='} Less or Equal</SelectItem>
-                        <SelectItem value="==">{'=='} Equal</SelectItem>
-                        <SelectItem value="!=">{'!='} Not Equal</SelectItem>
+                        <SelectItem value=">">{'>'} Lebih Besar</SelectItem>
+                        <SelectItem value="<">{'<'} Lebih Kecil</SelectItem>
+                        <SelectItem value=">=">{'>='} Lebih Besar atau Sama</SelectItem>
+                        <SelectItem value="<=">{'<='} Lebih Kecil atau Sama</SelectItem>
+                        <SelectItem value="==">{'=='} Sama Dengan</SelectItem>
+                        <SelectItem value="!=">{'!='} Tidak Sama</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
                   <div className="space-y-2">
-                    <Label>Threshold *</Label>
+                    <Label>Ambang Batas *</Label>
                     <Input
                       type="number"
                       step="any"
@@ -401,19 +401,19 @@ export function WorkflowForm({ workflow, onCancel, onSuccess }: WorkflowFormProp
         <CardHeader>
           <div className="flex items-center justify-between">
             <div>
-              <CardTitle>Actions (THEN)</CardTitle>
-              <CardDescription>Actions to execute when conditions are met</CardDescription>
+              <CardTitle>Aksi (MAKA)</CardTitle>
+              <CardDescription>Aksi yang akan dieksekusi ketika kondisi terpenuhi</CardDescription>
             </div>
             <Button type="button" variant="outline" size="sm" onClick={addAction}>
               <Plus className="h-4 w-4 mr-2" />
-              Add Action
+              Tambah Aksi
             </Button>
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
           {actions.length === 0 ? (
             <p className="text-sm text-muted-foreground text-center py-4">
-              No actions added. Click "Add Action" to add one.
+              Belum ada aksi yang ditambahkan. Klik "Tambah Aksi" untuk menambahkan.
             </p>
           ) : (
             actions.map((action, index) => {
@@ -422,7 +422,7 @@ export function WorkflowForm({ workflow, onCancel, onSuccess }: WorkflowFormProp
               return (
                 <div key={actionKey} className="border rounded-lg p-4 space-y-3">
                 <div className="flex items-center justify-between mb-2">
-                  <Badge variant="outline">Action {index + 1}</Badge>
+                  <Badge variant="outline">Aksi {index + 1}</Badge>
                   <Button
                     type="button"
                     variant="ghost"
@@ -434,7 +434,7 @@ export function WorkflowForm({ workflow, onCancel, onSuccess }: WorkflowFormProp
                 </div>
                 <div className="space-y-3">
                   <div className="space-y-2">
-                    <Label>Action Type *</Label>
+                    <Label>Tipe Aksi *</Label>
                     {/* ✅ 3. ACTION TYPE CHANGE (BUG FIX UTAMA) */}
                     <Select
                       value={action.action_type}
@@ -481,10 +481,10 @@ export function WorkflowForm({ workflow, onCancel, onSuccess }: WorkflowFormProp
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="TRIGGER_WRITE">Trigger Write (PRESET)</SelectItem>
-                        <SelectItem value="WRITE_WITH_VALUE">Write with Value (DYNAMIC)</SelectItem>
-                        <SelectItem value="event">Emit Event</SelectItem>
-                        <SelectItem value="delay">Delay</SelectItem>
-                        <SelectItem value="alarm">Alarm Notification</SelectItem>
+                        <SelectItem value="WRITE_WITH_VALUE">Tulis dengan Nilai (DYNAMIC)</SelectItem>
+                        <SelectItem value="event">Kirim Event</SelectItem>
+                        <SelectItem value="delay">Tunda</SelectItem>
+                        <SelectItem value="alarm">Notifikasi Alarm</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -500,13 +500,13 @@ export function WorkflowForm({ workflow, onCancel, onSuccess }: WorkflowFormProp
                         }}
                       >
                         <SelectTrigger>
-                          <SelectValue placeholder="Select PRESET parameter" />
+                          <SelectValue placeholder="Pilih parameter PRESET" />
                         </SelectTrigger>
                         {/* ✅ 5. RENDER SELECT TANPA STATE */}
                         <SelectContent>
                           {presetParameters.length === 0 ? (
                             <div className="px-2 py-1.5 text-sm text-muted-foreground">
-                              No PRESET parameters available. Create WRITE parameters with write_mode=PRESET first.
+                              Tidak ada parameter PRESET tersedia. Buat parameter WRITE dengan write_mode=PRESET terlebih dahulu.
                             </div>
                           ) : (
                             presetParameters.map(p => (
@@ -518,7 +518,7 @@ export function WorkflowForm({ workflow, onCancel, onSuccess }: WorkflowFormProp
                         </SelectContent>
                       </Select>
                       <p className="text-xs text-muted-foreground">
-                        TRIGGER_WRITE: Triggers PRESET parameter using its stored preset_value. No value input required.
+                        TRIGGER_WRITE: Memicu parameter PRESET menggunakan preset_value yang tersimpan. Tidak perlu input nilai.
                       </p>
                     </div>
                   )}
@@ -534,12 +534,12 @@ export function WorkflowForm({ workflow, onCancel, onSuccess }: WorkflowFormProp
                           }
                         >
                           <SelectTrigger>
-                            <SelectValue placeholder="Select DYNAMIC parameter" />
+                            <SelectValue placeholder="Pilih parameter DYNAMIC" />
                           </SelectTrigger>
                           <SelectContent>
                             {dynamicParameters.length === 0 ? (
                               <div className="px-2 py-1.5 text-sm text-muted-foreground">
-                                No DYNAMIC parameters available. Create WRITE parameters with write_mode=DYNAMIC first.
+                                Tidak ada parameter DYNAMIC tersedia. Buat parameter WRITE dengan write_mode=DYNAMIC terlebih dahulu.
                               </div>
                             ) : (
                               dynamicParameters.map(p => (
@@ -552,7 +552,7 @@ export function WorkflowForm({ workflow, onCancel, onSuccess }: WorkflowFormProp
                         </Select>
                       </div>
                       <div className="space-y-2">
-                        <Label>Value *</Label>
+                        <Label>Nilai *</Label>
                         {/* ✅ 4. INPUT NUMBER YANG BENAR */}
                         <Input
                           type="number"
@@ -569,11 +569,11 @@ export function WorkflowForm({ workflow, onCancel, onSuccess }: WorkflowFormProp
 
                   {action.action_type === 'event' && (
                     <div className="space-y-2">
-                      <Label>Event Name *</Label>
+                      <Label>Nama Event *</Label>
                       <Input
                         value={action.event_name ?? ''}
                         onChange={(e) => updateActionField(index, 'event_name', e.target.value)}
-                        placeholder="e.g., alarm_triggered, system_shutdown"
+                        placeholder="contoh: alarm_triggered, system_shutdown"
                         required
                       />
                     </div>
@@ -581,7 +581,7 @@ export function WorkflowForm({ workflow, onCancel, onSuccess }: WorkflowFormProp
 
                   {action.action_type === 'delay' && (
                     <div className="space-y-2">
-                      <Label>Delay (milliseconds) *</Label>
+                      <Label>Tunda (milidetik) *</Label>
                       <Input
                         type="number"
                         min="1"
@@ -596,16 +596,16 @@ export function WorkflowForm({ workflow, onCancel, onSuccess }: WorkflowFormProp
 
                   {action.action_type === 'alarm' && (
                     <div className="space-y-2">
-                      <Label>Alarm Message *</Label>
+                      <Label>Pesan Alarm *</Label>
                       <Textarea
                         value={action.alarm_message ?? ''}
                         onChange={(e) => updateActionField(index, 'alarm_message', e.target.value)}
-                        placeholder="e.g., Temperature exceeded threshold! Please check the system."
+                        placeholder="contoh: Suhu melebihi ambang batas! Silakan periksa sistem."
                         rows={3}
                         required
                       />
                       <p className="text-xs text-muted-foreground">
-                        This message will be displayed as a notification when the workflow condition is met.
+                        Pesan ini akan ditampilkan sebagai notifikasi ketika kondisi workflow terpenuhi.
                       </p>
                     </div>
                   )}
@@ -619,17 +619,17 @@ export function WorkflowForm({ workflow, onCancel, onSuccess }: WorkflowFormProp
 
       <div className="flex justify-end gap-2">
         <Button type="button" variant="outline" onClick={onCancel}>
-          Cancel
+          Batal
         </Button>
         <Button
           type="submit"
           disabled={createMutation.isPending || updateMutation.isPending}
         >
           {createMutation.isPending || updateMutation.isPending
-            ? 'Saving...'
+            ? 'Menyimpan...'
             : workflow
-              ? 'Update Workflow'
-              : 'Create Workflow'}
+              ? 'Perbarui Workflow'
+              : 'Buat Workflow'}
         </Button>
       </div>
     </form>

@@ -42,8 +42,8 @@ export function LogsPanel({ logs, onClear }: LogsPanelProps) {
       <div className="p-4 border-b border-border bg-card/50">
         <div className="flex items-center justify-between">
           <div>
-            <h2 className="text-sm font-semibold text-foreground uppercase tracking-wider">Activity Logs</h2>
-            <p className="text-xs text-muted-foreground mt-0.5">{logs.length} entries</p>
+            <h2 className="text-sm font-semibold text-foreground uppercase tracking-wider">Log Aktivitas</h2>
+            <p className="text-xs text-muted-foreground mt-0.5">{logs.length} entri</p>
           </div>
           <Button size="sm" variant="ghost" onClick={onClear} disabled={logs.length === 0}>
             <Trash2 className="h-4 w-4" />
@@ -56,8 +56,8 @@ export function LogsPanel({ logs, onClear }: LogsPanelProps) {
           {logs.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12 text-center">
               <Info className="h-10 w-10 text-muted-foreground mb-3 opacity-50" />
-              <p className="text-sm text-muted-foreground">No activity logs yet</p>
-              <p className="text-xs text-muted-foreground mt-1">Actions will be logged here</p>
+              <p className="text-sm text-muted-foreground">Belum ada log aktivitas</p>
+              <p className="text-xs text-muted-foreground mt-1">Aksi akan dicatat di sini</p>
             </div>
           ) : (
             logs.map((log) => (

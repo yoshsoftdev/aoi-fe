@@ -17,7 +17,7 @@ export function DeleteConfirmationDialog({
   open,
   onOpenChange,
   onConfirm,
-  title = 'Delete Confirmation',
+  title = 'Konfirmasi Hapus',
   description,
   itemName,
   isDeleting = false,
@@ -51,14 +51,14 @@ export function DeleteConfirmationDialog({
             onClick={() => onOpenChange(false)}
             disabled={isDeleting}
           >
-            Cancel
+            Batal
           </Button>
           <Button
             variant="destructive"
             onClick={onConfirm}
             disabled={isDeleting}
           >
-            {isDeleting ? 'Deleting...' : 'Delete'}
+            {isDeleting ? 'Menghapus...' : 'Hapus'}
           </Button>
         </DialogFooter>
       </DialogContent>

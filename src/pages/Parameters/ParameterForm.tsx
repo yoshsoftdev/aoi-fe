@@ -249,12 +249,12 @@ export default function ParameterForm({ mode = 'create', paramId = null, queryPa
 
   const handleTestConnection = async () => {
     if (!formData.nama) {
-      alert('Please fill in parameter name first')
+      alert('Silakan isi nama parameter terlebih dahulu')
       return
     }
 
     if (!formData.device_id || formData.device_id === 0) {
-      alert('Please select a device first')
+      alert('Silakan pilih device terlebih dahulu')
       return
     }
 
@@ -266,7 +266,7 @@ export default function ParameterForm({ mode = 'create', paramId = null, queryPa
       // Get device config
       const selectedDev = devices?.find(d => d.id === formData.device_id)
       if (!selectedDev) {
-        alert('Selected device not found')
+        alert('Device yang dipilih tidak ditemukan')
         return
       }
 
@@ -719,11 +719,11 @@ export default function ParameterForm({ mode = 'create', paramId = null, queryPa
     // Check if test connection is required and has been tested successfully
     if (formData.type === 'modbus_rtu' || formData.type === 'modbus_tcp' || formData.type === 'snmp') {
       if (!testResult || !testResult.tested) {
-        alert('Please test connection first before saving')
+        alert('Silakan uji koneksi terlebih dahulu sebelum menyimpan')
         return
       }
       if (!testResult.connected) {
-        alert('Connection test failed. Please fix the configuration and test again.')
+        alert('Uji koneksi gagal. Silakan perbaiki konfigurasi dan uji lagi.')
         return
       }
     }
@@ -752,12 +752,12 @@ export default function ParameterForm({ mode = 'create', paramId = null, queryPa
       case 'modbus_rtu':
         return (
           <div className="space-y-4 border-t pt-4">
-            <h3 className="text-lg font-semibold text-gray-800">Modbus RTU Parameter Configuration</h3>
+            <h3 className="text-lg font-semibold text-gray-800">Konfigurasi Parameter Modbus RTU</h3>
             
             {/* Device-level info display */}
             {selectedDevice && selectedDevice.type === 'modbus_rtu' && (
               <div className="bg-blue-50 border border-blue-200 rounded-md p-4 mb-4">
-                <h4 className="text-sm font-semibold text-blue-900 mb-2">Device Configuration (from selected device)</h4>
+                <h4 className="text-sm font-semibold text-blue-900 mb-2">Konfigurasi Device (dari device yang dipilih)</h4>
                 <div className="grid grid-cols-2 gap-2 text-sm">
                   <div><span className="font-medium">Port:</span> {selectedDevice.port || '-'}</div>
                   <div><span className="font-medium">Baud Rate:</span> {selectedDevice.baud || '-'}</div>
@@ -769,7 +769,7 @@ export default function ParameterForm({ mode = 'create', paramId = null, queryPa
                   <div><span className="font-medium">Timeout:</span> {selectedDevice.timeout_ms || '-'} ms</div>
                 </div>
                 <p className="text-xs text-blue-700 mt-2">
-                  These settings are inherited from the device. You can override Slave ID below if needed.
+                  Pengaturan ini diwariskan dari device. Anda dapat mengganti Slave ID di bawah jika diperlukan.
                 </p>
               </div>
             )}
@@ -777,7 +777,7 @@ export default function ParameterForm({ mode = 'create', paramId = null, queryPa
             {!selectedDevice && (
               <div className="bg-yellow-50 border border-yellow-200 rounded-md p-3 mb-4">
                 <p className="text-sm text-yellow-800">
-                  ⚠️ Please select a device first to see device-level configuration.
+                  ⚠️ Silakan pilih device terlebih dahulu untuk melihat konfigurasi level device.
                 </p>
               </div>
             )}
@@ -833,7 +833,7 @@ export default function ParameterForm({ mode = 'create', paramId = null, queryPa
                 </p>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Register Address *</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Alamat Register *</label>
                 <input
                   type="number"
                   required
@@ -844,7 +844,7 @@ export default function ParameterForm({ mode = 'create', paramId = null, queryPa
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Quantity *</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Kuantitas *</label>
                 <input
                   type="number"
                   required
@@ -855,7 +855,7 @@ export default function ParameterForm({ mode = 'create', paramId = null, queryPa
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Data Type *</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Tipe Data *</label>
                 <select
                   required
                   value={configData.data_type || 'uint16'}
@@ -883,7 +883,7 @@ export default function ParameterForm({ mode = 'create', paramId = null, queryPa
                 </p>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Byte Order *</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Urutan Byte *</label>
                 <select
                   required
                   value={configData.byte_order || 'ABCD'}
@@ -937,12 +937,12 @@ export default function ParameterForm({ mode = 'create', paramId = null, queryPa
       case 'modbus_tcp':
         return (
           <div className="space-y-4 border-t pt-4">
-            <h3 className="text-lg font-semibold text-gray-800">Modbus TCP Parameter Configuration</h3>
+            <h3 className="text-lg font-semibold text-gray-800">Konfigurasi Parameter Modbus TCP</h3>
             
             {/* Device-level info display */}
             {selectedDevice && selectedDevice.type === 'modbus_tcp' && (
               <div className="bg-blue-50 border border-blue-200 rounded-md p-4 mb-4">
-                <h4 className="text-sm font-semibold text-blue-900 mb-2">Device Configuration (from selected device)</h4>
+                <h4 className="text-sm font-semibold text-blue-900 mb-2">Konfigurasi Device (dari device yang dipilih)</h4>
                 <div className="grid grid-cols-2 gap-2 text-sm">
                   <div><span className="font-medium">IP Address:</span> {selectedDevice.ip_address || '-'}</div>
                   <div><span className="font-medium">TCP Port:</span> {selectedDevice.tcp_port || '-'}</div>
@@ -952,7 +952,7 @@ export default function ParameterForm({ mode = 'create', paramId = null, queryPa
                   <div><span className="font-medium">Retry Count:</span> {selectedDevice.retry_count || '-'}</div>
                 </div>
                 <p className="text-xs text-blue-700 mt-2">
-                  These settings are inherited from the device. You can override Slave ID below if needed.
+                  Pengaturan ini diwariskan dari device. Anda dapat mengganti Slave ID di bawah jika diperlukan.
                 </p>
               </div>
             )}
@@ -960,7 +960,7 @@ export default function ParameterForm({ mode = 'create', paramId = null, queryPa
             {!selectedDevice && (
               <div className="bg-yellow-50 border border-yellow-200 rounded-md p-3 mb-4">
                 <p className="text-sm text-yellow-800">
-                  ⚠️ Please select a device first to see device-level configuration.
+                  ⚠️ Silakan pilih device terlebih dahulu untuk melihat konfigurasi level device.
                 </p>
               </div>
             )}
@@ -1016,7 +1016,7 @@ export default function ParameterForm({ mode = 'create', paramId = null, queryPa
                 </p>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Register Address *</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Alamat Register *</label>
                 <input
                   type="number"
                   required
@@ -1027,7 +1027,7 @@ export default function ParameterForm({ mode = 'create', paramId = null, queryPa
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Quantity *</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Kuantitas *</label>
                 <input
                   type="number"
                   required
@@ -1038,7 +1038,7 @@ export default function ParameterForm({ mode = 'create', paramId = null, queryPa
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Data Type *</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Tipe Data *</label>
                 <select
                   required
                   value={configData.data_type || 'uint16'}
@@ -1066,7 +1066,7 @@ export default function ParameterForm({ mode = 'create', paramId = null, queryPa
                 </p>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Byte Order *</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Urutan Byte *</label>
                 <select
                   required
                   value={configData.byte_order || 'ABCD'}
@@ -1120,7 +1120,7 @@ export default function ParameterForm({ mode = 'create', paramId = null, queryPa
       case 'snmp':
         return (
           <div className="space-y-4 border-t pt-4">
-            <h3 className="text-lg font-semibold text-gray-800">SNMP Configuration</h3>
+            <h3 className="text-lg font-semibold text-gray-800">Konfigurasi SNMP</h3>
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">IP Address *</label>
@@ -1184,7 +1184,7 @@ export default function ParameterForm({ mode = 'create', paramId = null, queryPa
         return (
           <div className="border-t pt-4">
             <p className="text-sm text-gray-500">
-              Configuration for {formData.type} will be available after creating the parameter.
+              Konfigurasi untuk {formData.type} akan tersedia setelah membuat parameter.
             </p>
           </div>
         )
@@ -1206,13 +1206,13 @@ export default function ParameterForm({ mode = 'create', paramId = null, queryPa
         >
           <ArrowLeft className="w-5 h-5" />
         </button>
-        <h1 className="text-3xl font-bold text-gray-800">Create New Parameter</h1>
+        <h1 className="text-3xl font-bold text-gray-800">Buat Parameter Baru</h1>
       </div>
 
       <form onSubmit={handleSubmit} className="bg-white rounded-lg shadow p-6 space-y-6">
         <div>
           <label htmlFor="nama" className="block text-sm font-medium text-gray-700 mb-2">
-            Parameter Name *
+            Nama Parameter *
           </label>
           <input
             type="text"
@@ -1221,7 +1221,7 @@ export default function ParameterForm({ mode = 'create', paramId = null, queryPa
             value={formData.nama}
             onChange={(e) => setFormData({ ...formData, nama: e.target.value })}
             className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-            placeholder="e.g., Temperature Sensor 1"
+            placeholder="contoh: Sensor Suhu 1"
           />
         </div>
 
@@ -1229,7 +1229,7 @@ export default function ParameterForm({ mode = 'create', paramId = null, queryPa
         <div className="border-t pt-4">
           <div className="mb-4">
             <label htmlFor="modpoll" className="block text-sm font-medium text-gray-700 mb-2">
-              Modpoll Command (Optional)
+              Perintah Modpoll (Opsional)
             </label>
             <div className="flex space-x-2">
               <input
@@ -1246,16 +1246,16 @@ export default function ParameterForm({ mode = 'create', paramId = null, queryPa
                 disabled={!modpollCommand.trim()}
                 className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
               >
-                Parse Command
+                Parse Perintah
               </button>
             </div>
             <p className="mt-1 text-xs text-gray-500">
-              Paste your modpoll command here to auto-fill the configuration fields. 
-              {formData.device_id === 0 && ' If device doesn\'t exist, you can create it automatically.'}
-              {' '}Or fill the fields manually below.
+              Tempel perintah modpoll Anda di sini untuk mengisi otomatis field konfigurasi. 
+              {formData.device_id === 0 && ' Jika device tidak ada, Anda dapat membuatnya secara otomatis.'}
+              {' '}Atau isi field secara manual di bawah.
             </p>
             <div className="mt-2 p-3 bg-gray-50 rounded-md">
-              <p className="text-xs font-semibold text-gray-700 mb-1">Supported modpoll options:</p>
+              <p className="text-xs font-semibold text-gray-700 mb-1">Opsi modpoll yang didukung:</p>
               <div className="text-xs text-gray-600 space-y-0.5">
                 <div><code className="bg-white px-1 rounded">-m rtu/tcp</code> Protocol mode</div>
                 <div><code className="bg-white px-1 rounded">-a #</code> Slave address</div>
@@ -1277,7 +1277,7 @@ export default function ParameterForm({ mode = 'create', paramId = null, queryPa
 
         <div>
           <label htmlFor="device_id" className="block text-sm font-medium text-gray-700 mb-2">
-            Select Device *
+            Pilih Device *
           </label>
           <select
             id="device_id"
@@ -1300,7 +1300,7 @@ export default function ParameterForm({ mode = 'create', paramId = null, queryPa
             }}
             className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
           >
-            <option value="">-- Select a device --</option>
+            <option value="">-- Pilih device --</option>
             {devices?.filter(d => 
               formData.type === 'modbus_rtu' ? d.type === 'modbus_rtu' :
               formData.type === 'modbus_tcp' ? d.type === 'modbus_tcp' :
@@ -1315,7 +1315,7 @@ export default function ParameterForm({ mode = 'create', paramId = null, queryPa
             ))}
           </select>
           <p className="mt-1 text-xs text-gray-500">
-            Select an existing device. Device-level settings will be inherited automatically.
+            Pilih device yang sudah ada. Pengaturan level device akan diwariskan secara otomatis.
           </p>
         </div>
 
@@ -1349,7 +1349,7 @@ export default function ParameterForm({ mode = 'create', paramId = null, queryPa
 
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">
-            Parameter Direction *
+            Arah Parameter *
           </label>
           <div className="flex space-x-6">
             <label className="flex items-center cursor-pointer">
@@ -1361,7 +1361,7 @@ export default function ParameterForm({ mode = 'create', paramId = null, queryPa
                 className="mr-2 w-4 h-4 text-blue-600 border-gray-300 focus:ring-blue-500"
               />
               <span className="text-gray-700 font-medium">READ (Polling/Scheduler)</span>
-              <span className="text-xs text-gray-500 ml-2">- For data collection</span>
+              <span className="text-xs text-gray-500 ml-2">- Untuk pengumpulan data</span>
             </label>
             <label className="flex items-center cursor-pointer">
               <input
@@ -1372,11 +1372,11 @@ export default function ParameterForm({ mode = 'create', paramId = null, queryPa
                 className="mr-2 w-4 h-4 text-blue-600 border-gray-300 focus:ring-blue-500"
               />
               <span className="text-gray-700 font-medium">WRITE (Command/On-Demand)</span>
-              <span className="text-xs text-gray-500 ml-2">- For control operations</span>
+              <span className="text-xs text-gray-500 ml-2">- Untuk operasi kontrol</span>
             </label>
           </div>
           <p className="text-xs text-gray-500 mt-2">
-            READ parameters are scheduled for polling. WRITE parameters are command-based and executed on-demand.
+            Parameter READ dijadwalkan untuk polling. Parameter WRITE berbasis perintah dan dieksekusi sesuai permintaan.
           </p>
         </div>
 
@@ -1384,7 +1384,7 @@ export default function ParameterForm({ mode = 'create', paramId = null, queryPa
         {formData.direction === 'WRITE' && (
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              Write Mode *
+              Mode Write *
             </label>
             <div className="flex space-x-6">
               <label className="flex items-center cursor-pointer">
@@ -1396,7 +1396,7 @@ export default function ParameterForm({ mode = 'create', paramId = null, queryPa
                   className="mr-2 w-4 h-4 text-blue-600 border-gray-300 focus:ring-blue-500"
                 />
                 <span className="text-gray-700 font-medium">PRESET</span>
-                <span className="text-xs text-gray-500 ml-2">- Value stored in parameter</span>
+                <span className="text-xs text-gray-500 ml-2">- Nilai disimpan di parameter</span>
               </label>
               <label className="flex items-center cursor-pointer">
                 <input
@@ -1407,12 +1407,12 @@ export default function ParameterForm({ mode = 'create', paramId = null, queryPa
                   className="mr-2 w-4 h-4 text-blue-600 border-gray-300 focus:ring-blue-500"
                 />
                 <span className="text-gray-700 font-medium">DYNAMIC</span>
-                <span className="text-xs text-gray-500 ml-2">- Value provided at write time</span>
+                <span className="text-xs text-gray-500 ml-2">- Nilai diberikan saat write</span>
               </label>
             </div>
             <p className="text-xs text-gray-500 mt-2">
-              PRESET: Value is stored in parameter (workflow triggers without sending value). 
-              DYNAMIC: Value must be provided when writing (workflow sends value).
+              PRESET: Nilai disimpan di parameter (workflow memicu tanpa mengirim nilai). 
+              DYNAMIC: Nilai harus diberikan saat menulis (workflow mengirim nilai).
             </p>
           </div>
         )}
@@ -1421,7 +1421,7 @@ export default function ParameterForm({ mode = 'create', paramId = null, queryPa
         {formData.direction === 'WRITE' && formData.write_mode === 'PRESET' && (
           <div>
             <label htmlFor="preset_value" className="block text-sm font-medium text-gray-700 mb-2">
-              Preset Value * (JSON format)
+              Nilai Preset * (format JSON)
             </label>
             <textarea
               id="preset_value"
@@ -1433,8 +1433,8 @@ export default function ParameterForm({ mode = 'create', paramId = null, queryPa
               required
             />
             <p className="text-xs text-gray-500 mt-1">
-              JSON format: {"{"}"value": 25.5{"}"} for scalar, or {"{"}"register_values": [1, 1, 1, 1]{"}"} for raw registers.
-              This value will be used when workflow triggers this parameter.
+              Format JSON: {"{"}"value": 25.5{"}"} untuk skalar, atau {"{"}"register_values": [1, 1, 1, 1]{"}"} untuk register mentah.
+              Nilai ini akan digunakan ketika workflow memicu parameter ini.
             </p>
           </div>
         )}
@@ -1443,7 +1443,7 @@ export default function ParameterForm({ mode = 'create', paramId = null, queryPa
 
         <div>
           <label htmlFor="custom_rumus" className="block text-sm font-medium text-gray-700 mb-2">
-            Custom Formula (Optional)
+            Formula Kustom (Opsional)
           </label>
           <input
             type="text"
@@ -1451,11 +1451,11 @@ export default function ParameterForm({ mode = 'create', paramId = null, queryPa
             value={formData.custom_rumus || ''}
             onChange={(e) => setFormData({ ...formData, custom_rumus: e.target.value })}
             className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-            placeholder="e.g., (value * 0.1) - 5"
+            placeholder="contoh: (value * 0.1) - 5"
           />
           <p className="mt-1 text-sm text-gray-500">
-            Use variable <code className="bg-gray-100 px-1 rounded">value</code> for raw value.
-            Example: <code className="bg-gray-100 px-1 rounded">(value * 0.1) - 5</code>
+            Gunakan variabel <code className="bg-gray-100 px-1 rounded">value</code> untuk nilai mentah.
+            Contoh: <code className="bg-gray-100 px-1 rounded">(value * 0.1) - 5</code>
           </p>
         </div>
 
@@ -1478,7 +1478,7 @@ export default function ParameterForm({ mode = 'create', paramId = null, queryPa
                 <p className="font-medium">{testResult.message}</p>
                 {testResult.rawValue !== undefined && (
                   <p className="text-sm mt-1">
-                    Raw Value: <span className="font-mono font-semibold">{testResult.rawValue}</span>
+                    Nilai Mentah: <span className="font-mono font-semibold">{testResult.rawValue}</span>
                   </p>
                 )}
                 {testResult.details && (
@@ -1501,15 +1501,15 @@ export default function ParameterForm({ mode = 'create', paramId = null, queryPa
               {isTesting ? (
                 <>
                   <Loader className="w-4 h-4 animate-spin" />
-                  <span>Testing Connection...</span>
+                  <span>Menguji Koneksi...</span>
                 </>
               ) : (
-                <span>Test Connection</span>
+                <span>Uji Koneksi</span>
               )}
             </button>
             {testResult && testResult.tested && !testResult.connected && (
               <p className="text-sm text-red-600 mt-2">
-                ⚠️ Connection test failed. Please fix the configuration and test again before saving.
+                ⚠️ Uji koneksi gagal. Silakan perbaiki konfigurasi dan uji lagi sebelum menyimpan.
               </p>
             )}
           </div>
@@ -1519,7 +1519,7 @@ export default function ParameterForm({ mode = 'create', paramId = null, queryPa
           <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
             {paramMutation.error instanceof Error
               ? paramMutation.error.message
-              : 'Failed to create parameter'}
+              : 'Gagal membuat parameter'}
           </div>
         )}
 
@@ -1535,7 +1535,7 @@ export default function ParameterForm({ mode = 'create', paramId = null, queryPa
             }}
             className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
           >
-            Cancel
+            Batal
           </button>
           <button
             type="submit"
@@ -1546,7 +1546,7 @@ export default function ParameterForm({ mode = 'create', paramId = null, queryPa
             }
             className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {paramMutation.isPending ? 'Creating...' : 'Create Parameter'}
+            {paramMutation.isPending ? 'Membuat...' : 'Buat Parameter'}
           </button>
         </div>
       </form>

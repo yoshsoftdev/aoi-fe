@@ -73,8 +73,6 @@ export function SNMPTestPanel({ connection, addLog, onRawDataReceived, onTestRes
           ]
           onRawDataReceived(rawDataFields, { 
             oid,
-            isString: isString, // Pass string flag
-            rawStringValue: isString ? result.raw_value : undefined,
           })
         }
       } else {
@@ -114,30 +112,30 @@ export function SNMPTestPanel({ connection, addLog, onRawDataReceived, onTestRes
     <div className="space-y-4">
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">SNMP Operations</CardTitle>
+          <CardTitle className="text-base">Operasi SNMP</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-2">
             <Label htmlFor="oid">Object Identifier (OID)</Label>
             <Input id="oid" placeholder="1.3.6.1.2.1.1.1.0" value={oid} onChange={(e) => setOid(e.target.value)} />
             <p className="text-xs text-muted-foreground">
-              Common OIDs: 1.3.6.1.2.1.1.1.0 (sysDescr), 1.3.6.1.2.1.1.3.0 (sysUpTime)
+              OID umum: 1.3.6.1.2.1.1.1.0 (sysDescr), 1.3.6.1.2.1.1.3.0 (sysUpTime)
             </p>
           </div>
 
           <div className="flex gap-2">
             <Button onClick={handleGet} disabled={isLoading || !oid} variant="default" className="flex-1">
               <Download className="h-4 w-4 mr-2" />
-              {isLoading ? 'Getting...' : 'GET'}
+              {isLoading ? 'Mengambil...' : 'GET'}
             </Button>
           </div>
 
           <div className="border-t border-border pt-4 space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="setValue">Set Value</Label>
+              <Label htmlFor="setValue">Nilai Set</Label>
               <Input
                 id="setValue"
-                placeholder="Enter value to set"
+                placeholder="Masukkan nilai untuk diset"
                 value={setValue}
                 onChange={(e) => setSetValue(e.target.value)}
               />
@@ -150,7 +148,7 @@ export function SNMPTestPanel({ connection, addLog, onRawDataReceived, onTestRes
               className="w-full"
             >
               <Upload className="h-4 w-4 mr-2" />
-              {isLoading ? 'Setting...' : 'SET'}
+              {isLoading ? 'Menyetel...' : 'SET'}
             </Button>
           </div>
         </CardContent>
@@ -159,7 +157,7 @@ export function SNMPTestPanel({ connection, addLog, onRawDataReceived, onTestRes
       {response && (
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Response</CardTitle>
+            <CardTitle className="text-base">Respon</CardTitle>
           </CardHeader>
           <CardContent>
             <pre className="bg-muted p-4 rounded-lg text-xs font-mono text-muted-foreground overflow-x-auto whitespace-pre-wrap">
