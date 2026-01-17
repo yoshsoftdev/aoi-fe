@@ -6,6 +6,7 @@ import { ConnectionStep } from '@/components/steps/connection-step'
 import { TestStep } from '@/components/steps/test-step'
 import { DataMappingStep } from '@/components/steps/data-mapping-step'
 import { DashboardView } from '@/components/dashboard/dashboard-view'
+import { AlarmList } from '@/components/alarm/alarm-list'
 import { LogsPanel } from '@/components/tester/logs-panel'
 import { WriteControlView } from '@/components/write/write-control-view'
 import { WriteControlViewStepper } from '@/components/write/write-control-stepper'
@@ -388,9 +389,12 @@ function AppContent() {
                 <main className="flex-1 overflow-y-auto">
                   <div className="p-6">
                     {currentView === 'dashboard' ? (
-                      <DashboardView
-                        savedData={liveDashboardData.length > 0 ? liveDashboardData : savedDashboardData}
-                      />
+                      <div className="space-y-6">
+                        <AlarmList />
+                        <DashboardView
+                          savedData={liveDashboardData.length > 0 ? liveDashboardData : savedDashboardData}
+                        />
+                      </div>
                     ) : (
                       <>
                         {currentStep === 0 && (

@@ -187,7 +187,7 @@ export const useWebSocket = () => {
     ws.onmessage = (event) => {
       const message = JSON.parse(event.data)
       
-      // Handle alarm notifications
+      // Handle alarm notifications (alarm created/updated)
       if (message.type === 'alarm' && message.data) {
         const alarmData = message.data
         const workflowName = alarmData.workflow_name || 'Unknown Workflow'
@@ -204,6 +204,24 @@ export const useWebSocket = () => {
         
         // Also log to console
         console.warn(`[ALARM] ${workflowName}: ${alarmMessage}`)
+        
+        // Trigger custom event for alarm list component to refresh
+        window.dispatchEvent(new CustomEvent('alarm-updated', { detail: { workflowId: alarmData.workflow_id } }))
+        
+        return
+      }
+      
+      // Handle alarm removal notifications
+      if (message.type === 'alarm_removed' && message.data) {
+        const alarmData = message.data
+        const workflowId = alarmData.workflow_id
+        
+        // Remove toast notification if exists
+        // Note: We can't directly remove specific toast, but we can trigger refresh
+        console.log(`[ALARM] Alarm removed for workflow ${workflowId}`)
+        
+        // Trigger custom event for alarm list component to refresh
+        window.dispatchEvent(new CustomEvent('alarm-removed', { detail: { workflowId } }))
         
         return
       }
