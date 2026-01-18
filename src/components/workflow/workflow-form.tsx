@@ -102,8 +102,9 @@ export function WorkflowForm({ workflow, onCancel, onSuccess }: WorkflowFormProp
         threshold: c.threshold,
       })) || []
       
-      const mappedActions = workflow.actions?.map((a) => ({
+      const mappedActions = workflow.actions?.map((a, idx) => ({
         action_type: a.action_type,
+        action_order: a.action_order !== undefined ? a.action_order : idx, // Use action_order if available, otherwise use index
         parameter_id: a.parameter_id,
         value: a.value,
         event_name: a.event_name,
@@ -175,14 +176,22 @@ export function WorkflowForm({ workflow, onCancel, onSuccess }: WorkflowFormProp
       return
     }
 
-    setActions(prev => [
-      ...prev,
-      {
-        action_type: 'WRITE_WITH_VALUE',
-        parameter_id: dynamicParameters[0]?.id || writeParameters[0].id,
-        value: 0,
-      },
-    ])
+    setActions(prev => {
+      const newActions = [
+        ...prev,
+        {
+          action_type: 'WRITE_WITH_VALUE' as const,
+          action_order: prev.length, // Set order based on current length
+          parameter_id: dynamicParameters[0]?.id || writeParameters[0].id,
+          value: 0,
+        },
+      ]
+      // Re-index all actions to ensure order is correct
+      return newActions.map((action, idx) => ({
+        ...action,
+        action_order: idx,
+      }))
+    })
   }
 
   const addCondition = () => {
@@ -206,7 +215,14 @@ export function WorkflowForm({ workflow, onCancel, onSuccess }: WorkflowFormProp
   }
 
   const removeAction = (index: number) => {
-    setActions(prev => prev.filter((_, i) => i !== index))
+    setActions(prev => {
+      const newActions = prev.filter((_, i) => i !== index)
+      // Re-index all actions to ensure order is correct
+      return newActions.map((action, idx) => ({
+        ...action,
+        action_order: idx,
+      }))
+    })
   }
 
   // ✅ 7. SANITASI PAYLOAD (WAJIB)
@@ -419,10 +435,14 @@ export function WorkflowForm({ workflow, onCancel, onSuccess }: WorkflowFormProp
             actions.map((action, index) => {
               // Ensure action has required fields
               const actionKey = `action-${index}-${action.action_type}-${action.parameter_id || 'none'}`
+              // Use action_order if available, otherwise use index
+              const displayOrder = action.action_order !== undefined ? action.action_order + 1 : index + 1
               return (
                 <div key={actionKey} className="border rounded-lg p-4 space-y-3">
                 <div className="flex items-center justify-between mb-2">
-                  <Badge variant="outline">Aksi {index + 1}</Badge>
+                  <Badge variant="outline" className="font-semibold">
+                    Urutan {displayOrder} - Aksi {displayOrder}
+                  </Badge>
                   <Button
                     type="button"
                     variant="ghost"

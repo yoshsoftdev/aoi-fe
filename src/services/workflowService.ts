@@ -29,6 +29,7 @@ export interface WorkflowAction {
   id?: number
   workflow_id?: number
   action_type: 'TRIGGER_WRITE' | 'WRITE_WITH_VALUE' | 'event' | 'delay' | 'alarm' | 'write' // 'write' is legacy
+  action_order?: number // Urutan eksekusi action (0, 1, 2, ...), actions dieksekusi secara sequential
   parameter_id?: number
   value?: number // Required for WRITE_WITH_VALUE, not allowed for TRIGGER_WRITE
   event_name?: string

@@ -194,70 +194,78 @@ export function WorkflowView() {
                     <h4 className="text-sm font-semibold mb-2">Aksi (MAKA)</h4>
                     <div className="space-y-2">
                       {workflow.actions && workflow.actions.length > 0 ? (
-                        workflow.actions.map((action, idx) => (
-                          <div key={idx} className="text-sm bg-muted/50 p-2 rounded">
-                            {action.action_type === 'TRIGGER_WRITE' && (
-                              <>
-                                <span className="font-medium">Trigger Write</span>{' '}
-                                <span className="text-muted-foreground">ke</span>{' '}
-                                <span className="font-medium">
-                                  {action.parameter?.nama || `Parameter ${action.parameter_id}`}
-                                </span>
-                                {action.parameter?.unit && (
-                                  <span className="text-muted-foreground"> ({action.parameter.unit})</span>
-                                )}
-                                <span className="text-muted-foreground"> [PRESET]</span>
-                              </>
-                            )}
-                            {action.action_type === 'WRITE_WITH_VALUE' && (
-                              <>
-                                <span className="font-medium">Tulis</span>{' '}
-                                <span className="text-muted-foreground">ke</span>{' '}
-                                <span className="font-medium">
-                                  {action.parameter?.nama || `Parameter ${action.parameter_id}`}
-                                </span>{' '}
-                                <span className="text-muted-foreground">=</span>{' '}
-                                <span className="font-medium">{action.value}</span>
-                                {action.parameter?.unit && (
-                                  <span className="text-muted-foreground"> {action.parameter.unit}</span>
-                                )}
-                                <span className="text-muted-foreground"> [DYNAMIC]</span>
-                              </>
-                            )}
-                            {action.action_type === 'write' && (
-                              <>
-                                <span className="font-medium">Tulis</span>{' '}
-                                <span className="text-muted-foreground">ke</span>{' '}
-                                <span className="font-medium">
-                                  {action.parameter?.nama || `Parameter ${action.parameter_id}`}
-                                </span>{' '}
-                                <span className="text-muted-foreground">=</span>{' '}
-                                <span className="font-medium">{action.value}</span>
-                                {action.parameter?.unit && (
-                                  <span className="text-muted-foreground"> {action.parameter.unit}</span>
-                                )}
-                              </>
-                            )}
-                            {action.action_type === 'event' && (
-                              <>
-                                <span className="font-medium">Kirim Event:</span>{' '}
-                                <span className="font-medium">{action.event_name}</span>
-                              </>
-                            )}
-                            {action.action_type === 'delay' && (
-                              <>
-                                <span className="font-medium">Tunda:</span>{' '}
-                                <span className="font-medium">{action.delay_ms}ms</span>
-                              </>
-                            )}
-                            {action.action_type === 'alarm' && (
-                              <>
-                                <span className="font-medium">Alarm:</span>{' '}
-                                <span className="font-medium">{action.alarm_message || 'Tidak ada pesan'}</span>
-                              </>
-                            )}
-                          </div>
-                        ))
+                        <>
+                          {workflow.actions
+                            .sort((a, b) => (a.action_order || 0) - (b.action_order || 0)) // Sort by action_order
+                            .map((action, idx) => {
+                              const displayOrder = action.action_order !== undefined ? action.action_order + 1 : idx + 1
+                              return (
+                                <div key={idx} className="text-sm bg-muted/50 p-2 rounded">
+                                  <span className="font-semibold text-primary">[{displayOrder}]</span>{' '}
+                                  {action.action_type === 'TRIGGER_WRITE' && (
+                                    <>
+                                      <span className="font-medium">Trigger Write</span>{' '}
+                                      <span className="text-muted-foreground">ke</span>{' '}
+                                      <span className="font-medium">
+                                        {action.parameter?.nama || `Parameter ${action.parameter_id}`}
+                                      </span>
+                                      {action.parameter?.unit && (
+                                        <span className="text-muted-foreground"> ({action.parameter.unit})</span>
+                                      )}
+                                      <span className="text-muted-foreground"> [PRESET]</span>
+                                    </>
+                                  )}
+                                  {action.action_type === 'WRITE_WITH_VALUE' && (
+                                    <>
+                                      <span className="font-medium">Tulis</span>{' '}
+                                      <span className="text-muted-foreground">ke</span>{' '}
+                                      <span className="font-medium">
+                                        {action.parameter?.nama || `Parameter ${action.parameter_id}`}
+                                      </span>{' '}
+                                      <span className="text-muted-foreground">=</span>{' '}
+                                      <span className="font-medium">{action.value}</span>
+                                      {action.parameter?.unit && (
+                                        <span className="text-muted-foreground"> {action.parameter.unit}</span>
+                                      )}
+                                      <span className="text-muted-foreground"> [DYNAMIC]</span>
+                                    </>
+                                  )}
+                                  {action.action_type === 'write' && (
+                                    <>
+                                      <span className="font-medium">Tulis</span>{' '}
+                                      <span className="text-muted-foreground">ke</span>{' '}
+                                      <span className="font-medium">
+                                        {action.parameter?.nama || `Parameter ${action.parameter_id}`}
+                                      </span>{' '}
+                                      <span className="text-muted-foreground">=</span>{' '}
+                                      <span className="font-medium">{action.value}</span>
+                                      {action.parameter?.unit && (
+                                        <span className="text-muted-foreground"> {action.parameter.unit}</span>
+                                      )}
+                                    </>
+                                  )}
+                                  {action.action_type === 'event' && (
+                                    <>
+                                      <span className="font-medium">Kirim Event:</span>{' '}
+                                      <span className="font-medium">{action.event_name}</span>
+                                    </>
+                                  )}
+                                  {action.action_type === 'delay' && (
+                                    <>
+                                      <span className="font-medium">Tunda:</span>{' '}
+                                      <span className="font-medium">{action.delay_ms}ms</span>
+                                    </>
+                                  )}
+                                  {action.action_type === 'alarm' && (
+                                    <>
+                                      <span className="font-medium">Alarm:</span>{' '}
+                                      <span className="font-medium">{action.alarm_message || 'Tidak ada pesan'}</span>
+                                    </>
+                                  )}
+                                </div>
+                              )
+                            })}
+                        </>
                       ) : (
                         <div className="text-sm text-muted-foreground italic">Tidak ada aksi yang didefinisikan</div>
                       )}
