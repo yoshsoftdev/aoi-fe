@@ -5,13 +5,15 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from '@/components/ui/dialog'
 import { DeleteConfirmationDialog } from '@/components/ui/delete-confirmation-dialog'
-import { Activity, TrendingUp, Zap, Database, Network, Edit, Trash2 } from 'lucide-react'
+import { Activity, TrendingUp, Zap, Database, Network, Edit, Trash2, LineChart } from 'lucide-react'
 import type { SavedDashboardData, MappedValue } from '@/types'
+import type { DashboardData } from '@/types/parameter'
 import { formatNumber } from '@/utils/formatters'
 import { parameterService } from '@/services/parameterService'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { useAuth } from '@/contexts/AuthContext'
+import { ParameterChartDialog } from './parameter-chart-dialog'
 
 interface DashboardViewProps {
   savedData: SavedDashboardData[]
@@ -26,6 +28,8 @@ export function DashboardView({ savedData, onParameterUpdate }: DashboardViewPro
   const [selectedParameter, setSelectedParameter] = useState<MappedValue | null>(null)
   const [editFormData, setEditFormData] = useState({ nama: '', custom_rumus: '' })
   const [deleteError, setDeleteError] = useState<string | null>(null)
+  const [chartDialogOpen, setChartDialogOpen] = useState(false)
+  const [selectedChartParameter, setSelectedChartParameter] = useState<DashboardData | null>(null)
 
   // Fetch parameter details for editing
   const { data: parameterDetails } = useQuery({
@@ -233,28 +237,52 @@ export function DashboardView({ savedData, onParameterUpdate }: DashboardViewPro
                               <CardTitle className="text-base">{value.outputName}</CardTitle>
                               <CardDescription className="font-mono text-xs">{value.formula}</CardDescription>
                             </div>
-                            {value.parameterId && isAdmin && (
-                              <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-8 w-8"
-                                  onClick={() => handleEdit(value)}
-                                  title="Edit parameter"
-                                >
-                                  <Edit className="h-4 w-4" />
-                                </Button>
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-8 w-8 text-destructive hover:text-destructive"
-                                  onClick={() => handleDelete(value)}
-                                  title="Hapus parameter"
-                                >
-                                  <Trash2 className="h-4 w-4" />
-                                </Button>
-                              </div>
-                            )}
+                            <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8"
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  // Convert MappedValue to DashboardData format
+                                  const chartData: DashboardData = {
+                                    parameter_id: value.parameterId,
+                                    parameter_nama: value.outputName,
+                                    device_nama: connectionName,
+                                    value: typeof value.mappedValue === 'number' ? value.mappedValue : Number(value.mappedValue) || 0,
+                                    timestamp: value.timestamp.toISOString(),
+                                    status: value.error ? 'error' : 'online',
+                                  }
+                                  setSelectedChartParameter(chartData)
+                                  setChartDialogOpen(true)
+                                }}
+                                title="Lihat grafik"
+                              >
+                                <LineChart className="h-4 w-4" />
+                              </Button>
+                              {value.parameterId && isAdmin && (
+                                <>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-8 w-8"
+                                    onClick={() => handleEdit(value)}
+                                    title="Edit parameter"
+                                  >
+                                    <Edit className="h-4 w-4" />
+                                  </Button>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-8 w-8 text-destructive hover:text-destructive"
+                                    onClick={() => handleDelete(value)}
+                                    title="Hapus parameter"
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                  </Button>
+                                </>
+                              )}
+                            </div>
                           </div>
                         </CardHeader>
                         <CardContent>
@@ -349,6 +377,13 @@ export function DashboardView({ savedData, onParameterUpdate }: DashboardViewPro
         itemName={selectedParameter?.outputName}
         isDeleting={deleteMutation.isPending}
         error={deleteError}
+      />
+
+      {/* Parameter Chart Dialog */}
+      <ParameterChartDialog
+        open={chartDialogOpen}
+        onOpenChange={setChartDialogOpen}
+        parameter={selectedChartParameter}
       />
     </div>
   )

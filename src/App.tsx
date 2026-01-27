@@ -7,11 +7,12 @@ import { TestStep } from '@/components/steps/test-step'
 import { DataMappingStep } from '@/components/steps/data-mapping-step'
 import { DashboardView } from '@/components/dashboard/dashboard-view'
 import { AlarmList } from '@/components/alarm/alarm-list'
+import { WriteLogList } from '@/components/write-log/write-log-list'
 import { LogsPanel } from '@/components/tester/logs-panel'
 import { WriteControlView } from '@/components/write/write-control-view'
 import { WriteControlViewStepper } from '@/components/write/write-control-stepper'
 import { WorkflowView } from '@/components/workflow/workflow-view'
-import { LayoutDashboard, TestTube2, PenTool, Menu, X, Workflow, Lock, Unlock, LogOut } from 'lucide-react'
+import { LayoutDashboard, TestTube2, PenTool, Menu, X, Workflow, Lock, Unlock, LogOut, FileText } from 'lucide-react'
 import logoctg1 from '../logoctg1.png'
 import type { Connection, LogEntry, RawDataField, SavedDashboardData, MappedValue, DashboardData } from '@/types'
 import { cn } from '@/lib/utils'
@@ -26,7 +27,7 @@ const queryClient = new QueryClient()
 function AppContent() {
   const { toasts, removeToast } = useToast()
   const { isAdmin, logout } = useAuth()
-  const [currentView, setCurrentView] = useState<'dashboard' | 'tester' | 'write' | 'workflow'>('dashboard')
+  const [currentView, setCurrentView] = useState<'dashboard' | 'tester' | 'write' | 'workflow' | 'write-log'>('dashboard')
   const [isSidebarOpen, setIsSidebarOpen] = useState(true)
   const [loginDialogOpen, setLoginDialogOpen] = useState(false)
 
@@ -159,9 +160,9 @@ function AppContent() {
   }
   
   // Force refresh WebSocket data when switching to dashboard
-  const handleViewChange = (view: 'dashboard' | 'tester' | 'write' | 'workflow') => {
-    // Only allow tester/write/workflow views if admin
-    if ((view === 'tester' || view === 'write' || view === 'workflow') && !isAdmin) {
+  const handleViewChange = (view: 'dashboard' | 'tester' | 'write' | 'workflow' | 'write-log') => {
+    // Only allow tester/write/workflow/write-log views if admin
+    if ((view === 'tester' || view === 'write' || view === 'workflow' || view === 'write-log') && !isAdmin) {
       return // Don't allow switching to admin-only views
     }
     setCurrentView(view)
@@ -266,6 +267,15 @@ function AppContent() {
                   <Workflow className="h-4 w-4 mr-2" />
                   Workflow
                 </Button>
+
+                <Button
+                  variant={currentView === 'write-log' ? 'default' : 'ghost'}
+                  className="w-full justify-start"
+                  onClick={() => handleViewChange('write-log')}
+                >
+                  <FileText className="h-4 w-4 mr-2" />
+                  Write Log
+                </Button>
               </>
             )}
           </div>
@@ -290,7 +300,9 @@ function AppContent() {
                       ? 'Communication Tester'
                       : currentView === 'write'
                         ? 'Write / Control'
-                        : 'Workflow'}
+                        : currentView === 'workflow'
+                          ? 'Workflow'
+                          : 'Write Log'}
                 </h1>
                 <p className="text-xs text-muted-foreground">
                   {currentView === 'dashboard'
@@ -299,7 +311,9 @@ function AppContent() {
                       ? 'Uji → Petakan → Transformasi'
                       : currentView === 'write'
                         ? 'Tulis nilai ke perangkat Modbus'
-                        : 'JIKA kondisi MAKA aksi'}
+                        : currentView === 'workflow'
+                          ? 'JIKA kondisi MAKA aksi'
+                          : 'Riwayat semua write action ke parameter'}
                 </p>
               </div>
               <div className="flex items-center gap-2">
@@ -370,7 +384,7 @@ function AppContent() {
                   <WorkflowView />
                 </div>
               </main>
-            ) : (!isAdmin && (currentView === 'tester' || currentView === 'write' || currentView === 'workflow')) ? (
+            ) : (!isAdmin && (currentView === 'tester' || currentView === 'write' || currentView === 'workflow' || currentView === 'write-log')) ? (
               <main className="flex-1 overflow-y-auto">
                 <div className="p-6">
                   <div className="flex flex-col items-center justify-center h-full text-center">
@@ -394,6 +408,10 @@ function AppContent() {
                         <DashboardView
                           savedData={liveDashboardData.length > 0 ? liveDashboardData : savedDashboardData}
                         />
+                      </div>
+                    ) : currentView === 'write-log' && isAdmin ? (
+                      <div className="space-y-6">
+                        <WriteLogList />
                       </div>
                     ) : (
                       <>

@@ -1,12 +1,17 @@
+import { useState } from 'react'
 import { useWebSocket } from '@/hooks/useWebSocket'
 import { DashboardData } from '@/types/parameter'
 import { formatNumber } from '@/utils/formatters'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { Activity, Database, Network } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { Activity, Database, Network, LineChart } from 'lucide-react'
+import { ParameterChartDialog } from '@/components/dashboard/parameter-chart-dialog'
 
 export default function Dashboard() {
   const { data: dashboardData, connected } = useWebSocket()
+  const [selectedParameter, setSelectedParameter] = useState<DashboardData | null>(null)
+  const [chartDialogOpen, setChartDialogOpen] = useState(false)
 
   // Convert Map to Array for rendering
   const dataArray = Array.from(dashboardData.values())
@@ -107,12 +112,32 @@ export default function Dashboard() {
 
                   <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                     {items.map((item, index) => (
-                      <Card key={`${(item as any).parameter_id || index}_${item.parameter_nama}_${index}`}>
+                      <Card 
+                        key={`${(item as any).parameter_id || index}_${item.parameter_nama}_${index}`}
+                        className="relative"
+                      >
                         <CardHeader>
-                          <CardTitle className="text-base">{item.parameter_nama || `Parameter ${(item as any).parameter_id || index}`}</CardTitle>
-                          <CardDescription className="text-xs">
-                            {item.device_nama || 'Device'}
-                          </CardDescription>
+                          <div className="flex items-start justify-between">
+                            <div className="flex-1">
+                              <CardTitle className="text-base">{item.parameter_nama || `Parameter ${(item as any).parameter_id || index}`}</CardTitle>
+                              <CardDescription className="text-xs">
+                                {item.device_nama || 'Device'}
+                              </CardDescription>
+                            </div>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 shrink-0"
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                setSelectedParameter(item)
+                                setChartDialogOpen(true)
+                              }}
+                              title="Lihat grafik"
+                            >
+                              <LineChart className="h-4 w-4" />
+                            </Button>
+                          </div>
                         </CardHeader>
                         <CardContent>
                           {/* CRITICAL: Always display value, even when offline (value=0) */}
@@ -154,6 +179,13 @@ export default function Dashboard() {
           </div>
         </>
       )}
+
+      {/* Parameter Chart Dialog */}
+      <ParameterChartDialog
+        open={chartDialogOpen}
+        onOpenChange={setChartDialogOpen}
+        parameter={selectedParameter}
+      />
     </div>
   )
 }
