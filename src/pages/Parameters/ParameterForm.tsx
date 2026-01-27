@@ -134,8 +134,11 @@ export default function ParameterForm({ mode = 'create', paramId = null, queryPa
         if (preparedConfig.quantity !== undefined) {
           preparedConfig.quantity = parseInt(preparedConfig.quantity) || 1
         }
-        if (preparedConfig.polling_ms !== undefined) {
-          preparedConfig.polling_ms = parseInt(preparedConfig.polling_ms) || 1000
+        // Set default polling_ms to 200ms if not provided
+        if (preparedConfig.polling_ms === undefined || preparedConfig.polling_ms === null || preparedConfig.polling_ms === '') {
+          preparedConfig.polling_ms = 200
+        } else {
+          preparedConfig.polling_ms = parseInt(preparedConfig.polling_ms) || 200
         }
         if (preparedConfig.baud !== undefined) {
           preparedConfig.baud = parseInt(preparedConfig.baud) || 9600
@@ -302,8 +305,11 @@ export default function ParameterForm({ mode = 'create', paramId = null, queryPa
       if (preparedConfig.quantity !== undefined) {
         preparedConfig.quantity = parseInt(preparedConfig.quantity) || 1
       }
-      if (preparedConfig.polling_ms !== undefined) {
-        preparedConfig.polling_ms = parseInt(preparedConfig.polling_ms) || 1000
+      // Set default polling_ms to 200ms if not provided
+      if (preparedConfig.polling_ms === undefined || preparedConfig.polling_ms === null || preparedConfig.polling_ms === '') {
+        preparedConfig.polling_ms = 200
+      } else {
+        preparedConfig.polling_ms = parseInt(preparedConfig.polling_ms) || 200
       }
       
       // Ensure byte_order and data_type are always set (required for Modbus RTU/TCP)
@@ -553,7 +559,7 @@ export default function ParameterForm({ mode = 'create', paramId = null, queryPa
         case '-l':
           if (nextPart) {
             deviceConfig.polling_ms = parseInt(nextPart) || 1000
-            paramConfig.polling_ms = parseInt(nextPart) || 1000
+            paramConfig.polling_ms = parseInt(nextPart) || 200
             i++
           }
           break
