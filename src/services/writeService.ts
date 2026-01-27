@@ -74,6 +74,7 @@ export const writeService = {
 
   // Test write without creating parameter in database
   testWrite: async (config: {
+    parameter_id?: number // Optional: if provided, log will be saved to DB
     device_id: number
     protocol: 'modbus_rtu' | 'modbus_tcp'
     slave_id: number

@@ -12,7 +12,8 @@ import { LogsPanel } from '@/components/tester/logs-panel'
 import { WriteControlView } from '@/components/write/write-control-view'
 import { WriteControlViewStepper } from '@/components/write/write-control-stepper'
 import { WorkflowView } from '@/components/workflow/workflow-view'
-import { LayoutDashboard, TestTube2, PenTool, Menu, X, Workflow, Lock, Unlock, LogOut, FileText } from 'lucide-react'
+import ReadWriteParameterForm from '@/pages/Parameters/ReadWriteParameterForm'
+import { LayoutDashboard, TestTube2, PenTool, Menu, X, Workflow, Lock, Unlock, LogOut, FileText, ArrowLeftRight } from 'lucide-react'
 import logoctg1 from '../logoctg1.png'
 import type { Connection, LogEntry, RawDataField, SavedDashboardData, MappedValue, DashboardData } from '@/types'
 import { cn } from '@/lib/utils'
@@ -27,7 +28,7 @@ const queryClient = new QueryClient()
 function AppContent() {
   const { toasts, removeToast } = useToast()
   const { isAdmin, logout } = useAuth()
-  const [currentView, setCurrentView] = useState<'dashboard' | 'tester' | 'write' | 'workflow' | 'write-log'>('dashboard')
+  const [currentView, setCurrentView] = useState<'dashboard' | 'tester' | 'write' | 'workflow' | 'write-log' | 'read-write'>('dashboard')
   const [isSidebarOpen, setIsSidebarOpen] = useState(true)
   const [loginDialogOpen, setLoginDialogOpen] = useState(false)
 
@@ -160,7 +161,7 @@ function AppContent() {
   }
   
   // Force refresh WebSocket data when switching to dashboard
-  const handleViewChange = (view: 'dashboard' | 'tester' | 'write' | 'workflow' | 'write-log') => {
+  const handleViewChange = (view: 'dashboard' | 'tester' | 'write' | 'workflow' | 'write-log' | 'read-write') => {
     // Only allow tester/write/workflow/write-log views if admin
     if ((view === 'tester' || view === 'write' || view === 'workflow' || view === 'write-log') && !isAdmin) {
       return // Don't allow switching to admin-only views
@@ -276,6 +277,15 @@ function AppContent() {
                   <FileText className="h-4 w-4 mr-2" />
                   Write Log
                 </Button>
+
+                <Button
+                  variant={currentView === 'read-write' ? 'default' : 'ghost'}
+                  className="w-full justify-start"
+                  onClick={() => handleViewChange('read-write')}
+                >
+                  <ArrowLeftRight className="h-4 w-4 mr-2" />
+                  Read/Write Parameter
+                </Button>
               </>
             )}
           </div>
@@ -300,8 +310,10 @@ function AppContent() {
                       ? 'Communication Tester'
                       : currentView === 'write'
                         ? 'Write / Control'
-                        : currentView === 'workflow'
-                          ? 'Workflow'
+                      : currentView === 'workflow'
+                        ? 'Workflow'
+                        : currentView === 'read-write'
+                          ? 'Read/Write Parameter'
                           : 'Write Log'}
                 </h1>
                 <p className="text-xs text-muted-foreground">
@@ -313,7 +325,9 @@ function AppContent() {
                         ? 'Tulis nilai ke perangkat Modbus'
                         : currentView === 'workflow'
                           ? 'JIKA kondisi MAKA aksi'
-                          : 'Riwayat semua write action ke parameter'}
+                          : currentView === 'read-write'
+                            ? 'Buat parameter yang bisa membaca dan menulis'
+                            : 'Riwayat semua write action ke parameter'}
                 </p>
               </div>
               <div className="flex items-center gap-2">
@@ -384,7 +398,16 @@ function AppContent() {
                   <WorkflowView />
                 </div>
               </main>
-            ) : (!isAdmin && (currentView === 'tester' || currentView === 'write' || currentView === 'workflow' || currentView === 'write-log')) ? (
+            ) : currentView === 'read-write' && isAdmin ? (
+              <main className="flex-1 overflow-y-auto">
+                <ReadWriteParameterForm
+                  onCancel={() => handleViewChange('dashboard')}
+                  onSuccess={() => {
+                    handleViewChange('dashboard')
+                  }}
+                />
+              </main>
+            ) : (!isAdmin && (currentView === 'tester' || currentView === 'write' || currentView === 'workflow' || currentView === 'write-log' || currentView === 'read-write')) ? (
               <main className="flex-1 overflow-y-auto">
                 <div className="p-6">
                   <div className="flex flex-col items-center justify-center h-full text-center">

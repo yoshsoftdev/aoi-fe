@@ -3,7 +3,7 @@ export interface Parameter {
   device_id: number
   nama: string
   type: 'modbus_rtu' | 'modbus_tcp' | 'analog_input' | 'analog_output' | 'digital_input' | 'digital_output' | 'snmp' | 'formula'
-  direction: 'READ' | 'WRITE' // READ (polling/scheduler) or WRITE (command/on-demand)
+  direction: 'READ' | 'WRITE' | 'READ_WRITE' // READ (polling/scheduler), WRITE (command/on-demand), or READ_WRITE (both)
   read_write: boolean // Deprecated: use direction instead
   parameter_mode?: 'SOURCE' | 'DIRECT' | 'CLEAN' | 'FORMULA' // SOURCE (internal), DIRECT (clean from device), CLEAN (logical), FORMULA (derived)
   is_formula?: boolean // true = derived parameter (formula), false = raw parameter
@@ -91,5 +91,6 @@ export interface DashboardData {
   value: any // Final processed value
   timestamp: string
   status: 'online' | 'offline' | 'error' | string  // Allow string for backward compatibility
+  direction?: 'READ' | 'WRITE' | 'READ_WRITE' // Parameter direction
 }
 
