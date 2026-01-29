@@ -39,6 +39,12 @@ export const parameterService = {
     return response.data.data
   },
 
+  // Simple rename endpoint (used by dashboard)
+  updateName: async (id: number, nama: string): Promise<Parameter> => {
+    const response = await api.patch(`/parameters/${id}/name`, { nama })
+    return response.data.data
+  },
+
   delete: async (id: number): Promise<void> => {
     try {
       await api.delete(`/parameters/${id}`)

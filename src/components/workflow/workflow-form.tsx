@@ -34,15 +34,16 @@ export function WorkflowForm({ workflow, onCancel, onSuccess }: WorkflowFormProp
 
   // ✅ 1. SIMPLIFIKASI PARAMETER FILTER
   // Clean parameters = DIRECT, CLEAN, FORMULA (semua yang punya clean data)
-  // HANYA untuk READ parameters (WRITE tidak boleh digunakan untuk condition)
+  // HANYA untuk READ dan READ_WRITE parameters (WRITE tidak boleh digunakan untuk condition)
   // SOURCE tidak termasuk karena internal only
   const cleanParameters = useMemo(
     () => {
       return allParameters.filter(p => {
         const param = p as any
         
-        // CRITICAL: Exclude WRITE parameters (only READ parameters can be used for conditions)
-        const isWrite = param.direction === 'WRITE' || (param.direction === undefined && param.read_write === true)
+        // CRITICAL: Exclude WRITE parameters (only READ and READ_WRITE parameters can be used for conditions)
+        // READ_WRITE (direction='READ_WRITE' or read_write=2) can be used for conditions
+        const isWrite = param.direction === 'WRITE' || (param.direction === undefined && param.read_write === 1)
         if (isWrite) {
           return false
         }
@@ -50,7 +51,7 @@ export function WorkflowForm({ workflow, onCancel, onSuccess }: WorkflowFormProp
         const paramMode = param.parameter_mode || param.parameterMode
         const isFormula = param.is_formula === true || param.isFormula === true
         
-        // Include DIRECT, CLEAN, FORMULA parameters (READ only)
+        // Include DIRECT, CLEAN, FORMULA parameters (READ and READ_WRITE)
         // DIRECT: parameter_mode = 'DIRECT' (clean data langsung dari device)
         // CLEAN: parameter_mode = 'CLEAN' (logical parameter dengan clean data)
         // FORMULA: parameter_mode = 'FORMULA' atau is_formula = true (derived parameter)
@@ -66,7 +67,13 @@ export function WorkflowForm({ workflow, onCancel, onSuccess }: WorkflowFormProp
   )
 
   const writeParameters = useMemo(
-    () => allParameters.filter(p => p.direction === 'WRITE' || (p.direction === undefined && p.read_write)),
+    () => allParameters.filter(p => {
+      const param = p as any
+      // Include WRITE and READ_WRITE parameters
+      return param.direction === 'WRITE' || 
+             param.direction === 'READ_WRITE' || 
+             (param.direction === undefined && (param.read_write === 1 || param.read_write === 2))
+    }),
     [allParameters]
   )
 
@@ -76,7 +83,11 @@ export function WorkflowForm({ workflow, onCancel, onSuccess }: WorkflowFormProp
   )
 
   const dynamicParameters = useMemo(
-    () => writeParameters.filter(p => (p as any).write_mode === 'DYNAMIC'),
+    () => writeParameters.filter(p => {
+      const param = p as any
+      // Include parameters with write_mode='DYNAMIC' OR direction='READ_WRITE' (READ_WRITE is treated as DYNAMIC)
+      return param.write_mode === 'DYNAMIC' || param.direction === 'READ_WRITE' || (param.direction === undefined && param.read_write === 2)
+    }),
     [writeParameters]
   )
 
@@ -171,11 +182,28 @@ export function WorkflowForm({ workflow, onCancel, onSuccess }: WorkflowFormProp
 
   // ✅ 6. ADD ACTION (GUARD)
   const addAction = () => {
+    // If no write parameters available, default to alarm action
+    // User can still add alarm actions even without write parameters
     if (writeParameters.length === 0) {
-      alert('Tidak ada parameter WRITE tersedia')
+      setActions(prev => {
+        const newActions = [
+          ...prev,
+          {
+            action_type: 'alarm' as const,
+            action_order: prev.length,
+            alarm_message: '',
+          },
+        ]
+        // Re-index all actions to ensure order is correct
+        return newActions.map((action, idx) => ({
+          ...action,
+          action_order: idx,
+        }))
+      })
       return
     }
 
+    // If write parameters available, default to WRITE_WITH_VALUE
     setActions(prev => {
       const newActions = [
         ...prev,
@@ -460,6 +488,10 @@ export function WorkflowForm({ workflow, onCancel, onSuccess }: WorkflowFormProp
                       value={action.action_type}
                       onValueChange={(value) => {
                         if (value === 'TRIGGER_WRITE') {
+                          if (presetParameters.length === 0) {
+                            alert('Tidak ada parameter PRESET tersedia. Buat parameter WRITE dengan write_mode=PRESET terlebih dahulu.')
+                            return
+                          }
                           replaceAction(index, {
                             action_type: 'TRIGGER_WRITE',
                             parameter_id: presetParameters[0]?.id,
@@ -467,6 +499,10 @@ export function WorkflowForm({ workflow, onCancel, onSuccess }: WorkflowFormProp
                         }
 
                         if (value === 'WRITE_WITH_VALUE') {
+                          if (dynamicParameters.length === 0 && writeParameters.length === 0) {
+                            alert('Tidak ada parameter WRITE DYNAMIC atau READ_WRITE tersedia. Buat parameter WRITE dengan write_mode=DYNAMIC atau READ_WRITE terlebih dahulu, atau gunakan aksi Alarm.')
+                            return
+                          }
                           replaceAction(index, {
                             action_type: 'WRITE_WITH_VALUE',
                             parameter_id: dynamicParameters[0]?.id || writeParameters[0]?.id,
@@ -559,17 +595,24 @@ export function WorkflowForm({ workflow, onCancel, onSuccess }: WorkflowFormProp
                           <SelectContent>
                             {dynamicParameters.length === 0 ? (
                               <div className="px-2 py-1.5 text-sm text-muted-foreground">
-                                Tidak ada parameter DYNAMIC tersedia. Buat parameter WRITE dengan write_mode=DYNAMIC terlebih dahulu.
+                                Tidak ada parameter DYNAMIC tersedia. Buat parameter WRITE dengan write_mode=DYNAMIC atau READ_WRITE terlebih dahulu.
                               </div>
                             ) : (
-                              dynamicParameters.map(p => (
-                                <SelectItem key={p.id} value={String(p.id)}>
-                                  {p.nama} {p.unit && `(${p.unit})`} [DYNAMIC]
-                                </SelectItem>
-                              ))
+                              dynamicParameters.map(p => {
+                                const param = p as any
+                                const isReadWrite = param.direction === 'READ_WRITE' || (param.direction === undefined && param.read_write === 2)
+                                return (
+                                  <SelectItem key={p.id} value={String(p.id)}>
+                                    {p.nama} {p.unit && `(${p.unit})`} {isReadWrite ? '[READ_WRITE]' : '[DYNAMIC]'}
+                                  </SelectItem>
+                                )
+                              })
                             )}
                           </SelectContent>
                         </Select>
+                        <p className="text-xs text-muted-foreground">
+                          WRITE_WITH_VALUE: Menulis nilai ke parameter DYNAMIC atau READ_WRITE. Nilai harus diinput saat eksekusi.
+                        </p>
                       </div>
                       <div className="space-y-2">
                         <Label>Nilai *</Label>

@@ -630,78 +630,54 @@ export function WriteTestStep({ activeConnection, addLog, onParameterSelected, o
               </div>
             )}
 
-            <div className="flex gap-2">
-              {!testWritePassed ? (
-                <>
-                  <Button
-                    onClick={handleTestWrite}
-                    disabled={
-                      isTestingWrite ||
-                      !createFormData.nama.trim() ||
-                      !createFormData.test_value.trim() ||
-                      (createFormData.write_mode === 'PRESET' && !createFormData.preset_value.trim())
-                    }
-                    className="flex-1"
-                  >
-                    {isTestingWrite ? 'Testing Write...' : 'Test Write'}
-                  </Button>
-                  <Button
-                    variant="outline"
-                    onClick={() => {
-                      setShowCreateForm(false)
-                      setCreateFormData({
-                        nama: '',
-                        slave_id: 1,
-                        function_code: 6,
-                        register_address: 0,
-                        quantity: 1,
-                        data_type: 'uint16',
-                        byte_order: 'ABCD',
-                        test_value: '',
-                        write_mode: 'DYNAMIC',
-                        preset_value: '',
-                      })
-                      setTestWriteResult(null)
-                      setTestWritePassed(false)
-                    }}
-                    disabled={isTestingWrite}
-                  >
-                    Cancel
-                  </Button>
-                </>
-              ) : (
-                <>
-                  <Button
-                    onClick={handleSaveParameter}
-                    className="flex-1"
-                    variant="default"
-                  >
-                    Save Parameter
-                  </Button>
-                  <Button
-                    variant="outline"
-                    onClick={() => {
-                      // Reset everything (no parameter to delete since we don't save to DB)
-                      setShowCreateForm(false)
-                      setCreateFormData({
-                        nama: '',
-                        slave_id: 1,
-                        function_code: 6,
-                        register_address: 0,
-                        quantity: 1,
-                        data_type: 'uint16',
-                        byte_order: 'ABCD',
-                        test_value: '',
-                        write_mode: 'DYNAMIC',
-                        preset_value: '',
-                      })
-                      setTestWriteResult(null)
-                      setTestWritePassed(false)
-                    }}
-                  >
-                    Cancel
-                  </Button>
-                </>
+            {/* Actions: Test Write always visible, Save appears below after success */}
+            <div className="space-y-2">
+              <div className="flex gap-2">
+                <Button
+                  onClick={handleTestWrite}
+                  disabled={
+                    isTestingWrite ||
+                    !createFormData.nama.trim() ||
+                    !createFormData.test_value.trim() ||
+                    (createFormData.write_mode === 'PRESET' && !createFormData.preset_value.trim())
+                  }
+                  className="flex-1"
+                >
+                  {isTestingWrite ? 'Testing Write...' : 'Test Write'}
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setShowCreateForm(false)
+                    setCreateFormData({
+                      nama: '',
+                      slave_id: 1,
+                      function_code: 6,
+                      register_address: 0,
+                      quantity: 1,
+                      data_type: 'uint16',
+                      byte_order: 'ABCD',
+                      test_value: '',
+                      write_mode: 'DYNAMIC',
+                      preset_value: '',
+                    })
+                    setTestWriteResult(null)
+                    setTestWritePassed(false)
+                  }}
+                  disabled={isTestingWrite}
+                >
+                  Cancel
+                </Button>
+              </div>
+
+              {testWritePassed && (
+                <Button
+                  onClick={handleSaveParameter}
+                  className="w-full"
+                  variant="default"
+                >
+                  Save Parameter
+                </Button>
               )}
             </div>
           </CardContent>

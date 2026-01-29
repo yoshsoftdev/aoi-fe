@@ -17,7 +17,9 @@ import { ParameterChartDialog } from './parameter-chart-dialog'
 
 interface DashboardViewProps {
   savedData: SavedDashboardData[]
-  onParameterUpdate?: () => void
+  // Dipanggil ketika parameter berhasil di-update (rename) dari dashboard
+  // Mengirim id parameter dan nama baru agar parent bisa sinkronkan state lokal
+  onParameterUpdate?: (payload: { id: number; nama: string }) => void
 }
 
 export function DashboardView({ savedData, onParameterUpdate }: DashboardViewProps) {
@@ -26,7 +28,7 @@ export function DashboardView({ savedData, onParameterUpdate }: DashboardViewPro
   const [editDialogOpen, setEditDialogOpen] = useState(false)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [selectedParameter, setSelectedParameter] = useState<MappedValue | null>(null)
-  const [editFormData, setEditFormData] = useState({ nama: '', custom_rumus: '' })
+  const [editFormData, setEditFormData] = useState({ nama: '' })
   const [deleteError, setDeleteError] = useState<string | null>(null)
   const [chartDialogOpen, setChartDialogOpen] = useState(false)
   const [selectedChartParameter, setSelectedChartParameter] = useState<DashboardData | null>(null)
@@ -39,12 +41,13 @@ export function DashboardView({ savedData, onParameterUpdate }: DashboardViewPro
   })
 
   const updateMutation = useMutation({
-    mutationFn: ({ id, data }: { id: number; data: any }) => parameterService.update(id, data),
-    onSuccess: () => {
+    // Dashboard hanya mengubah nama parameter, gunakan endpoint rename khusus
+    mutationFn: ({ id, nama }: { id: number; nama: string }) => parameterService.updateName(id, nama),
+    onSuccess: (updatedParam) => {
       queryClient.invalidateQueries({ queryKey: ['parameters'] })
       setEditDialogOpen(false)
       setSelectedParameter(null)
-      onParameterUpdate?.()
+      onParameterUpdate?.({ id: updatedParam.id, nama: updatedParam.nama })
     },
   })
 
@@ -55,7 +58,9 @@ export function DashboardView({ savedData, onParameterUpdate }: DashboardViewPro
       setDeleteDialogOpen(false)
       setSelectedParameter(null)
       setDeleteError(null)
-      onParameterUpdate?.()
+      // Hapus parameter yang dihapus dari dashboard saved data di parent (jika di-handle)
+      // Parent bisa memilih untuk ignore payload ini atau melakukan full refresh
+      // Di sini kita tidak meneruskan ID karena sudah tidak diperlukan di dashboard saved mapping
     },
     onError: (error: any) => {
       if (error instanceof Error && error.name === 'ParameterDeleteError') {
@@ -71,7 +76,6 @@ export function DashboardView({ savedData, onParameterUpdate }: DashboardViewPro
     // Initialize form with current values
     setEditFormData({
       nama: value.outputName,
-      custom_rumus: value.formula || '',
     })
     setEditDialogOpen(true)
   }
@@ -81,7 +85,6 @@ export function DashboardView({ savedData, onParameterUpdate }: DashboardViewPro
     if (parameterDetails && editDialogOpen) {
       setEditFormData({
         nama: parameterDetails.nama || selectedParameter?.outputName || '',
-        custom_rumus: parameterDetails.custom_rumus || '',
       })
     }
   }, [parameterDetails, editDialogOpen, selectedParameter])
@@ -96,10 +99,7 @@ export function DashboardView({ savedData, onParameterUpdate }: DashboardViewPro
     if (!selectedParameter?.parameterId) return
     updateMutation.mutate({
       id: selectedParameter.parameterId,
-      data: {
-        nama: editFormData.nama,
-        custom_rumus: editFormData.custom_rumus || null,
-      },
+      nama: editFormData.nama,
     })
   }
 
@@ -326,7 +326,7 @@ export function DashboardView({ savedData, onParameterUpdate }: DashboardViewPro
           <DialogHeader>
             <DialogTitle>Edit Parameter</DialogTitle>
             <DialogDescription>
-              Perbarui nama parameter dan formula. Perubahan akan diterapkan segera.
+              Perbarui nama parameter. Perubahan akan diterapkan segera.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
@@ -337,15 +337,6 @@ export function DashboardView({ savedData, onParameterUpdate }: DashboardViewPro
                 value={editFormData.nama}
                 onChange={(e) => setEditFormData({ ...editFormData, nama: e.target.value })}
                 placeholder="Masukkan nama parameter"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="custom_rumus">Formula (Custom Rumus)</Label>
-              <Input
-                id="custom_rumus"
-                value={editFormData.custom_rumus}
-                onChange={(e) => setEditFormData({ ...editFormData, custom_rumus: e.target.value })}
-                placeholder="e.g., value * 10 or Slave 6 Addr 4 / 10"
               />
             </div>
           </div>

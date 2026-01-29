@@ -430,6 +430,17 @@ function AppContent() {
                         <AlarmList />
                         <DashboardView
                           savedData={liveDashboardData.length > 0 ? liveDashboardData : savedDashboardData}
+                          onParameterUpdate={({ id, nama }) => {
+                            // Sinkronkan nama parameter di savedDashboardData
+                            setSavedDashboardData((prev) =>
+                              prev.map((group) => ({
+                                ...group,
+                                mappedValues: group.mappedValues.map((mv) =>
+                                  mv.parameterId === id ? { ...mv, outputName: nama } : mv
+                                ),
+                              }))
+                            )
+                          }}
                         />
                       </div>
                     ) : currentView === 'write-log' && isAdmin ? (

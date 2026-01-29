@@ -47,7 +47,16 @@ export default function ReadWriteParameterForm({
     custom_rumus: '',
   })
 
-  const [configData, setConfigData] = useState<any>({
+  const [configData, setConfigData] = useState<{
+    slave_id: number
+    function_code: number
+    register_address: number
+    quantity: number
+    data_type: string
+    byte_order: string
+    scaling: number
+    polling_ms: number
+  }>({
     slave_id: 1,
     function_code: 3, // Default: Read Holding Registers
     register_address: 0,
@@ -387,9 +396,15 @@ export default function ReadWriteParameterForm({
       return
     }
 
-    // Get device type
+    // Get device type - READ_WRITE only supports modbus_rtu and modbus_tcp
     const device = devices?.find(d => d.id === formData.device_id)
-    const deviceType = device?.type || formData.type
+    let deviceType: 'modbus_rtu' | 'modbus_tcp' = 'modbus_rtu'
+    
+    if (device?.type === 'modbus_rtu' || device?.type === 'modbus_tcp') {
+      deviceType = device.type
+    } else if (formData.type === 'modbus_rtu' || formData.type === 'modbus_tcp') {
+      deviceType = formData.type
+    }
 
     paramMutation.mutate({
       ...formData,
@@ -437,10 +452,15 @@ export default function ReadWriteParameterForm({
                 onValueChange={(value) => {
                   const deviceId = parseInt(value)
                   const device = devices?.find(d => d.id === deviceId)
+                  // READ_WRITE only supports modbus_rtu and modbus_tcp
+                  let deviceType: 'modbus_rtu' | 'modbus_tcp' = 'modbus_rtu'
+                  if (device?.type === 'modbus_rtu' || device?.type === 'modbus_tcp') {
+                    deviceType = device.type
+                  }
                   setFormData(prev => ({ 
                     ...prev, 
                     device_id: deviceId,
-                    type: device?.type || 'modbus_rtu' // Set type from device
+                    type: deviceType
                   }))
                 }}
               >
@@ -473,7 +493,7 @@ export default function ReadWriteParameterForm({
                   id="slave_id"
                   type="number"
                   value={configData.slave_id || ''}
-                  onChange={(e) => setConfigData(prev => ({ ...prev, slave_id: parseInt(e.target.value) || 1 }))}
+                  onChange={(e) => setConfigData((prev) => ({ ...prev, slave_id: parseInt(e.target.value) || 1 }))}
                   min="1"
                   max="247"
                 />
@@ -483,7 +503,7 @@ export default function ReadWriteParameterForm({
                 <Label htmlFor="function_code">Function Code *</Label>
                 <Select
                   value={configData.function_code?.toString() || '3'}
-                  onValueChange={(value) => setConfigData(prev => ({ ...prev, function_code: parseInt(value) }))}
+                  onValueChange={(value) => setConfigData((prev) => ({ ...prev, function_code: parseInt(value) }))}
                 >
                   <SelectTrigger>
                     <SelectValue />
@@ -501,7 +521,7 @@ export default function ReadWriteParameterForm({
                   id="register_address"
                   type="number"
                   value={configData.register_address || ''}
-                  onChange={(e) => setConfigData(prev => ({ ...prev, register_address: parseInt(e.target.value) || 0 }))}
+                  onChange={(e) => setConfigData((prev) => ({ ...prev, register_address: parseInt(e.target.value) || 0 }))}
                   min="0"
                 />
               </div>
@@ -512,7 +532,7 @@ export default function ReadWriteParameterForm({
                   id="quantity"
                   type="number"
                   value={configData.quantity || ''}
-                  onChange={(e) => setConfigData(prev => ({ ...prev, quantity: parseInt(e.target.value) || 1 }))}
+                  onChange={(e) => setConfigData((prev) => ({ ...prev, quantity: parseInt(e.target.value) || 1 }))}
                   min="1"
                 />
               </div>
@@ -521,7 +541,7 @@ export default function ReadWriteParameterForm({
                 <Label htmlFor="data_type">Data Type *</Label>
                 <Select
                   value={configData.data_type || 'uint16'}
-                  onValueChange={(value) => setConfigData(prev => ({ ...prev, data_type: value }))}
+                  onValueChange={(value) => setConfigData((prev) => ({ ...prev, data_type: value }))}
                 >
                   <SelectTrigger>
                     <SelectValue />
@@ -541,7 +561,7 @@ export default function ReadWriteParameterForm({
                 <Label htmlFor="byte_order">Byte Order *</Label>
                 <Select
                   value={configData.byte_order || 'ABCD'}
-                  onValueChange={(value) => setConfigData(prev => ({ ...prev, byte_order: value }))}
+                  onValueChange={(value) => setConfigData((prev) => ({ ...prev, byte_order: value }))}
                 >
                   <SelectTrigger>
                     <SelectValue />
@@ -562,7 +582,7 @@ export default function ReadWriteParameterForm({
                   type="number"
                   step="0.1"
                   value={configData.scaling || 1.0}
-                  onChange={(e) => setConfigData(prev => ({ ...prev, scaling: parseFloat(e.target.value) || 1.0 }))}
+                  onChange={(e) => setConfigData((prev) => ({ ...prev, scaling: parseFloat(e.target.value) || 1.0 }))}
                 />
               </div>
 
@@ -572,7 +592,7 @@ export default function ReadWriteParameterForm({
                   id="polling_ms"
                   type="number"
                   value={configData.polling_ms || 200}
-                  onChange={(e) => setConfigData(prev => ({ ...prev, polling_ms: parseInt(e.target.value) || 200 }))}
+                  onChange={(e) => setConfigData((prev) => ({ ...prev, polling_ms: parseInt(e.target.value) || 200 }))}
                   min="200"
                 />
               </div>
