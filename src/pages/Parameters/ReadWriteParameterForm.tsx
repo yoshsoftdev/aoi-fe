@@ -41,7 +41,7 @@ export default function ReadWriteParameterForm({
     nama: '',
     type: 'modbus_rtu', // Will be set from device
     direction: 'READ_WRITE',
-    read_write: false,
+    read_write: 2, // 0=READ, 1=WRITE, 2=READ_WRITE
     write_mode: undefined,
     preset_value: undefined,
     custom_rumus: '',
@@ -410,6 +410,7 @@ export default function ReadWriteParameterForm({
       ...formData,
       type: deviceType,
       direction: 'READ_WRITE',
+      read_write: 2, // Ensure read_write is integer: 2=READ_WRITE
     })
   }
 

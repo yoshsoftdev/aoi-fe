@@ -4,7 +4,7 @@ export interface Parameter {
   nama: string
   type: 'modbus_rtu' | 'modbus_tcp' | 'analog_input' | 'analog_output' | 'digital_input' | 'digital_output' | 'snmp' | 'formula'
   direction: 'READ' | 'WRITE' | 'READ_WRITE' // READ (polling/scheduler), WRITE (command/on-demand), or READ_WRITE (both)
-  read_write: boolean // Deprecated: use direction instead
+  read_write: boolean | number // 0=READ, 1=WRITE, 2=READ_WRITE (integer) or boolean (legacy)
   parameter_mode?: 'SOURCE' | 'DIRECT' | 'CLEAN' | 'FORMULA' // SOURCE (internal), DIRECT (clean from device), CLEAN (logical), FORMULA (derived)
   is_formula?: boolean // true = derived parameter (formula), false = raw parameter
   write_mode?: 'PRESET' | 'DYNAMIC' // PRESET (value stored) or DYNAMIC (value provided at write time) - only for WRITE parameters

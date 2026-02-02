@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { Button } from '@/components/ui/button'
+import { Separator } from '@/components/ui/separator'
 import { Stepper } from '@/components/stepper'
 import { ConnectionStep } from '@/components/steps/connection-step'
 import { TestStep } from '@/components/steps/test-step'
@@ -242,13 +243,15 @@ function AppContent() {
 
             {isAdmin && (
               <>
+                <Separator className="my-2" />
+                
                 <Button
                   variant={currentView === 'tester' ? 'default' : 'ghost'}
                   className="w-full justify-start"
                   onClick={() => handleViewChange('tester')}
                 >
                   <TestTube2 className="h-4 w-4 mr-2" />
-                  Communication Tester
+                  Read Parameter
                 </Button>
 
                 <Button
@@ -259,6 +262,17 @@ function AppContent() {
                   <PenTool className="h-4 w-4 mr-2" />
                   Write / Control
                 </Button>
+                
+                <Button
+                  variant={currentView === 'read-write' ? 'default' : 'ghost'}
+                  className="w-full justify-start"
+                  onClick={() => handleViewChange('read-write')}
+                >
+                  <ArrowLeftRight className="h-4 w-4 mr-2" />
+                  Read/Write Parameter
+                </Button>
+
+                <Separator className="my-2" />
 
                 <Button
                   variant={currentView === 'workflow' ? 'default' : 'ghost'}
@@ -278,14 +292,7 @@ function AppContent() {
                   Write Log
                 </Button>
 
-                <Button
-                  variant={currentView === 'read-write' ? 'default' : 'ghost'}
-                  className="w-full justify-start"
-                  onClick={() => handleViewChange('read-write')}
-                >
-                  <ArrowLeftRight className="h-4 w-4 mr-2" />
-                  Read/Write Parameter
-                </Button>
+                
               </>
             )}
           </div>
