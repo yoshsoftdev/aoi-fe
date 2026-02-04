@@ -1,88 +1,127 @@
-import { useMemo, useState } from 'react'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { Button } from '@/components/ui/button'
-import { Separator } from '@/components/ui/separator'
-import { Stepper } from '@/components/stepper'
-import { ConnectionStep } from '@/components/steps/connection-step'
-import { TestStep } from '@/components/steps/test-step'
-import { DataMappingStep } from '@/components/steps/data-mapping-step'
-import { DashboardView } from '@/components/dashboard/dashboard-view'
-import { AlarmList } from '@/components/alarm/alarm-list'
-import { WriteLogList } from '@/components/write-log/write-log-list'
-import { LogsPanel } from '@/components/tester/logs-panel'
-import { WriteControlView } from '@/components/write/write-control-view'
-import { WriteControlViewStepper } from '@/components/write/write-control-stepper'
-import { WorkflowView } from '@/components/workflow/workflow-view'
-import ReadWriteParameterForm from '@/pages/Parameters/ReadWriteParameterForm'
-import { LayoutDashboard, TestTube2, PenTool, Menu, X, Workflow, Lock, Unlock, LogOut, FileText, ArrowLeftRight } from 'lucide-react'
-import logoctg1 from '../logoctg1.png'
-import type { Connection, LogEntry, RawDataField, SavedDashboardData, MappedValue, DashboardData } from '@/types'
-import { cn } from '@/lib/utils'
-import { useWebSocket } from '@/hooks/useWebSocket'
-import { ToastProvider, useToast } from '@/contexts/ToastContext'
-import { AuthProvider, useAuth } from '@/contexts/AuthContext'
-import { ToastContainer } from '@/components/ui/toast'
-import { AdminLoginDialog } from '@/components/auth/AdminLoginDialog'
+import { useMemo, useState } from "react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { Button } from "@/components/ui/button";
+import { Separator } from "@/components/ui/separator";
+import { Stepper } from "@/components/stepper";
+import { ConnectionStep } from "@/components/steps/connection-step";
+import { TestStep } from "@/components/steps/test-step";
+import { DataMappingStep } from "@/components/steps/data-mapping-step";
+import { DashboardView } from "@/components/dashboard/dashboard-view";
+import { AlarmList } from "@/components/alarm/alarm-list";
+import { WriteLogList } from "@/components/write-log/write-log-list";
+import { LogsPanel } from "@/components/tester/logs-panel";
+import { WriteControlView } from "@/components/write/write-control-view";
+import { WriteControlViewStepper } from "@/components/write/write-control-stepper";
+import { WorkflowView } from "@/components/workflow/workflow-view";
+import ReadWriteParameterForm from "@/pages/Parameters/ReadWriteParameterForm";
+import { ImcPage } from "./components/imc/imc-page";
+import {
+  LayoutDashboard,
+  TestTube2,
+  PenTool,
+  Menu,
+  X,
+  Workflow,
+  Lock,
+  Unlock,
+  LogOut,
+  FileText,
+  ArrowLeftRight,
+} from "lucide-react";
+import logoctg1 from "../logoctg1.png";
+import type {
+  Connection,
+  LogEntry,
+  RawDataField,
+  SavedDashboardData,
+  MappedValue,
+  DashboardData,
+} from "@/types";
+import { cn } from "@/lib/utils";
+import { useWebSocket } from "@/hooks/useWebSocket";
+import { ToastProvider, useToast } from "@/contexts/ToastContext";
+import { AuthProvider, useAuth } from "@/contexts/AuthContext";
+import { ToastContainer } from "@/components/ui/toast";
+import { AdminLoginDialog } from "@/components/auth/AdminLoginDialog";
 
-const queryClient = new QueryClient()
+const queryClient = new QueryClient();
 
 function AppContent() {
-  const { toasts, removeToast } = useToast()
-  const { isAdmin, logout } = useAuth()
-  const [currentView, setCurrentView] = useState<'dashboard' | 'tester' | 'write' | 'workflow' | 'write-log' | 'read-write'>('dashboard')
-  const [isSidebarOpen, setIsSidebarOpen] = useState(true)
-  const [loginDialogOpen, setLoginDialogOpen] = useState(false)
+  const { toasts, removeToast } = useToast();
+  const { isAdmin, logout } = useAuth();
+  const [currentView, setCurrentView] = useState<
+    | "dashboard"
+    | "imc"
+    | "tester"
+    | "write"
+    | "workflow"
+    | "write-log"
+    | "read-write"
+  >("dashboard");
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [loginDialogOpen, setLoginDialogOpen] = useState(false);
+  const isImcView = currentView === "imc";
 
   // Tester state
-  const [currentStep, setCurrentStep] = useState(0)
-  const [connections, setConnections] = useState<Connection[]>([])
-  const [activeConnection, setActiveConnection] = useState<Connection | null>(null)
-  const [logs, setLogs] = useState<LogEntry[]>([])
-  const [rawData, setRawData] = useState<RawDataField[]>([])
-  const [savedDashboardData, setSavedDashboardData] = useState<SavedDashboardData[]>([])
+  const [currentStep, setCurrentStep] = useState(0);
+  const [connections, setConnections] = useState<Connection[]>([]);
+  const [activeConnection, setActiveConnection] = useState<Connection | null>(
+    null,
+  );
+  const [logs, setLogs] = useState<LogEntry[]>([]);
+  const [rawData, setRawData] = useState<RawDataField[]>([]);
+  const [savedDashboardData, setSavedDashboardData] = useState<
+    SavedDashboardData[]
+  >([]);
   // Store test configuration from TestStep for use in DataMappingStep
   const [testConfig, setTestConfig] = useState<{
-    slaveId?: number
-    functionCode?: number
-    registerAddress?: number
-    quantity?: number
-    dataType?: string
-    byteOrder?: string
-    oid?: string
-  } | null>(null)
+    slaveId?: number;
+    functionCode?: number;
+    registerAddress?: number;
+    quantity?: number;
+    dataType?: string;
+    byteOrder?: string;
+    oid?: string;
+  } | null>(null);
 
   // Write Control state
-  const [writeStep, setWriteStep] = useState(0)
-  const [writeActiveConnection, setWriteActiveConnection] = useState<Connection | null>(null)
+  const [writeStep, setWriteStep] = useState(0);
+  const [writeActiveConnection, setWriteActiveConnection] =
+    useState<Connection | null>(null);
 
   // Live data from backend via WebSocket
-  const { data: wsData } = useWebSocket()
+  const { data: wsData } = useWebSocket();
 
   const liveDashboardData: SavedDashboardData[] = useMemo(() => {
     // Group WebSocket data by device_nama (or "All Devices" if empty)
-    const groupedByDevice = new Map<string, DashboardData[]>()
-    
+    const groupedByDevice = new Map<string, DashboardData[]>();
+
     wsData.forEach((d) => {
-      const deviceName = d.device_nama || 'All Devices'
+      const deviceName = d.device_nama || "All Devices";
       if (!groupedByDevice.has(deviceName)) {
-        groupedByDevice.set(deviceName, [])
+        groupedByDevice.set(deviceName, []);
       }
-      groupedByDevice.get(deviceName)!.push(d)
-    })
+      groupedByDevice.get(deviceName)!.push(d);
+    });
 
     // Convert grouped data to SavedDashboardData format
-    const items: SavedDashboardData[] = []
+    const items: SavedDashboardData[] = [];
     groupedByDevice.forEach((deviceParams, deviceName) => {
       // Sort parameters by parameter name (alphabetically) for fixed, consistent ordering
       // This ensures parameters don't change position when WebSocket updates arrive
-      const sortedParams = [...deviceParams].sort((a, b) => 
-        (a.parameter_nama || '').localeCompare(b.parameter_nama || '')
-      )
-      
+      const sortedParams = [...deviceParams].sort((a, b) =>
+        (a.parameter_nama || "").localeCompare(b.parameter_nama || ""),
+      );
+
       // Get latest timestamp for savedAt (from any parameter, not necessarily first)
-      const latestTimestamp = sortedParams.length > 0 
-        ? new Date(Math.max(...sortedParams.map(p => new Date(p.timestamp).getTime())))
-        : new Date()
+      const latestTimestamp =
+        sortedParams.length > 0
+          ? new Date(
+              Math.max(
+                ...sortedParams.map((p) => new Date(p.timestamp).getTime()),
+              ),
+            )
+          : new Date();
 
       // Create mappedValues from all parameters, maintaining alphabetical order
       const mappedValues = sortedParams.map((d) => ({
@@ -90,10 +129,11 @@ function AppContent() {
         parameterId: d.parameter_id, // Include parameter ID for edit/delete operations
         outputName: d.parameter_nama || `Parameter ${d.parameter_id}`, // Fallback if name is missing
         rawValues: [],
-        mappedValue: typeof d.value === 'number' ? d.value : Number(d.value ?? 0),
-        formula: '',
+        mappedValue:
+          typeof d.value === "number" ? d.value : Number(d.value ?? 0),
+        formula: "",
         timestamp: new Date(d.timestamp),
-      }))
+      }));
 
       items.push({
         id: deviceName,
@@ -101,18 +141,18 @@ function AppContent() {
         connectionName: deviceName,
         mappedValues,
         savedAt: latestTimestamp,
-      })
-    })
+      });
+    });
 
     // Sort by device name for consistent ordering
-    items.sort((a, b) => a.connectionName.localeCompare(b.connectionName))
-    
-    return items
-  }, [wsData])
+    items.sort((a, b) => a.connectionName.localeCompare(b.connectionName));
+
+    return items;
+  }, [wsData]);
 
   const addLog = (
     message: string,
-    type: 'info' | 'error' | 'success' | 'warning' = 'info',
+    type: "info" | "error" | "success" | "warning" = "info",
     connectionId?: string,
     slaveId?: number,
   ) => {
@@ -126,28 +166,28 @@ function AppContent() {
         slaveId,
       },
       ...prev,
-    ])
-  }
+    ]);
+  };
 
   const handleRawDataReceived = (
     data: RawDataField[],
     config?: {
-      slaveId?: number
-      functionCode?: number
-      registerAddress?: number
-      quantity?: number
-      dataType?: string
-      byteOrder?: string
-      oid?: string
-    }
+      slaveId?: number;
+      functionCode?: number;
+      registerAddress?: number;
+      quantity?: number;
+      dataType?: string;
+      byteOrder?: string;
+      oid?: string;
+    },
   ) => {
-    setRawData(data)
-    setTestConfig(config || null)
-    addLog(`Received ${data.length} raw data fields for mapping`, 'info')
-  }
+    setRawData(data);
+    setTestConfig(config || null);
+    addLog(`Received ${data.length} raw data fields for mapping`, "info");
+  };
 
   const handleSaveDashboard = async (mappedValues: MappedValue[]) => {
-    if (!activeConnection) return
+    if (!activeConnection) return;
 
     // This will be handled by DataMappingStep calling backend API
     // For now, keep local state update for immediate UI feedback
@@ -157,272 +197,335 @@ function AppContent() {
       connectionName: activeConnection.name,
       mappedValues,
       savedAt: new Date(),
-    }
-    setSavedDashboardData((prev) => [newData, ...prev])
-  }
-  
+    };
+    setSavedDashboardData((prev) => [newData, ...prev]);
+  };
+
   // Force refresh WebSocket data when switching to dashboard
-  const handleViewChange = (view: 'dashboard' | 'tester' | 'write' | 'workflow' | 'write-log' | 'read-write') => {
+  const handleViewChange = (
+    view:
+      | "dashboard"
+      | "imc"
+      | "tester"
+      | "write"
+      | "workflow"
+      | "write-log"
+      | "read-write",
+  ) => {
     // Only allow tester/write/workflow/write-log views if admin
-    if ((view === 'tester' || view === 'write' || view === 'workflow' || view === 'write-log') && !isAdmin) {
-      return // Don't allow switching to admin-only views
+    if (
+      (view === "tester" ||
+        view === "write" ||
+        view === "workflow" ||
+        view === "write-log") &&
+      !isAdmin
+    ) {
+      return; // Don't allow switching to admin-only views
     }
-    setCurrentView(view)
+    setCurrentView(view);
     // If switching to dashboard, give WebSocket a moment to update
-    if (view === 'dashboard') {
+    if (view === "dashboard") {
       // Small delay to allow WebSocket to receive latest data
       setTimeout(() => {
         // Force re-render by updating a dummy state if needed
         // The useWebSocket hook will automatically update when new data arrives
-      }, 500)
+      }, 500);
     }
     // Reset write step when switching to write view
-    if (view === 'write') {
-      setWriteStep(0)
+    if (view === "write") {
+      setWriteStep(0);
     }
-  }
+  };
 
   const resetTesterState = () => {
-    setCurrentStep(0)
-    setActiveConnection(null)
-    setRawData([])
-    setTestConfig(null)
-    setLogs([])
+    setCurrentStep(0);
+    setActiveConnection(null);
+    setRawData([]);
+    setTestConfig(null);
+    setLogs([]);
     // Keep connections list, but reset active connection
-  }
+  };
 
-  const canProceedToStep2 = activeConnection?.status === 'connected'
-  const canProceedToStep3 = rawData.length > 0
+  const canProceedToStep2 = activeConnection?.status === "connected";
+  const canProceedToStep3 = rawData.length > 0;
 
   const steps = [
     {
-      title: 'Pengaturan Koneksi',
-      description: 'Konfigurasi transport layer',
+      title: "Pengaturan Koneksi",
+      description: "Konfigurasi transport layer",
       disabled: false,
     },
     {
-      title: 'Uji Read/Write',
-      description: 'Uji operasi',
+      title: "Uji Read/Write",
+      description: "Uji operasi",
       disabled: !canProceedToStep2,
     },
     {
-      title: 'Pemetaan Data',
-      description: 'Transformasi data mentah',
+      title: "Pemetaan Data",
+      description: "Transformasi data mentah",
       disabled: !canProceedToStep3,
     },
-  ]
+  ];
 
   return (
     <>
-      <div className="min-h-screen bg-background flex">
-        <aside
-          className={cn(
-            'border-r border-border bg-card transition-all duration-300',
-            isSidebarOpen ? 'w-64' : 'w-0 overflow-hidden'
-          )}
-        >
-          <div className="p-4 space-y-2">
-            <div className="flex items-center gap-3 mb-6">
-              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
-                <img src={logoctg1} alt="CTG IMC Logo" className="h-8 w-8 object-contain" />
-              </div>
-              <div>
-                <h1 className="text-sm font-semibold text-foreground">CTG IMC</h1>
-                <p className="text-xs text-muted-foreground">Immersion Control System</p>
-              </div>
-            </div>
-
-            <Button
-              variant={currentView === 'dashboard' ? 'default' : 'ghost'}
-              className="w-full justify-start"
-              onClick={() => handleViewChange('dashboard')}
-            >
-              <LayoutDashboard className="h-4 w-4 mr-2" />
-              Dashboard
-            </Button>
-
-            {isAdmin && (
-              <>
-                <Separator className="my-2" />
-                
-                <Button
-                  variant={currentView === 'tester' ? 'default' : 'ghost'}
-                  className="w-full justify-start"
-                  onClick={() => handleViewChange('tester')}
-                >
-                  <TestTube2 className="h-4 w-4 mr-2" />
-                  Read Parameter
-                </Button>
-
-                <Button
-                  variant={currentView === 'write' ? 'default' : 'ghost'}
-                  className="w-full justify-start"
-                  onClick={() => handleViewChange('write')}
-                >
-                  <PenTool className="h-4 w-4 mr-2" />
-                  Write / Control
-                </Button>
-                
-                <Button
-                  variant={currentView === 'read-write' ? 'default' : 'ghost'}
-                  className="w-full justify-start"
-                  onClick={() => handleViewChange('read-write')}
-                >
-                  <ArrowLeftRight className="h-4 w-4 mr-2" />
-                  Read/Write Parameter
-                </Button>
-
-                <Separator className="my-2" />
-
-                <Button
-                  variant={currentView === 'workflow' ? 'default' : 'ghost'}
-                  className="w-full justify-start"
-                  onClick={() => handleViewChange('workflow')}
-                >
-                  <Workflow className="h-4 w-4 mr-2" />
-                  Workflow
-                </Button>
-
-                <Button
-                  variant={currentView === 'write-log' ? 'default' : 'ghost'}
-                  className="w-full justify-start"
-                  onClick={() => handleViewChange('write-log')}
-                >
-                  <FileText className="h-4 w-4 mr-2" />
-                  Write Log
-                </Button>
-
-                
-              </>
+      <div
+        className={cn(
+          "min-h-screen flex",
+          isImcView
+            ? "imc-theme bg-background text-foreground"
+            : "bg-background",
+        )}
+      >
+        {!isImcView && (
+          <aside
+            className={cn(
+              "border-r border-border bg-card transition-all duration-300",
+              isSidebarOpen ? "w-64" : "w-0 overflow-hidden",
             )}
-          </div>
-        </aside>
+          >
+            <div className="p-4 space-y-2">
+              <div className="flex items-center gap-3 mb-6">
+                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
+                  <img
+                    src={logoctg1}
+                    alt="CTG IMC Logo"
+                    className="h-8 w-8 object-contain"
+                  />
+                </div>
+                <div>
+                  <h1 className="text-sm font-semibold text-foreground">
+                    CTG IMC
+                  </h1>
+                  <p className="text-xs text-muted-foreground">
+                    Immersion Control System
+                  </p>
+                </div>
+              </div>
 
-        <div className="flex-1 flex flex-col">
-          <header className="border-b border-border bg-card sticky top-0 z-10">
-            <div className="flex h-16 items-center gap-3 px-6">
+              <Button
+                variant={currentView === "dashboard" ? "default" : "ghost"}
+                className="w-full justify-start"
+                onClick={() => handleViewChange("dashboard")}
+              >
+                <LayoutDashboard className="h-4 w-4 mr-2" />
+                Dashboard
+              </Button>
+
               <Button
                 variant="ghost"
-                size="icon"
-                onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-                className="h-10 w-10"
+                className="w-full justify-start"
+                onClick={() => handleViewChange("imc")}
               >
-                {isSidebarOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+                <LayoutDashboard className="h-4 w-4 mr-2" />
+                IMC
               </Button>
-              <div className="flex-1">
-                <h1 className="text-lg font-semibold text-foreground">
-                  {currentView === 'dashboard'
-                    ? 'Dashboard'
-                    : currentView === 'tester'
-                      ? 'Communication Tester'
-                      : currentView === 'write'
-                        ? 'Write / Control'
-                      : currentView === 'workflow'
-                        ? 'Workflow'
-                        : currentView === 'read-write'
-                          ? 'Read/Write Parameter'
-                          : 'Write Log'}
-                </h1>
-                <p className="text-xs text-muted-foreground">
-                  {currentView === 'dashboard'
-                    ? 'Pantau nilai data yang telah dipetakan'
-                    : currentView === 'tester'
-                      ? 'Uji → Petakan → Transformasi'
-                      : currentView === 'write'
-                        ? 'Tulis nilai ke perangkat Modbus'
-                        : currentView === 'workflow'
-                          ? 'JIKA kondisi MAKA aksi'
-                          : currentView === 'read-write'
-                            ? 'Buat parameter yang bisa membaca dan menulis'
-                            : 'Riwayat semua write action ke parameter'}
-                </p>
-              </div>
-              <div className="flex items-center gap-2">
-                {isAdmin ? (
-                  <>
-                    <div className="flex items-center gap-2 px-3 py-1.5 rounded-md bg-primary/10 text-primary text-sm">
-                      <Unlock className="h-4 w-4" />
-                      <span>Admin Mode</span>
-                    </div>
+
+              {isAdmin && (
+                <>
+                  <Separator className="my-2" />
+
+                  <Button
+                    variant={currentView === "tester" ? "default" : "ghost"}
+                    className="w-full justify-start"
+                    onClick={() => handleViewChange("tester")}
+                  >
+                    <TestTube2 className="h-4 w-4 mr-2" />
+                    Read Parameter
+                  </Button>
+
+                  <Button
+                    variant={currentView === "write" ? "default" : "ghost"}
+                    className="w-full justify-start"
+                    onClick={() => handleViewChange("write")}
+                  >
+                    <PenTool className="h-4 w-4 mr-2" />
+                    Write / Control
+                  </Button>
+
+                  <Button
+                    variant={currentView === "read-write" ? "default" : "ghost"}
+                    className="w-full justify-start"
+                    onClick={() => handleViewChange("read-write")}
+                  >
+                    <ArrowLeftRight className="h-4 w-4 mr-2" />
+                    Read/Write Parameter
+                  </Button>
+
+                  <Separator className="my-2" />
+
+                  <Button
+                    variant={currentView === "workflow" ? "default" : "ghost"}
+                    className="w-full justify-start"
+                    onClick={() => handleViewChange("workflow")}
+                  >
+                    <Workflow className="h-4 w-4 mr-2" />
+                    Workflow
+                  </Button>
+
+                  <Button
+                    variant={currentView === "write-log" ? "default" : "ghost"}
+                    className="w-full justify-start"
+                    onClick={() => handleViewChange("write-log")}
+                  >
+                    <FileText className="h-4 w-4 mr-2" />
+                    Write Log
+                  </Button>
+                </>
+              )}
+            </div>
+          </aside>
+        )}
+
+        <div className="flex-1 flex flex-col">
+          {!isImcView && (
+            <header className="border-b border-border bg-card sticky top-0 z-10">
+              <div className="flex h-16 items-center gap-3 px-6">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+                  className="h-10 w-10"
+                >
+                  {isSidebarOpen ? (
+                    <X className="h-5 w-5" />
+                  ) : (
+                    <Menu className="h-5 w-5" />
+                  )}
+                </Button>
+                <div className="flex-1">
+                  <h1 className="text-lg font-semibold text-foreground">
+                    {currentView === "dashboard"
+                      ? "Dashboard"
+                      : currentView === "tester"
+                        ? "Communication Tester"
+                        : currentView === "write"
+                          ? "Write / Control"
+                          : currentView === "workflow"
+                            ? "Workflow"
+                            : currentView === "read-write"
+                              ? "Read/Write Parameter"
+                              : "Write Log"}
+                  </h1>
+                  <p className="text-xs text-muted-foreground">
+                    {currentView === "dashboard"
+                      ? "Pantau nilai data yang telah dipetakan"
+                      : currentView === "tester"
+                        ? "Uji → Petakan → Transformasi"
+                        : currentView === "write"
+                          ? "Tulis nilai ke perangkat Modbus"
+                          : currentView === "workflow"
+                            ? "JIKA kondisi MAKA aksi"
+                            : currentView === "read-write"
+                              ? "Buat parameter yang bisa membaca dan menulis"
+                              : "Riwayat semua write action ke parameter"}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  {isAdmin ? (
+                    <>
+                      <div className="flex items-center gap-2 px-3 py-1.5 rounded-md bg-primary/10 text-primary text-sm">
+                        <Unlock className="h-4 w-4" />
+                        <span>Admin Mode</span>
+                      </div>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={logout}
+                        className="gap-2"
+                      >
+                        <LogOut className="h-4 w-4" />
+                        <span>Logout</span>
+                      </Button>
+                    </>
+                  ) : (
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={logout}
+                      onClick={() => setLoginDialogOpen(true)}
                       className="gap-2"
                     >
-                      <LogOut className="h-4 w-4" />
-                      <span>Logout</span>
+                      <Lock className="h-4 w-4" />
+                      <span>Admin Mode</span>
                     </Button>
-                  </>
-                ) : (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setLoginDialogOpen(true)}
-                    className="gap-2"
-                  >
-                    <Lock className="h-4 w-4" />
-                    <span>Admin Mode</span>
-                  </Button>
-                )}
+                  )}
+                </div>
               </div>
-            </div>
-            {currentView === 'tester' && (
-              <div className="border-t border-border px-6 py-4">
-                <Stepper steps={steps} currentStep={currentStep} onStepClick={setCurrentStep} />
-              </div>
-            )}
-            {currentView === 'write' && (
-              <div className="border-t border-border px-6 py-4">
-                <WriteControlViewStepper
-                  currentStep={writeStep}
-                  onStepClick={setWriteStep}
-                  canProceedToStep2={writeActiveConnection?.status === 'connected'}
-                />
-              </div>
-            )}
-          </header>
+              {currentView === "tester" && (
+                <div className="border-t border-border px-6 py-4">
+                  <Stepper
+                    steps={steps}
+                    currentStep={currentStep}
+                    onStepClick={setCurrentStep}
+                  />
+                </div>
+              )}
+              {currentView === "write" && (
+                <div className="border-t border-border px-6 py-4">
+                  <WriteControlViewStepper
+                    currentStep={writeStep}
+                    onStepClick={setWriteStep}
+                    canProceedToStep2={
+                      writeActiveConnection?.status === "connected"
+                    }
+                  />
+                </div>
+              )}
+            </header>
+          )}
 
-          <div className="flex flex-1 h-[calc(100vh-4rem)]">
-            {currentView === 'write' && isAdmin ? (
+          <div
+            className={cn(
+              "flex flex-1",
+              isImcView ? "h-screen" : "h-[calc(100vh-4rem)]",
+            )}
+          >
+            {currentView === "write" && isAdmin ? (
               <WriteControlView
                 currentStep={writeStep}
                 setCurrentStep={setWriteStep}
                 onStepChange={(step) => {
-                  setWriteStep(step)
+                  setWriteStep(step);
                   // Reset dependent states when step changes
                   if (step === 0) {
-                    setWriteActiveConnection(null)
+                    setWriteActiveConnection(null);
                   }
                 }}
                 onConnectionChange={(connection) => {
-                  setWriteActiveConnection(connection)
+                  setWriteActiveConnection(connection);
                 }}
               />
-            ) : currentView === 'workflow' && isAdmin ? (
+            ) : currentView === "workflow" && isAdmin ? (
               <main className="flex-1 overflow-y-auto">
                 <div className="p-6">
                   <WorkflowView />
                 </div>
               </main>
-            ) : currentView === 'read-write' && isAdmin ? (
+            ) : currentView === "read-write" && isAdmin ? (
               <main className="flex-1 overflow-y-auto">
                 <ReadWriteParameterForm
-                  onCancel={() => handleViewChange('dashboard')}
+                  onCancel={() => handleViewChange("dashboard")}
                   onSuccess={() => {
-                    handleViewChange('dashboard')
+                    handleViewChange("dashboard");
                   }}
                 />
               </main>
-            ) : (!isAdmin && (currentView === 'tester' || currentView === 'write' || currentView === 'workflow' || currentView === 'write-log' || currentView === 'read-write')) ? (
+            ) : !isAdmin &&
+              (currentView === "tester" ||
+                currentView === "write" ||
+                currentView === "workflow" ||
+                currentView === "write-log" ||
+                currentView === "read-write") ? (
               <main className="flex-1 overflow-y-auto">
                 <div className="p-6">
                   <div className="flex flex-col items-center justify-center h-full text-center">
-                    <h2 className="text-2xl font-bold mb-2">Mode Admin Diperlukan</h2>
+                    <h2 className="text-2xl font-bold mb-2">
+                      Mode Admin Diperlukan
+                    </h2>
                     <p className="text-muted-foreground mb-4">
                       Silakan aktifkan Mode Admin untuk mengakses fitur ini.
                     </p>
-                    <Button onClick={() => handleViewChange('dashboard')}>
+                    <Button onClick={() => handleViewChange("dashboard")}>
                       Kembali ke Dashboard
                     </Button>
                   </div>
@@ -431,26 +534,40 @@ function AppContent() {
             ) : (
               <>
                 <main className="flex-1 overflow-y-auto">
-                  <div className="p-6">
-                    {currentView === 'dashboard' ? (
+                  <div
+                    className={cn(
+                      currentView === "imc" ? "p-0 h-full w-full" : "p-6",
+                    )}
+                  >
+                    {currentView === "dashboard" ? (
                       <div className="space-y-6">
                         <AlarmList />
                         <DashboardView
-                          savedData={liveDashboardData.length > 0 ? liveDashboardData : savedDashboardData}
+                          savedData={
+                            liveDashboardData.length > 0
+                              ? liveDashboardData
+                              : savedDashboardData
+                          }
                           onParameterUpdate={({ id, nama }) => {
                             // Sinkronkan nama parameter di savedDashboardData
                             setSavedDashboardData((prev) =>
                               prev.map((group) => ({
                                 ...group,
                                 mappedValues: group.mappedValues.map((mv) =>
-                                  mv.parameterId === id ? { ...mv, outputName: nama } : mv
+                                  mv.parameterId === id
+                                    ? { ...mv, outputName: nama }
+                                    : mv,
                                 ),
-                              }))
-                            )
+                              })),
+                            );
                           }}
                         />
                       </div>
-                    ) : currentView === 'write-log' && isAdmin ? (
+                    ) : currentView === "imc" ? (
+                      <div className="imc-theme h-full w-full bg-background text-foreground">
+                        <ImcPage />
+                      </div>
+                    ) : currentView === "write-log" && isAdmin ? (
                       <div className="space-y-6">
                         <WriteLogList />
                       </div>
@@ -482,8 +599,8 @@ function AppContent() {
                             activeConnection={activeConnection!}
                             testConfig={testConfig}
                             onSaveSuccess={() => {
-                              resetTesterState()
-                              setCurrentView('dashboard')
+                              resetTesterState();
+                              setCurrentView("dashboard");
                             }}
                           />
                         )}
@@ -492,7 +609,7 @@ function AppContent() {
                   </div>
                 </main>
 
-                {currentView === 'tester' && (
+                {currentView === "tester" && (
                   <aside className="w-96 border-l border-border bg-card overflow-y-auto">
                     <LogsPanel logs={logs} onClear={() => setLogs([])} />
                   </aside>
@@ -508,7 +625,7 @@ function AppContent() {
         onOpenChange={setLoginDialogOpen}
       />
     </>
-  )
+  );
 }
 
 function App() {
@@ -520,7 +637,7 @@ function App() {
         </ToastProvider>
       </AuthProvider>
     </QueryClientProvider>
-  )
+  );
 }
 
-export default App
+export default App;

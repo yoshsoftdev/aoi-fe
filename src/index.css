@@ -26,6 +26,32 @@
     --radius: 0.5rem;
   }
 
+  .imc-theme {
+    --background: 204 40% 14%;
+    --foreground: 185 100% 75%;
+    --card: 204 35% 18%;
+    --card-foreground: 185 100% 75%;
+    --popover: 204 35% 18%;
+    --popover-foreground: 185 100% 75%;
+    --primary: 160 100% 42%;
+    --primary-foreground: 204 40% 10%;
+    --secondary: 204 28% 22%;
+    --secondary-foreground: 185 100% 75%;
+    --muted: 204 28% 20%;
+    --muted-foreground: 190 45% 72%;
+    --accent: 160 80% 22%;
+    --accent-foreground: 185 100% 75%;
+    --destructive: 0 75% 55%;
+    --destructive-foreground: 210 20% 98%;
+    --border: 204 25% 28%;
+    --input: 204 25% 28%;
+    --ring: 160 100% 42%;
+
+    text-shadow:
+      0 0 8px hsl(var(--primary) / 0.45),
+      0 0 18px hsl(var(--primary) / 0.2);
+  }
+
   .dark {
     --background: 0 0% 14.5%;
     --foreground: 0 0% 98.5%;
@@ -55,6 +81,8 @@
   }
   body {
     @apply bg-background text-foreground;
-    font-feature-settings: "rlig" 1, "calt" 1;
+    font-feature-settings:
+      "rlig" 1,
+      "calt" 1;
   }
 }
