@@ -103,13 +103,13 @@ export function ImcPage() {
       <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
         <Card className="md:col-span-2 p-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            <Card className="p-4 flex flex-col items-center">
+            <Card className="p-4 flex flex-col items-center border-none">
               <div className="font-bold">Lembap Ambien</div>
               <div>
                 <img src="/img/humid.png" alt="" width={150} />
               </div>
             </Card>
-            <Card className="p-4 flex flex-col items-center">
+            <Card className="p-4 flex flex-col items-center border-none">
               <div className="font-bold">Suhu Ambien</div>
               <div>
                 <img src="/img/temp.png" alt="" width={150} />
@@ -144,10 +144,12 @@ export function ImcPage() {
                 }}
               >
                 <div className="font-bold text-center">{item.title}</div>
-                <div className="flex items-center">
+                <div className="mt-2 flex flex-col items-center justify-center gap-2">
                   <img src={item.imageSrc} alt={item.title} width={150} />
-                  <div className="font-bold text-[20px]">
-                    {String((item as any)?.data?.setpoint ?? "-")}%
+                  <div className="flex flex-col items-center">
+                    <div className="font-bold text-[20px]">
+                      {String((item as any)?.data?.setpoint ?? "-")}%
+                    </div>
                   </div>
                 </div>
               </button>
@@ -155,21 +157,23 @@ export function ImcPage() {
           </div>
         </Card>
       </div>
-      <div className="h-[calc(100vh-280px)] grid grid-cols-2 gap-3">
+      <div className="h-[calc(100vh-325px)] grid grid-cols-2 gap-3">
         <Card className="p-4 h-full">
           <div className="h-full flex flex-col">
             <span className="mb-2 font-bold text-center">
               Sirkulasi Cairan Dielektrik
             </span>
 
-            <div className="grid grid-cols-3 gap-3 flex-1">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 flex-1">
               <Card className="h-full p-4 border-none">
                 <div className="flex flex-col justify-center items-center h-full">
                   <div className="font-semibold">Suhu °C</div>
                   <div>
                     <img src="/img/temp.png" alt="" />
                   </div>
-                  <div className="text-[80px] font-bold">34.5</div>
+                  <div className="mt-2 font-bold text-[clamp(32px,6vw,80px)]">
+                    34.5
+                  </div>
                 </div>
               </Card>
               <Card className="h-full p-4 border-none">
@@ -178,7 +182,9 @@ export function ImcPage() {
                   <div>
                     <img src="/img/pipe.png" alt="" />
                   </div>
-                  <div className="text-[80px] font-bold">0.65</div>
+                  <div className="mt-2 font-bold text-[clamp(32px,6vw,80px)]">
+                    0.65
+                  </div>
                 </div>
               </Card>
               <Card className="h-full p-4 border-none">
@@ -187,7 +193,9 @@ export function ImcPage() {
                   <div>
                     <img src="/img/gauge.png" alt="" />
                   </div>
-                  <div className="text-[80px] font-bold">0.84</div>
+                  <div className="mt-2 font-bold text-[clamp(32px,6vw,80px)]">
+                    0.84
+                  </div>
                 </div>
               </Card>
             </div>
@@ -200,14 +208,16 @@ export function ImcPage() {
               Sirkulasi Cairan H2O
             </span>
 
-            <div className="grid grid-cols-3 gap-3 flex-1">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 flex-1">
               <Card className="h-full p-4 border-none">
                 <div className="flex flex-col justify-center items-center h-full">
                   <div className="font-semibold">Suhu °C</div>
                   <div>
                     <img src="/img/temp.png" alt="" />
                   </div>
-                  <div className="text-[80px] font-bold">34.5</div>
+                  <div className="mt-2 font-bold text-[clamp(32px,6vw,80px)]">
+                    34.5
+                  </div>
                 </div>
               </Card>
               <Card className="h-full p-4 border-none">
@@ -216,7 +226,9 @@ export function ImcPage() {
                   <div>
                     <img src="/img/pipe.png" alt="" />
                   </div>
-                  <div className="text-[80px] font-bold">0.65</div>
+                  <div className="mt-2 font-bold text-[clamp(32px,6vw,80px)]">
+                    0.65
+                  </div>
                 </div>
               </Card>
               <Card className="h-full p-4 border-none">
@@ -225,7 +237,9 @@ export function ImcPage() {
                   <div>
                     <img src="/img/gauge.png" alt="" />
                   </div>
-                  <div className="text-[80px] font-bold">0.84</div>
+                  <div className="mt-2 font-bold text-[clamp(32px,6vw,80px)]">
+                    0.84
+                  </div>
                 </div>
               </Card>
             </div>
