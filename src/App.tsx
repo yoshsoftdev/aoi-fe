@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
@@ -61,6 +61,53 @@ function AppContent() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [loginDialogOpen, setLoginDialogOpen] = useState(false);
   const isImcView = currentView === "imc";
+  const [showChromeInImc, setShowChromeInImc] = useState(false);
+  const [imcTapCount, setImcTapCount] = useState(0);
+
+  useEffect(() => {
+    const parsePathToView = (pathname: string) => {
+      const cleaned = pathname.replace(/\/+$/, "");
+      if (cleaned === "" || cleaned === "/") return "dashboard";
+      if (
+        cleaned === "/dashboard" ||
+        cleaned === "/imc" ||
+        cleaned === "/tester" ||
+        cleaned === "/write" ||
+        cleaned === "/workflow" ||
+        cleaned === "/write-log" ||
+        cleaned === "/read-write"
+      ) {
+        return cleaned.slice(1);
+      }
+      return "dashboard";
+    };
+
+    const applyPath = () => {
+      if (window.location.pathname === "/") {
+        window.history.replaceState({}, "", "/imc");
+      }
+      const nextView = parsePathToView(window.location.pathname) as any;
+      setCurrentView(nextView);
+    };
+
+    applyPath();
+    window.addEventListener("popstate", applyPath);
+    return () => window.removeEventListener("popstate", applyPath);
+  }, []);
+
+  useEffect(() => {
+    if (!isImcView) {
+      setShowChromeInImc(false);
+      setImcTapCount(0);
+    }
+  }, [isImcView]);
+
+  useEffect(() => {
+    if (!isImcView) return;
+    if (imcTapCount === 0) return;
+    const t = window.setTimeout(() => setImcTapCount(0), 1200);
+    return () => window.clearTimeout(t);
+  }, [imcTapCount, isImcView]);
 
   // Tester state
   const [currentStep, setCurrentStep] = useState(0);
@@ -223,6 +270,14 @@ function AppContent() {
       return; // Don't allow switching to admin-only views
     }
     setCurrentView(view);
+
+    if (typeof window !== "undefined") {
+      const nextPath = view === "dashboard" ? "/" : `/${view}`;
+      if (window.location.pathname !== nextPath) {
+        window.history.pushState({}, "", nextPath);
+      }
+    }
+
     // If switching to dashboard, give WebSocket a moment to update
     if (view === "dashboard") {
       // Small delay to allow WebSocket to receive latest data
@@ -277,7 +332,7 @@ function AppContent() {
             : "bg-background",
         )}
       >
-        {!isImcView && (
+        {(!isImcView || showChromeInImc) && (
           <aside
             className={cn(
               "border-r border-border bg-card transition-all duration-300",
@@ -378,7 +433,7 @@ function AppContent() {
         )}
 
         <div className="flex-1 flex flex-col">
-          {!isImcView && (
+          {(!isImcView || showChromeInImc) && (
             <header className="border-b border-border bg-card sticky top-0 z-10">
               <div className="flex h-16 items-center gap-3 px-6">
                 <Button
@@ -474,10 +529,37 @@ function AppContent() {
             </header>
           )}
 
+          {isImcView && !showChromeInImc ? (
+            <div
+              style={{
+                position: "fixed",
+                top: 0,
+                left: 0,
+                width: 160,
+                height: 56,
+                zIndex: 2147483000,
+                background: "transparent",
+              }}
+              onClick={() => {
+                setImcTapCount((c) => {
+                  const next = c + 1;
+                  if (next >= 4) {
+                    setShowChromeInImc(true);
+                    setIsSidebarOpen(true);
+                    return 0;
+                  }
+                  return next;
+                });
+              }}
+            />
+          ) : null}
+
           <div
             className={cn(
               "flex flex-1",
-              isImcView ? "h-screen" : "h-[calc(100vh-4rem)]",
+              isImcView && !showChromeInImc
+                ? "h-screen"
+                : "h-[calc(100vh-4rem)]",
             )}
           >
             {currentView === "write" && isAdmin ? (
