@@ -169,7 +169,7 @@ export function ImcPage() {
                   <div>
                     <img src="/img/temp.png" alt="" />
                   </div>
-                  <div className="text-[30px] font-bold">34.5</div>
+                  <div className="text-[80px] font-bold">34.5</div>
                 </div>
               </Card>
               <Card className="h-full p-4 border-none">
@@ -178,7 +178,7 @@ export function ImcPage() {
                   <div>
                     <img src="/img/pipe.png" alt="" />
                   </div>
-                  <div className="text-[30px] font-bold">0.65</div>
+                  <div className="text-[80px] font-bold">0.65</div>
                 </div>
               </Card>
               <Card className="h-full p-4 border-none">
@@ -187,7 +187,7 @@ export function ImcPage() {
                   <div>
                     <img src="/img/gauge.png" alt="" />
                   </div>
-                  <div className="text-[30px] font-bold">0.84</div>
+                  <div className="text-[80px] font-bold">0.84</div>
                 </div>
               </Card>
             </div>
@@ -207,7 +207,7 @@ export function ImcPage() {
                   <div>
                     <img src="/img/temp.png" alt="" />
                   </div>
-                  <div className="text-[30px] font-bold">34.5</div>
+                  <div className="text-[80px] font-bold">34.5</div>
                 </div>
               </Card>
               <Card className="h-full p-4 border-none">
@@ -216,7 +216,7 @@ export function ImcPage() {
                   <div>
                     <img src="/img/pipe.png" alt="" />
                   </div>
-                  <div className="text-[30px] font-bold">0.65</div>
+                  <div className="text-[80px] font-bold">0.65</div>
                 </div>
               </Card>
               <Card className="h-full p-4 border-none">
@@ -225,7 +225,7 @@ export function ImcPage() {
                   <div>
                     <img src="/img/gauge.png" alt="" />
                   </div>
-                  <div className="text-[30px] font-bold">0.84</div>
+                  <div className="text-[80px] font-bold">0.84</div>
                 </div>
               </Card>
             </div>
