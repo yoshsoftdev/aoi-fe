@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "../ui/button";
 import { Card } from "../ui/card";
 import { Switch } from "../ui/switch";
+import { MinusIcon, PlusIcon } from "lucide-react";
 
 export function ImcPage() {
   const [statusItems, setStatusItems] = useState(() => [
@@ -231,6 +232,7 @@ export function ImcPage() {
           </div>
         </Card>
       </div>
+
       {isModalOpen ? (
         <div
           style={{
@@ -281,6 +283,7 @@ export function ImcPage() {
                 borderRadius: 10,
                 border: "1px solid hsl(var(--border))",
                 backgroundColor: "hsl(var(--background) / 0.25)",
+                width: "100%",
               }}
             >
               {/* <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
@@ -293,16 +296,16 @@ export function ImcPage() {
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                 <Button
                   variant="outline"
-                  size="icon"
                   onClick={() => adjustSetpoint(-1)}
+                  style={{ height: 100, width: "100%" }} // bebas, bisa 56 / 64
                 >
-                  -
+                  <MinusIcon />
                 </Button>
                 <div
                   ref={setpointPickerRef}
                   style={{
                     height: setpointItemHeight * 3,
-                    width: 76,
+                    width: 200,
                     overflowY: "auto",
                     scrollbarWidth: "none",
                     msOverflowStyle: "none",
@@ -367,10 +370,11 @@ export function ImcPage() {
                 </div>
                 <Button
                   variant="outline"
-                  size="icon"
+                  // size="icon"
                   onClick={() => adjustSetpoint(1)}
+                  style={{ height: 100, width: "100%" }}
                 >
-                  +
+                  <PlusIcon />
                 </Button>
               </div>
             </div>
@@ -439,23 +443,38 @@ export function ImcPage() {
                   </div>
                 </div>
 
-                <Switch
-                  checked={!!selectedStatus?.status}
-                  onCheckedChange={(checked) => {
+                {/* SWITCH */}
+                <div
+                  onClick={() => {
+                    const next = !selectedStatus?.status;
                     setStatusItems((prev) =>
                       prev.map((it) =>
-                        it.key === selectedKey
-                          ? { ...it, status: checked }
-                          : it,
+                        it.key === selectedKey ? { ...it, status: next } : it,
                       ),
                     );
                   }}
-                  className={
-                    selectedStatus?.status
-                      ? "data-[state=checked]:bg-green-600"
-                      : "data-[state=unchecked]:bg-red-600"
-                  }
-                />
+                  className={`
+                    w-20 h-10 
+                    rounded-full 
+                    cursor-pointer 
+                    transition-colors 
+                    flex items-center
+                    px-1
+                    ${selectedStatus?.status ? "bg-green-600" : "bg-red-600"}
+                  `}
+                >
+                  <div
+                    className={`
+                      w-8 h-8 
+                      bg-gray-800 
+                      rounded-full 
+                      shadow-md 
+                      transition-transform 
+                      duration-200
+                      ${selectedStatus?.status ? "translate-x-10" : "translate-x-0"}
+                    `}
+                  />
+                </div>
               </div>
             ) : null}
 
