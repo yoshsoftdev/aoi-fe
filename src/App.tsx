@@ -13,6 +13,8 @@ import { LogsPanel } from "@/components/tester/logs-panel";
 import { WriteControlView } from "@/components/write/write-control-view";
 import { WriteControlViewStepper } from "@/components/write/write-control-stepper";
 import { WorkflowView } from "@/components/workflow/workflow-view";
+import { SetPointView } from "@/components/set-point/set-point-view";
+import { BypassView } from "@/components/bypass/bypass-view";
 import ReadWriteParameterForm from "@/pages/Parameters/ReadWriteParameterForm";
 import { ImcPage } from "./components/imc/imc-page";
 import {
@@ -55,6 +57,8 @@ function AppContent() {
     | "tester"
     | "write"
     | "workflow"
+    | "set-point"
+    | "bypass"
     | "write-log"
     | "read-write"
   >("dashboard");
@@ -74,6 +78,8 @@ function AppContent() {
         cleaned === "/tester" ||
         cleaned === "/write" ||
         cleaned === "/workflow" ||
+        cleaned === "/set-point" ||
+        cleaned === "/bypass" ||
         cleaned === "/write-log" ||
         cleaned === "/read-write"
       ) {
@@ -180,6 +186,7 @@ function AppContent() {
           typeof d.value === "number" ? d.value : Number(d.value ?? 0),
         formula: "",
         timestamp: new Date(d.timestamp),
+        status: (d.status === 'offline' || d.status === 'error') ? d.status : 'online' as 'online' | 'offline' | 'error', // Preserve status from WebSocket
       }));
 
       items.push({
@@ -256,6 +263,8 @@ function AppContent() {
       | "tester"
       | "write"
       | "workflow"
+      | "set-point"
+      | "bypass"
       | "write-log"
       | "read-write",
   ) => {
@@ -264,6 +273,8 @@ function AppContent() {
       (view === "tester" ||
         view === "write" ||
         view === "workflow" ||
+        view === "set-point" ||
+        view === "bypass" ||
         view === "write-log") &&
       !isAdmin
     ) {
@@ -410,12 +421,30 @@ function AppContent() {
                   <Separator className="my-2" />
 
                   <Button
+                    variant={currentView === "set-point" ? "default" : "ghost"}
+                    className="w-full justify-start"
+                    onClick={() => handleViewChange("set-point")}
+                  >
+                    <Workflow className="h-4 w-4 mr-2" />
+                    Set-Point
+                  </Button>
+
+                  <Button
                     variant={currentView === "workflow" ? "default" : "ghost"}
                     className="w-full justify-start"
                     onClick={() => handleViewChange("workflow")}
                   >
                     <Workflow className="h-4 w-4 mr-2" />
                     Workflow
+                  </Button>
+
+                  <Button
+                    variant={currentView === "bypass" ? "default" : "ghost"}
+                    className="w-full justify-start"
+                    onClick={() => handleViewChange("bypass")}
+                  >
+                    <Workflow className="h-4 w-4 mr-2" />
+                    Bypass
                   </Button>
 
                   <Button
@@ -458,9 +487,13 @@ function AppContent() {
                           ? "Write / Control"
                           : currentView === "workflow"
                             ? "Workflow"
-                            : currentView === "read-write"
-                              ? "Read/Write Parameter"
-                              : "Write Log"}
+                            : currentView === "set-point"
+                              ? "Set-Point"
+                              : currentView === "bypass"
+                                ? "Bypass"
+                                : currentView === "read-write"
+                                  ? "Read/Write Parameter"
+                                  : "Write Log"}
                   </h1>
                   <p className="text-xs text-muted-foreground">
                     {currentView === "dashboard"
@@ -471,9 +504,13 @@ function AppContent() {
                           ? "Tulis nilai ke perangkat Modbus"
                           : currentView === "workflow"
                             ? "JIKA kondisi MAKA aksi"
-                            : currentView === "read-write"
-                              ? "Buat parameter yang bisa membaca dan menulis"
-                              : "Riwayat semua write action ke parameter"}
+                            : currentView === "set-point"
+                              ? "Kelola nilai set-point untuk workflow / bypass"
+                              : currentView === "bypass"
+                                ? "Bypass: IF (kondisi) THEN WRITE (aksi) dieksekusi oleh engine"
+                                : currentView === "read-write"
+                                  ? "Buat parameter yang bisa membaca dan menulis"
+                                  : "Riwayat semua write action ke parameter"}
                   </p>
                 </div>
                 <div className="flex items-center gap-2">
@@ -583,6 +620,18 @@ function AppContent() {
                   <WorkflowView />
                 </div>
               </main>
+            ) : currentView === "set-point" && isAdmin ? (
+              <main className="flex-1 overflow-y-auto">
+                <div className="p-6">
+                  <SetPointView />
+                </div>
+              </main>
+            ) : currentView === "bypass" && isAdmin ? (
+              <main className="flex-1 overflow-y-auto">
+                <div className="p-6">
+                  <BypassView />
+                </div>
+              </main>
             ) : currentView === "read-write" && isAdmin ? (
               <main className="flex-1 overflow-y-auto">
                 <ReadWriteParameterForm
@@ -596,6 +645,8 @@ function AppContent() {
               (currentView === "tester" ||
                 currentView === "write" ||
                 currentView === "workflow" ||
+                currentView === "set-point" ||
+                currentView === "bypass" ||
                 currentView === "write-log" ||
                 currentView === "read-write") ? (
               <main className="flex-1 overflow-y-auto">

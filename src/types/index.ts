@@ -119,6 +119,7 @@ export interface MappedValue {
   formula: string
   error?: string
   timestamp: Date
+  status?: 'online' | 'offline' | 'error'  // Status from WebSocket data
 }
 
 export interface SavedDashboardData {

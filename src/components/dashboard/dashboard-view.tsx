@@ -5,7 +5,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from '@/components/ui/dialog'
 import { DeleteConfirmationDialog } from '@/components/ui/delete-confirmation-dialog'
-import { Activity, TrendingUp, Zap, Database, Network, Edit, Trash2, LineChart } from 'lucide-react'
+import { Activity, TrendingUp, Zap, Database, Network, Edit, Trash2, LineChart, AlertCircle } from 'lucide-react'
+import { Badge } from '@/components/ui/badge'
 import type { SavedDashboardData, MappedValue } from '@/types'
 import type { DashboardData } from '@/types/parameter'
 import { formatNumber } from '@/utils/formatters'
@@ -229,89 +230,110 @@ export function DashboardView({ savedData, onParameterUpdate }: DashboardViewPro
                   </div>
 
                   <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                    {allMappedValues.map((value) => (
-                      <Card key={value.id} className="relative group">
-                        <CardHeader>
-                          <div className="flex items-start justify-between">
-                            <div className="flex-1">
-                              <CardTitle className="text-base">{value.outputName}</CardTitle>
-                              <CardDescription className="font-mono text-xs">{value.formula}</CardDescription>
-                            </div>
-                            <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-8 w-8"
-                                onClick={(e) => {
-                                  e.stopPropagation()
-                                  // Convert MappedValue to DashboardData format
-                                  const chartData: DashboardData = {
-                                    parameter_id: value.parameterId,
-                                    parameter_nama: value.outputName,
-                                    device_nama: connectionName,
-                                    value: typeof value.mappedValue === 'number' ? value.mappedValue : Number(value.mappedValue) || 0,
-                                    timestamp: value.timestamp.toISOString(),
-                                    status: value.error ? 'error' : 'online',
-                                  }
-                                  setSelectedChartParameter(chartData)
-                                  setChartDialogOpen(true)
-                                }}
-                                title="Lihat grafik"
-                              >
-                                <LineChart className="h-4 w-4" />
-                              </Button>
-                              {value.parameterId && isAdmin && (
-                                <>
-                                  <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    className="h-8 w-8"
-                                    onClick={() => handleEdit(value)}
-                                    title="Edit parameter"
-                                  >
-                                    <Edit className="h-4 w-4" />
-                                  </Button>
-                                  <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    className="h-8 w-8 text-destructive hover:text-destructive"
-                                    onClick={() => handleDelete(value)}
-                                    title="Hapus parameter"
-                                  >
-                                    <Trash2 className="h-4 w-4" />
-                                  </Button>
-                                </>
-                              )}
-                            </div>
-                          </div>
-                        </CardHeader>
-                        <CardContent>
-                          {value.error ? (
-                            <div className="text-destructive">
-                              <p className="text-sm font-medium">Error</p>
-                              <p className="text-xs">{value.error}</p>
-                            </div>
-                          ) : (
-                            <div>
-                              <p className="text-3xl font-bold text-primary">
-                                {formatNumber(value.mappedValue, 2)}
-                              </p>
-                              {value.rawValues.length > 0 && (
-                                <div className="mt-3 pt-3 border-t border-border space-y-1">
-                                  <p className="text-xs font-medium text-muted-foreground">Nilai sumber:</p>
-                                  {value.rawValues.map((rv, i) => (
-                                    <div key={i} className="flex items-center justify-between text-xs">
-                                      <span className="text-muted-foreground">{rv.name}</span>
-                                      <span className="font-mono font-medium">{rv.value}</span>
-                                    </div>
-                                  ))}
+                    {allMappedValues.map((value) => {
+                      const isOffline = value.status === 'offline' || value.status === 'error'
+                      return (
+                        <Card 
+                          key={value.id} 
+                          className={`relative group ${isOffline ? 'bg-muted/50 border-muted' : ''}`}
+                        >
+                          <CardHeader>
+                            <div className="flex items-start justify-between">
+                              <div className="flex-1">
+                                <div className="flex items-center gap-2">
+                                  <CardTitle className={`text-base ${isOffline ? 'text-muted-foreground' : ''}`}>
+                                    {value.outputName}
+                                  </CardTitle>
+                                  {isOffline && (
+                                    <Badge variant="destructive" className="text-xs">
+                                      <AlertCircle className="h-3 w-3 mr-1" />
+                                      OFFLINE
+                                    </Badge>
+                                  )}
                                 </div>
-                              )}
+                                <CardDescription className="font-mono text-xs">{value.formula}</CardDescription>
+                              </div>
+                              <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-8 w-8"
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    // Convert MappedValue to DashboardData format
+                                    const chartData: DashboardData = {
+                                      parameter_id: value.parameterId,
+                                      parameter_nama: value.outputName,
+                                      device_nama: connectionName,
+                                      value: typeof value.mappedValue === 'number' ? value.mappedValue : Number(value.mappedValue) || 0,
+                                      timestamp: value.timestamp.toISOString(),
+                                      status: value.status || (value.error ? 'error' : 'online'),
+                                    }
+                                    setSelectedChartParameter(chartData)
+                                    setChartDialogOpen(true)
+                                  }}
+                                  title="Lihat grafik"
+                                >
+                                  <LineChart className="h-4 w-4" />
+                                </Button>
+                                {value.parameterId && isAdmin && (
+                                  <>
+                                    <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      className="h-8 w-8"
+                                      onClick={() => handleEdit(value)}
+                                      title="Edit parameter"
+                                    >
+                                      <Edit className="h-4 w-4" />
+                                    </Button>
+                                    <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      className="h-8 w-8 text-destructive hover:text-destructive"
+                                      onClick={() => handleDelete(value)}
+                                      title="Hapus parameter"
+                                    >
+                                      <Trash2 className="h-4 w-4" />
+                                    </Button>
+                                  </>
+                                )}
+                              </div>
                             </div>
-                          )}
-                        </CardContent>
-                      </Card>
-                    ))}
+                          </CardHeader>
+                          <CardContent>
+                            {value.error ? (
+                              <div className="text-destructive">
+                                <p className="text-sm font-medium">Error</p>
+                                <p className="text-xs">{value.error}</p>
+                              </div>
+                            ) : isOffline ? (
+                              <div className="text-muted-foreground">
+                                <p className="text-2xl font-semibold">---</p>
+                                <p className="text-xs mt-1">Device tidak terhubung</p>
+                              </div>
+                            ) : (
+                              <div>
+                                <p className="text-3xl font-bold text-primary">
+                                  {formatNumber(value.mappedValue, 2)}
+                                </p>
+                                {value.rawValues.length > 0 && (
+                                  <div className="mt-3 pt-3 border-t border-border space-y-1">
+                                    <p className="text-xs font-medium text-muted-foreground">Nilai sumber:</p>
+                                    {value.rawValues.map((rv, i) => (
+                                      <div key={i} className="flex items-center justify-between text-xs">
+                                        <span className="text-muted-foreground">{rv.name}</span>
+                                        <span className="font-mono font-medium">{rv.value}</span>
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </CardContent>
+                        </Card>
+                      )
+                    })}
                   </div>
                 </div>
               )
