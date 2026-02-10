@@ -20,7 +20,7 @@ export function BypassView() {
   const queryClient = useQueryClient()
   const [editing, setEditing] = useState<EditableBypass | null>(null)
 
-  const { data: bypasses = [], isLoading } = useQuery<Bypass[]>({
+  const { data: bypasses = [], isPending } = useQuery<Bypass[]>({
     queryKey: ['bypasses'],
     queryFn: () => bypassService.getAll(),
   })
@@ -187,7 +187,7 @@ export function BypassView() {
       <Separator />
 
       {/* List bypass */}
-      {isLoading ? (
+      {isPending ? (
         <p className="text-sm text-muted-foreground">Memuat bypass...</p>
       ) : bypasses.length === 0 ? (
         <p className="text-sm text-muted-foreground">Belum ada bypass dibuat.</p>
@@ -578,7 +578,7 @@ export function BypassView() {
               <Button variant="outline" onClick={() => setEditing(null)}>
                 Batal
               </Button>
-              <Button onClick={handleSave} disabled={upsertMutation.isLoading}>
+              <Button onClick={handleSave} disabled={upsertMutation.isPending}>
                 Simpan
               </Button>
             </div>

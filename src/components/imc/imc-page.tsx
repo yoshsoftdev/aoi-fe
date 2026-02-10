@@ -1,11 +1,82 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "../ui/button";
 import { Card } from "../ui/card";
 import { Switch } from "../ui/switch";
-import { MinusIcon, PlusIcon } from "lucide-react";
+import { Input } from "../ui/input";
+import { Label } from "../ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "../ui/dialog";
+import { MinusIcon, PlusIcon, Settings } from "lucide-react";
+import { useWebSocket } from "@/hooks/useWebSocket";
+import { useAuth } from "@/contexts/AuthContext";
+import { parameterService } from "@/services/parameterService";
+import { imcConfigService, type CreateOrUpdateIMCConfigRequest } from "@/services/imcConfigService";
+import type { DashboardData } from "@/types";
+
+interface StatusItem {
+  key: string;
+  title: string;
+  imageSrc: string;
+  status: boolean;
+  parameterId?: number; // ID parameter dari WebSocket
+  data: {
+    setpoint: number;
+    mode?: string;
+    currentA?: number;
+    voltageV?: number;
+    flow?: number;
+    pressureBar?: number;
+    speedRpm?: number;
+    tempC?: number;
+    lastUpdate?: string;
+  };
+}
 
 export function ImcPage() {
-  const [statusItems, setStatusItems] = useState(() => [
+  // WebSocket data
+  const { data: wsData } = useWebSocket();
+  const { isAdmin } = useAuth();
+  const queryClient = useQueryClient();
+  
+  // Convert WebSocket Map to array for easier access
+  const wsDataArray = useMemo(() => {
+    return Array.from(wsData.values());
+  }, [wsData]);
+
+  // Fetch IMC configs from database
+  const { data: imcConfigs = [] } = useQuery({
+    queryKey: ['imc-configs'],
+    queryFn: () => imcConfigService.getAll(),
+  });
+
+  // Create a map for quick lookup
+  const configMap = useMemo(() => {
+    const map = new Map<string, number | undefined>();
+    imcConfigs.forEach((config) => {
+      map.set(config.card_key, config.parameter_id);
+    });
+    return map;
+  }, [imcConfigs]);
+
+  // Mutation for saving config
+  const saveConfigMutation = useMutation({
+    mutationFn: (payload: CreateOrUpdateIMCConfigRequest) =>
+      imcConfigService.createOrUpdate(payload),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['imc-configs'] });
+    },
+  });
+
+  // Get parameter value by ID
+  const getParameterValue = (parameterId?: number): number | null => {
+    if (!parameterId) return null;
+    const key = `param_${parameterId}`;
+    const paramData = wsData.get(key);
+    return paramData?.value ?? null;
+  };
+
+  const [statusItems, setStatusItems] = useState<StatusItem[]>(() => [
     {
       key: "oil",
       title: "Status Pompa Oli",
@@ -45,6 +116,98 @@ export function ImcPage() {
       },
     },
   ]);
+
+  // Fetch parameters for dropdown
+  const { data: parameters = [] } = useQuery({
+    queryKey: ['parameters'],
+    queryFn: () => parameterService.getAll(),
+  });
+
+  // Filter only READ parameters
+  const readParameters = useMemo(() => {
+    return parameters.filter((p) => {
+      const isRead = p.direction === 'READ' || (p.direction === undefined && !p.read_write);
+      return isRead;
+    });
+  }, [parameters]);
+
+  // Configuration for parameter IDs for each card
+  const [configDialogOpen, setConfigDialogOpen] = useState(false);
+  const [configItemKey, setConfigItemKey] = useState<string | null>(null);
+  const [configParameterId, setConfigParameterId] = useState<string>("");
+
+  // Load configuration from database
+  useEffect(() => {
+    if (imcConfigs.length > 0) {
+      setStatusItems((prev) =>
+        prev.map((item) => ({
+          ...item,
+          parameterId: configMap.get(item.key),
+        }))
+      );
+    }
+  }, [imcConfigs, configMap]);
+
+  // Save configuration to database
+  const saveConfig = () => {
+    if (!configItemKey) {
+      console.warn("saveConfig: configItemKey is null");
+      return;
+    }
+    
+    // Convert configParameterId to number or undefined
+    // If empty string or "none", set to undefined (which will clear the config)
+    const parameterId = configParameterId && configParameterId !== "" && configParameterId !== "none" 
+      ? Number(configParameterId) 
+      : undefined;
+    
+    // Prepare payload - always include parameter_id (null to clear, number to set)
+    const payload: CreateOrUpdateIMCConfigRequest = {
+      card_key: configItemKey,
+      parameter_id: parameterId ?? null, // Use null if undefined to explicitly clear the config
+    };
+    
+    console.log("Saving IMC config:", payload);
+    
+    saveConfigMutation.mutate(
+      payload,
+      {
+        onSuccess: (data) => {
+          console.log("IMC config saved successfully:", data);
+          
+          // Update local state for status items
+          if (["oil", "water", "fan"].includes(configItemKey)) {
+            setStatusItems((prev) =>
+              prev.map((item) =>
+                item.key === configItemKey
+                  ? { ...item, parameterId: parameterId }
+                  : item
+              )
+            );
+          }
+          
+          setConfigDialogOpen(false);
+          setConfigItemKey(null);
+          setConfigParameterId("");
+        },
+        onError: (error) => {
+          console.error("Failed to save IMC config:", error);
+          alert(`Gagal menyimpan konfigurasi: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        },
+      }
+    );
+  };
+
+  // Open config dialog (hidden menu - triggered by triple click or special key combo)
+  const handleOpenConfig = (key: string) => {
+    setConfigItemKey(key);
+    
+    // Get parameter ID from config map
+    const parameterId = configMap.get(key);
+    setConfigParameterId(parameterId ? String(parameterId) : "");
+    
+    setConfigDialogOpen(true);
+  };
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
@@ -103,57 +266,105 @@ export function ImcPage() {
       <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
         <Card className="md:col-span-2 p-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            <Card className="p-4 flex flex-col items-center border-none">
+            <Card className="p-4 flex flex-col items-center border-none relative group">
               <div className="font-bold">Lembap Ambien</div>
               <div>
                 <img src="/img/humid.png" alt="" width={150} />
               </div>
+              {isAdmin && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity h-6 w-6"
+                  onClick={() => handleOpenConfig("humidity")}
+                  title="Configure Parameter ID"
+                >
+                  <Settings className="h-4 w-4" />
+                </Button>
+              )}
             </Card>
-            <Card className="p-4 flex flex-col items-center border-none">
+            <Card className="p-4 flex flex-col items-center border-none relative group">
               <div className="font-bold">Suhu Ambien</div>
               <div>
                 <img src="/img/temp.png" alt="" width={150} />
               </div>
+              {isAdmin && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity h-6 w-6"
+                  onClick={() => handleOpenConfig("ambient_temp")}
+                  title="Configure Parameter ID"
+                >
+                  <Settings className="h-4 w-4" />
+                </Button>
+              )}
             </Card>
           </div>
         </Card>
         {/* Status */}
         <Card className="md:col-span-3 p-4">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-            {statusItems.map((item) => (
-              <button
-                key={item.key}
-                type="button"
-                className="rounded-xl border bg-card text-card-foreground shadow-sm p-4 flex flex-col items-center cursor-pointer select-none hover:bg-accent/40"
-                style={
-                  item.status
-                    ? {
-                        borderColor: "hsl(142 71% 45%)",
-                        boxShadow:
-                          "0 0 10px hsl(142 71% 45% / 0.65), 0 0 22px hsl(142 71% 45% / 0.35)",
-                      }
-                    : {
-                        borderColor: "hsl(var(--destructive))",
-                        boxShadow:
-                          "0 0 10px hsl(var(--destructive) / 0.65), 0 0 22px hsl(var(--destructive) / 0.35)",
-                      }
-                }
-                onClick={() => {
-                  setSelectedKey(item.key);
-                  setIsModalOpen(true);
-                }}
-              >
-                <div className="font-bold text-center">{item.title}</div>
-                <div className="mt-2 flex flex-col items-center justify-center gap-2">
-                  <img src={item.imageSrc} alt={item.title} width={150} />
-                  <div className="flex flex-col items-center">
-                    <div className="font-bold text-[20px]">
-                      {String((item as any)?.data?.setpoint ?? "-")}%
+            {statusItems.map((item) => {
+              // Get real-time value from WebSocket if parameterId is configured
+              const wsValue = getParameterValue(item.parameterId);
+              const displayValue = wsValue !== null ? wsValue : (item.data?.setpoint ?? 0);
+              
+              return (
+                <div key={item.key} className="relative group">
+                  <button
+                    type="button"
+                    className="rounded-xl border bg-card text-card-foreground shadow-sm p-4 flex flex-col items-center cursor-pointer select-none hover:bg-accent/40 w-full"
+                    style={
+                      item.status
+                        ? {
+                            borderColor: "hsl(142 71% 45%)",
+                            boxShadow:
+                              "0 0 10px hsl(142 71% 45% / 0.65), 0 0 22px hsl(142 71% 45% / 0.35)",
+                          }
+                        : {
+                            borderColor: "hsl(var(--destructive))",
+                            boxShadow:
+                              "0 0 10px hsl(var(--destructive) / 0.65), 0 0 22px hsl(var(--destructive) / 0.35)",
+                          }
+                    }
+                    onClick={() => {
+                      setSelectedKey(item.key);
+                      setIsModalOpen(true);
+                    }}
+                  >
+                    <div className="font-bold text-center">{item.title}</div>
+                    <div className="mt-2 flex flex-col items-center justify-center gap-2">
+                      <img src={item.imageSrc} alt={item.title} width={150} />
+                      <div className="flex flex-col items-center">
+                        <div className="font-bold text-[20px]">
+                          {wsValue !== null ? displayValue.toFixed(2) : String(displayValue)}%
+                        </div>
+                        {item.parameterId && (
+                          <div className="text-xs text-muted-foreground mt-1">
+                            Param ID: {item.parameterId}
+                          </div>
+                        )}
+                      </div>
                     </div>
-                  </div>
+                  </button>
+                  {isAdmin && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity h-6 w-6"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleOpenConfig(item.key);
+                      }}
+                      title="Configure Parameter ID"
+                    >
+                      <Settings className="h-4 w-4" />
+                    </Button>
+                  )}
                 </div>
-              </button>
-            ))}
+              );
+            })}
           </div>
         </Card>
       </div>
@@ -165,38 +376,83 @@ export function ImcPage() {
             </span>
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 flex-1">
-              <Card className="h-full p-4 border-none">
+              <Card className="h-full p-4 border-none relative group">
                 <div className="flex flex-col justify-center items-center h-full">
                   <div className="font-semibold">Suhu °C</div>
                   <div>
                     <img src="/img/temp.png" alt="" />
                   </div>
                   <div className="mt-2 font-bold text-[clamp(32px,6vw,80px)]">
-                    34.5
+                    {(() => {
+                      const paramId = configMap.get("dielectric_temp");
+                      const value = getParameterValue(paramId);
+                      return value !== null ? value.toFixed(1) : "34.5";
+                    })()}
                   </div>
                 </div>
+                {isAdmin && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity h-6 w-6"
+                    onClick={() => handleOpenConfig("dielectric_temp")}
+                    title="Configure Parameter ID"
+                  >
+                    <Settings className="h-4 w-4" />
+                  </Button>
+                )}
               </Card>
-              <Card className="h-full p-4 border-none">
+              <Card className="h-full p-4 border-none relative group">
                 <div className="flex flex-col justify-center items-center h-full">
                   <div className="font-semibold">Aliran m/s</div>
                   <div>
                     <img src="/img/pipe.png" alt="" />
                   </div>
                   <div className="mt-2 font-bold text-[clamp(32px,6vw,80px)]">
-                    0.65
+                    {(() => {
+                      const paramId = configMap.get("dielectric_flow");
+                      const value = getParameterValue(paramId);
+                      return value !== null ? value.toFixed(2) : "0.65";
+                    })()}
                   </div>
                 </div>
+                {isAdmin && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity h-6 w-6"
+                    onClick={() => handleOpenConfig("dielectric_flow")}
+                    title="Configure Parameter ID"
+                  >
+                    <Settings className="h-4 w-4" />
+                  </Button>
+                )}
               </Card>
-              <Card className="h-full p-4 border-none">
+              <Card className="h-full p-4 border-none relative group">
                 <div className="flex flex-col justify-center items-center h-full">
                   <div className="font-semibold">Tekanan Bar</div>
                   <div>
                     <img src="/img/gauge.png" alt="" />
                   </div>
                   <div className="mt-2 font-bold text-[clamp(32px,6vw,80px)]">
-                    0.84
+                    {(() => {
+                      const paramId = configMap.get("dielectric_pressure");
+                      const value = getParameterValue(paramId);
+                      return value !== null ? value.toFixed(2) : "0.84";
+                    })()}
                   </div>
                 </div>
+                {isAdmin && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity h-6 w-6"
+                    onClick={() => handleOpenConfig("dielectric_pressure")}
+                    title="Configure Parameter ID"
+                  >
+                    <Settings className="h-4 w-4" />
+                  </Button>
+                )}
               </Card>
             </div>
           </div>
@@ -209,38 +465,83 @@ export function ImcPage() {
             </span>
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 flex-1">
-              <Card className="h-full p-4 border-none">
+              <Card className="h-full p-4 border-none relative group">
                 <div className="flex flex-col justify-center items-center h-full">
                   <div className="font-semibold">Suhu °C</div>
                   <div>
                     <img src="/img/temp.png" alt="" />
                   </div>
                   <div className="mt-2 font-bold text-[clamp(32px,6vw,80px)]">
-                    34.5
+                    {(() => {
+                      const paramId = configMap.get("h2o_temp");
+                      const value = getParameterValue(paramId);
+                      return value !== null ? value.toFixed(1) : "34.5";
+                    })()}
                   </div>
                 </div>
+                {isAdmin && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity h-6 w-6"
+                    onClick={() => handleOpenConfig("h2o_temp")}
+                    title="Configure Parameter ID"
+                  >
+                    <Settings className="h-4 w-4" />
+                  </Button>
+                )}
               </Card>
-              <Card className="h-full p-4 border-none">
+              <Card className="h-full p-4 border-none relative group">
                 <div className="flex flex-col justify-center items-center h-full">
                   <div className="font-semibold">Aliran m/s</div>
                   <div>
                     <img src="/img/pipe.png" alt="" />
                   </div>
                   <div className="mt-2 font-bold text-[clamp(32px,6vw,80px)]">
-                    0.65
+                    {(() => {
+                      const paramId = configMap.get("h2o_flow");
+                      const value = getParameterValue(paramId);
+                      return value !== null ? value.toFixed(2) : "0.65";
+                    })()}
                   </div>
                 </div>
+                {isAdmin && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity h-6 w-6"
+                    onClick={() => handleOpenConfig("h2o_flow")}
+                    title="Configure Parameter ID"
+                  >
+                    <Settings className="h-4 w-4" />
+                  </Button>
+                )}
               </Card>
-              <Card className="h-full p-4 border-none">
+              <Card className="h-full p-4 border-none relative group">
                 <div className="flex flex-col justify-center items-center h-full">
                   <div className="font-semibold">Tekanan Bar</div>
                   <div>
                     <img src="/img/gauge.png" alt="" />
                   </div>
                   <div className="mt-2 font-bold text-[clamp(32px,6vw,80px)]">
-                    0.84
+                    {(() => {
+                      const paramId = configMap.get("h2o_pressure");
+                      const value = getParameterValue(paramId);
+                      return value !== null ? value.toFixed(2) : "0.84";
+                    })()}
                   </div>
                 </div>
+                {isAdmin && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity h-6 w-6"
+                    onClick={() => handleOpenConfig("h2o_pressure")}
+                    title="Configure Parameter ID"
+                  >
+                    <Settings className="h-4 w-4" />
+                  </Button>
+                )}
               </Card>
             </div>
           </div>
@@ -527,6 +828,52 @@ export function ImcPage() {
           </div>
         </div>
       ) : null}
+
+      {/* Configuration Dialog */}
+      <Dialog open={configDialogOpen} onOpenChange={setConfigDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Configure Parameter</DialogTitle>
+            <DialogDescription>
+              Select a parameter to display real-time data from WebSocket. Leave empty to use static value.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="parameterSelect">Parameter</Label>
+              <Select
+                value={configParameterId ? String(configParameterId) : "none"}
+                onValueChange={(value) => {
+                  setConfigParameterId(value === "none" ? "" : value);
+                }}
+              >
+                <SelectTrigger id="parameterSelect">
+                  <SelectValue placeholder="Select a parameter" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">None (Use static value)</SelectItem>
+                  {readParameters.map((param) => (
+                    <SelectItem key={param.id} value={String(param.id)}>
+                      {param.nama} {param.device ? `(${(param.device as any).nama || ''})` : ''}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setConfigDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button 
+              onClick={saveConfig}
+              disabled={saveConfigMutation.isPending}
+            >
+              {saveConfigMutation.isPending ? "Saving..." : "Save"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
