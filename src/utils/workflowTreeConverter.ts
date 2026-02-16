@@ -397,6 +397,20 @@ function buildNodeFromTree(
       source: parentId,
       target: nodeId,
     })
+
+    // Process THEN branch for action chaining
+    currentY += 150
+    let thenY = currentY
+    for (const thenChild of treeNode.then || []) {
+      const thenChildId = buildNodeFromTree(thenChild, nodes, edges, nodeId, thenY, getId)
+      edges.push({
+        id: `e-${nodeId}-${thenChildId}`,
+        source: nodeId,
+        target: thenChildId,
+      })
+      thenY += 150
+    }
+
     return nodeId
   }
 
