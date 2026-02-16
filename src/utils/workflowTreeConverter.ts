@@ -345,8 +345,34 @@ function buildNodeFromTree(
   yOffset: number,
   getId: () => string
 ): string {
-  const nodeId = getId()
+  // Use treeNode.id if available, otherwise generate new ID
+  // But check if node with this ID already exists to prevent duplicates
+  let nodeId: string
+  if (treeNode.id && nodes.find((n) => n.id === treeNode.id)) {
+    // Node with this ID already exists, use existing node but still create edge
+    nodeId = treeNode.id
+  } else {
+    // Use treeNode.id if available, otherwise generate new
+    nodeId = treeNode.id || getId()
+  }
+  
   let currentY = yOffset
+  
+  // Check if node already exists
+  const existingNode = nodes.find((n) => n.id === nodeId)
+  if (existingNode) {
+    // Node already exists, just create edge and return
+    // Don't create duplicate node
+    const edgeExists = edges.find((e) => e.source === parentId && e.target === nodeId)
+    if (!edgeExists) {
+      edges.push({
+        id: `e-${parentId}-${nodeId}`,
+        source: parentId,
+        target: nodeId,
+      })
+    }
+    return nodeId
+  }
 
   if (treeNode.type === 'action') {
     const actionData = treeNode.action_data || {}
@@ -399,15 +425,11 @@ function buildNodeFromTree(
     })
 
     // Process THEN branch for action chaining
+    // Note: buildNodeFromTree already creates edge from parent to child, so we don't need to create it again
     currentY += 150
     let thenY = currentY
     for (const thenChild of treeNode.then || []) {
-      const thenChildId = buildNodeFromTree(thenChild, nodes, edges, nodeId, thenY, getId)
-      edges.push({
-        id: `e-${nodeId}-${thenChildId}`,
-        source: nodeId,
-        target: thenChildId,
-      })
+      buildNodeFromTree(thenChild, nodes, edges, nodeId, thenY, getId)
       thenY += 150
     }
 

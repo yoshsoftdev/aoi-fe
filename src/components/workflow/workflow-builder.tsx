@@ -80,14 +80,22 @@ function WorkflowBuilderInner({ workflow, onCancel, onSuccess }: WorkflowBuilder
 
   // Load workflow data if editing
   useEffect(() => {
+    // Only load if workflow ID changes (prevent reloading on every render)
     if (workflow && workflow.version === 2 && workflow.tree_data) {
       try {
         // tree_data should already be parsed by workflowService
         const treeData = workflow.tree_data as WorkflowTree
 
         const { nodes: treeNodes, edges: treeEdges } = convertTreeToNodes(treeData)
+        
+        // Clear existing nodes/edges first to prevent duplicates
+        setNodes([])
+        setEdges([])
+        
+        // Set new nodes and edges
         setNodes(treeNodes)
         setEdges(treeEdges)
+        
         // Extract max node ID from loaded nodes to set counter
         const maxId = treeNodes.reduce((max, node) => {
           const match = node.id.match(/node_(\d+)/)
@@ -106,8 +114,12 @@ function WorkflowBuilderInner({ workflow, onCancel, onSuccess }: WorkflowBuilder
       // Clear nodes/edges for version 1 workflows (use old form)
       setNodes([])
       setEdges([])
+    } else if (!workflow) {
+      // Clear nodes/edges when no workflow (creating new)
+      setNodes([])
+      setEdges([])
     }
-  }, [workflow?.id, workflow?.version, workflow?.tree_data, setNodes, setEdges])
+  }, [workflow?.id, workflow?.version, setNodes, setEdges]) // Removed workflow?.tree_data from deps to prevent reload on every change
 
   const onConnect = useCallback(
     (params: Connection) => {
