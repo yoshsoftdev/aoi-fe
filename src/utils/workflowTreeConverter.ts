@@ -1,0 +1,473 @@
+import type { Node, Edge } from 'reactflow'
+import type { WorkflowTree, TreeNode, TriggerNode, Condition, ValueSource } from '@/services/workflowService'
+import type { TriggerNodeData, ConditionNodeData, ActionNodeData } from '@/types/workflow-builder'
+
+/**
+ * Validates workflow graph structure
+ * Returns array of validation errors (empty if valid)
+ */
+export function validateWorkflowGraph(nodes: Node[], edges: Edge[]): string[] {
+  const errors: string[] = []
+
+  // Check for trigger node
+  const triggerNode = nodes.find((n) => n.type === 'trigger')
+  if (!triggerNode) {
+    errors.push('At least 1 Trigger node required')
+  }
+
+  // Check for action node
+  const hasAction = nodes.some((n) => n.type === 'action')
+  if (!hasAction) {
+    errors.push('At least 1 Action node required')
+  }
+
+  // Check for Trigger -> Action direct connections (warn only)
+  for (const edge of edges) {
+    const sourceNode = nodes.find((n) => n.id === edge.source)
+    const targetNode = nodes.find((n) => n.id === edge.target)
+    if (sourceNode?.type === 'trigger' && targetNode?.type === 'action') {
+      errors.push('Trigger connected directly to Action (should have IF in between)')
+      break
+    }
+  }
+
+  // Check for cycles (using DFS)
+  const visited = new Set<string>()
+  const recStack = new Set<string>()
+
+  function hasCycle(nodeId: string): boolean {
+    if (recStack.has(nodeId)) {
+      return true // Cycle detected
+    }
+    if (visited.has(nodeId)) {
+      return false
+    }
+
+    visited.add(nodeId)
+    recStack.add(nodeId)
+
+    const outgoingEdges = edges.filter((e) => e.source === nodeId)
+    for (const edge of outgoingEdges) {
+      if (hasCycle(edge.target)) {
+        return true
+      }
+    }
+
+    recStack.delete(nodeId)
+    return false
+  }
+
+  for (const node of nodes) {
+    if (!visited.has(node.id) && hasCycle(node.id)) {
+      errors.push('Cyclic reference detected in workflow graph')
+      break
+    }
+  }
+
+  // Check max depth (BFS from trigger)
+  if (triggerNode) {
+    const depthMap = new Map<string, number>()
+    depthMap.set(triggerNode.id, 0)
+    const queue: string[] = [triggerNode.id]
+
+    while (queue.length > 0) {
+      const currentId = queue.shift()!
+      const currentDepth = depthMap.get(currentId) || 0
+
+      if (currentDepth > 10) {
+        errors.push(`Max depth exceeded: ${currentDepth} (max: 10)`)
+        break
+      }
+
+      const outgoingEdges = edges.filter((e) => e.source === currentId)
+      for (const edge of outgoingEdges) {
+        if (!depthMap.has(edge.target)) {
+          depthMap.set(edge.target, currentDepth + 1)
+          queue.push(edge.target)
+        }
+      }
+    }
+  }
+
+  return errors
+}
+
+/**
+ * Converts React Flow nodes and edges to WorkflowTree JSON structure
+ */
+export function convertNodesToTree(
+  nodes: Node[],
+  edges: Edge[],
+  workflowName: string
+): WorkflowTree | null {
+  // Find trigger node
+  const triggerNode = nodes.find((n) => n.type === 'trigger')
+  if (!triggerNode) {
+    return null
+  }
+
+  const triggerData = triggerNode.data as TriggerNodeData
+
+  // Build trigger
+  const trigger: TriggerNode = {
+    type: triggerData.triggerType === 'parameter-changed' ? 'PARAMETER_CHANGED' : 'SETPOINT_CHANGED',
+    source_id: triggerData.source_id || 0,
+    parameter: triggerData.parameter,
+  }
+
+  // Find root node (first node connected from trigger)
+  // Note: We only take the first edge from trigger, but buildTreeNode will handle all subsequent edges
+  const triggerEdges = edges.filter((e) => e.source === triggerNode.id)
+  if (triggerEdges.length === 0) {
+    return null
+  }
+
+  const rootNodeId = triggerEdges[0].target
+  const rootNode = nodes.find((n) => n.id === rootNodeId)
+  if (!rootNode) {
+    return null
+  }
+
+  // Build root tree node recursively
+  // buildTreeNode will traverse all connected nodes through edges
+  const root = buildTreeNode(rootNode, nodes, edges, new Set<string>(), 0)
+
+  return {
+    name: workflowName,
+    trigger,
+    root,
+  }
+}
+
+/**
+ * Recursively builds a TreeNode from a React Flow node
+ */
+function buildTreeNode(
+  node: Node,
+  allNodes: Node[],
+  allEdges: Edge[],
+  visited: Set<string>,
+  depth: number
+): TreeNode {
+  if (depth > 10) {
+    throw new Error('Max depth exceeded')
+  }
+
+  if (visited.has(node.id)) {
+    throw new Error('Cyclic reference detected')
+  }
+
+  visited.add(node.id)
+
+  if (node.type === 'action') {
+    const actionData = node.data as ActionNodeData
+    const actionDataMap: Record<string, any> = {}
+
+    switch (actionData.actionType) {
+      case 'alarm-notification':
+        actionDataMap.title = actionData.alarmTitle || ''
+        actionDataMap.message = actionData.alarmMessage || ''
+        actionDataMap.severity = actionData.alarmSeverity || 'info'
+        break
+
+      case 'write-dynamic':
+        actionDataMap.target_id = actionData.targetId || 0
+        if (actionData.valueSource === 'static') {
+          actionDataMap.value = parseFloat(actionData.staticValue || '0')
+        } else if (actionData.valueSource === 'setpoint') {
+          // For setpoint, we need to get the setpoint value
+          // This will be resolved at runtime
+          actionDataMap.value_source = 'setpoint'
+          actionDataMap.setpoint_id = actionData.sourceSetpointId || 0
+        }
+        break
+
+      case 'trigger-preset':
+        actionDataMap.target_id = actionData.presetId || 0
+        break
+    }
+
+    // Check for outgoing edges (action chaining)
+    // Action nodes can have children in the `then` array for sequential execution
+    // Get all outgoing edges (action nodes typically don't use sourceHandle)
+    const outgoingEdges = allEdges.filter((e) => e.source === node.id)
+    const nextNodes: TreeNode[] = []
+    
+    for (const edge of outgoingEdges) {
+      const childNode = allNodes.find((n) => n.id === edge.target)
+      if (childNode && !visited.has(childNode.id)) {
+        const childVisited = new Set(visited)
+        try {
+          nextNodes.push(buildTreeNode(childNode, allNodes, allEdges, childVisited, depth + 1))
+        } catch (error) {
+          // Skip if there's an error (e.g., cyclic reference, max depth)
+          console.warn(`Skipping node ${childNode.id} due to error:`, error)
+        }
+      }
+    }
+
+    visited.delete(node.id)
+    
+    // Return action node with then array for chaining (backend supports this)
+    return {
+      type: 'action',
+      id: node.id,
+      action_type: actionData.actionType === 'alarm-notification' ? 'ALARM_NOTIFICATION' : actionData.actionType === 'write-dynamic' ? 'WRITE_DYNAMIC' : 'WRITE_PRESET',
+      action_data: actionDataMap,
+      // Add then array for action chaining
+      ...(nextNodes.length > 0 ? { then: nextNodes } : {}),
+    }
+  }
+
+  if (node.type === 'condition') {
+    const conditionData = node.data as ConditionNodeData
+
+    // Build condition
+    const left: ValueSource = {
+      type: conditionData.leftSourceType,
+      source_id: conditionData.leftSourceId,
+    }
+
+    const right: ValueSource =
+      conditionData.rightValueType === 'static'
+        ? {
+            type: 'static',
+            value: parseFloat(conditionData.rightValue || '0'),
+          }
+        : {
+            type: 'setpoint',
+            source_id: conditionData.rightSourceId,
+          }
+
+    const condition: Condition = {
+      left,
+      operator: conditionData.operator,
+      right,
+    }
+
+    // Build THEN branch
+    // Get edges with sourceHandle='then' OR edges without sourceHandle (default to then)
+    const thenEdges = allEdges.filter(
+      (e) => e.source === node.id && (e.sourceHandle === 'then' || !e.sourceHandle)
+    )
+    const then: TreeNode[] = []
+    for (const edge of thenEdges) {
+      const childNode = allNodes.find((n) => n.id === edge.target)
+      if (childNode && !visited.has(childNode.id)) {
+        const childVisited = new Set(visited)
+        try {
+          then.push(buildTreeNode(childNode, allNodes, allEdges, childVisited, depth + 1))
+        } catch (error) {
+          // Skip if there's an error (e.g., cyclic reference, max depth)
+          console.warn(`Skipping node ${childNode.id} due to error:`, error)
+        }
+      }
+    }
+
+    // Build ELSE branch
+    const elseEdges = allEdges.filter(
+      (e) => e.source === node.id && e.sourceHandle === 'else'
+    )
+    const elseBranch: TreeNode[] = []
+    for (const edge of elseEdges) {
+      const childNode = allNodes.find((n) => n.id === edge.target)
+      if (childNode && !visited.has(childNode.id)) {
+        const childVisited = new Set(visited)
+        try {
+          elseBranch.push(buildTreeNode(childNode, allNodes, allEdges, childVisited, depth + 1))
+        } catch (error) {
+          // Skip if there's an error (e.g., cyclic reference, max depth)
+          console.warn(`Skipping node ${childNode.id} due to error:`, error)
+        }
+      }
+    }
+
+    visited.delete(node.id)
+    return {
+      type: 'if',
+      id: node.id,
+      condition,
+      then,
+      else: elseBranch,
+    }
+  }
+
+  visited.delete(node.id)
+  throw new Error(`Unknown node type: ${node.type}`)
+}
+
+/**
+ * Converts WorkflowTree JSON to React Flow nodes and edges
+ */
+export function convertTreeToNodes(tree: WorkflowTree): { nodes: Node[]; edges: Edge[] } {
+  const nodes: Node[] = []
+  const edges: Edge[] = []
+  let nodeIdCounter = 0
+
+  const getId = () => `node_${nodeIdCounter++}`
+
+  // Create trigger node
+  const triggerId = getId()
+  const isParameterTrigger = tree.trigger.type === 'PARAMETER_CHANGED'
+  const triggerNode: Node = {
+    id: triggerId,
+    type: 'trigger',
+    position: { x: 300, y: 50 },
+    data: {
+      label: isParameterTrigger ? 'Parameter Changed' : 'Set-Point Changed',
+      description: isParameterTrigger
+        ? 'Fires when a parameter value changes'
+        : 'Fires when a set-point is modified',
+      triggerType: isParameterTrigger ? 'parameter-changed' : 'setpoint-changed',
+      source_id: tree.trigger.source_id,
+      parameter: isParameterTrigger ? String(tree.trigger.source_id) : undefined,
+      setpoint: !isParameterTrigger ? String(tree.trigger.source_id) : undefined,
+      enabled: true,
+    },
+  }
+  nodes.push(triggerNode)
+
+  // Build root node recursively
+  let yOffset = 200
+  const rootId = buildNodeFromTree(tree.root, nodes, edges, triggerId, yOffset, getId)
+
+  return { nodes, edges }
+}
+
+/**
+ * Recursively builds React Flow nodes from TreeNode
+ */
+function buildNodeFromTree(
+  treeNode: TreeNode,
+  nodes: Node[],
+  edges: Edge[],
+  parentId: string,
+  yOffset: number,
+  getId: () => string
+): string {
+  const nodeId = getId()
+  let currentY = yOffset
+
+  if (treeNode.type === 'action') {
+    const actionData = treeNode.action_data || {}
+    const actionType = treeNode.action_type || 'ALARM_NOTIFICATION'
+    
+    // Build action node data based on action type
+    let nodeData: any = {
+      label: actionType === 'ALARM_NOTIFICATION' ? 'Alarm Notification' : actionType === 'WRITE_DYNAMIC' ? 'Write Dynamic Value' : 'Trigger Preset',
+      description: '',
+      actionType: actionType === 'ALARM_NOTIFICATION' ? 'alarm-notification' : actionType === 'WRITE_DYNAMIC' ? 'write-dynamic' : 'trigger-preset',
+      enabled: true,
+    }
+
+    if (actionType === 'ALARM_NOTIFICATION') {
+      nodeData.alarmTitle = actionData.title || ''
+      nodeData.alarmSeverity = actionData.severity || 'info'
+      nodeData.alarmMessage = actionData.message || ''
+    } else if (actionType === 'WRITE_DYNAMIC') {
+      nodeData.targetParameter = String(actionData.target_id || '')
+      nodeData.targetId = actionData.target_id
+      // Check for value_source field (from saved data) or value/setpoint_id (legacy)
+      if (actionData.value_source === 'setpoint' || actionData.setpoint_id) {
+        nodeData.valueSource = 'setpoint'
+        nodeData.sourceSetpoint = String(actionData.setpoint_id || '')
+        nodeData.sourceSetpointId = actionData.setpoint_id
+      } else if (actionData.value !== undefined) {
+        nodeData.valueSource = 'static'
+        nodeData.staticValue = String(actionData.value)
+      } else {
+        // Default to static with 0
+        nodeData.valueSource = 'static'
+        nodeData.staticValue = '0'
+      }
+    } else if (actionType === 'WRITE_PRESET') {
+      nodeData.presetName = String(actionData.target_id || '')
+      nodeData.presetId = actionData.target_id
+    }
+
+    const actionNode: Node = {
+      id: nodeId,
+      type: 'action',
+      position: { x: 300, y: currentY },
+      data: nodeData,
+    }
+    nodes.push(actionNode)
+    edges.push({
+      id: `e-${parentId}-${nodeId}`,
+      source: parentId,
+      target: nodeId,
+    })
+    return nodeId
+  }
+
+  if (treeNode.type === 'if') {
+    const conditionNode: Node = {
+      id: nodeId,
+      type: 'condition',
+      position: { x: 300, y: currentY },
+      data: {
+        label: 'IF Condition',
+        description: '',
+        leftSourceType: treeNode.condition?.left.type || 'parameter',
+        leftValue: String(treeNode.condition?.left.source_id || ''),
+        leftSourceId: treeNode.condition?.left.source_id,
+        operator: treeNode.condition?.operator || '>',
+        rightValueType: treeNode.condition?.right.type === 'static' ? 'static' : 'setpoint',
+        rightValue:
+          treeNode.condition?.right.type === 'static'
+            ? String(treeNode.condition?.right.value || '0')
+            : String(treeNode.condition?.right.source_id || ''),
+        rightSourceId: treeNode.condition?.right.type === 'setpoint' ? treeNode.condition?.right.source_id : undefined,
+        enabled: true,
+      },
+    }
+    nodes.push(conditionNode)
+    edges.push({
+      id: `e-${parentId}-${nodeId}`,
+      source: parentId,
+      target: nodeId,
+    })
+
+    currentY += 150
+
+    // Build THEN branch
+    let thenY = currentY
+    for (const thenChild of treeNode.then || []) {
+      const thenChildId = buildNodeFromTree(thenChild, nodes, edges, nodeId, thenY, getId)
+      edges.push({
+        id: `e-${nodeId}-${thenChildId}-then`,
+        source: nodeId,
+        sourceHandle: 'then',
+        target: thenChildId,
+        label: 'THEN',
+        style: { stroke: 'hsl(142 71% 45%)', strokeWidth: 2 },
+      })
+      thenY += 150
+    }
+
+    // Build ELSE branch
+    let elseX = 500
+    let elseY = currentY
+    for (const elseChild of treeNode.else || []) {
+      const elseChildId = buildNodeFromTree(elseChild, nodes, edges, nodeId, elseY, getId)
+      // Update position for ELSE branch (to the right)
+      const elseNode = nodes.find((n) => n.id === elseChildId)
+      if (elseNode) {
+        elseNode.position.x = elseX
+      }
+      edges.push({
+        id: `e-${nodeId}-${elseChildId}-else`,
+        source: nodeId,
+        sourceHandle: 'else',
+        target: elseChildId,
+        label: 'ELSE',
+        style: { stroke: 'hsl(0 72% 51%)', strokeWidth: 2 },
+      })
+      elseY += 150
+    }
+
+    return nodeId
+  }
+
+  throw new Error(`Unknown tree node type: ${treeNode.type}`)
+}

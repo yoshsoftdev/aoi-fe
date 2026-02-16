@@ -67,6 +67,7 @@ function AppContent() {
   const isImcView = currentView === "imc";
   const [showChromeInImc, setShowChromeInImc] = useState(false);
   const [imcTapCount, setImcTapCount] = useState(0);
+  const [isWorkflowBuilderOpen, setIsWorkflowBuilderOpen] = useState(false);
 
   useEffect(() => {
     const parsePathToView = (pathname: string) => {
@@ -114,6 +115,15 @@ function AppContent() {
     const t = window.setTimeout(() => setImcTapCount(0), 1200);
     return () => window.clearTimeout(t);
   }, [imcTapCount, isImcView]);
+
+  useEffect(() => {
+    if (isWorkflowBuilderOpen) {
+      setIsSidebarOpen(false);
+    } else if (currentView === "workflow" && !isWorkflowBuilderOpen) {
+      // Reopen sidebar when exiting workflow builder
+      setIsSidebarOpen(true);
+    }
+  }, [isWorkflowBuilderOpen, currentView]);
 
   // Tester state
   const [currentStep, setCurrentStep] = useState(0);
@@ -343,7 +353,7 @@ function AppContent() {
             : "bg-background",
         )}
       >
-        {(!isImcView || showChromeInImc) && (
+        {((!isImcView || showChromeInImc) && !isWorkflowBuilderOpen) && (
           <aside
             className={cn(
               "border-r border-border bg-card transition-all duration-300",
@@ -462,7 +472,7 @@ function AppContent() {
         )}
 
         <div className="flex-1 flex flex-col">
-          {(!isImcView || showChromeInImc) && (
+          {((!isImcView || showChromeInImc) && !isWorkflowBuilderOpen) && (
             <header className="border-b border-border bg-card sticky top-0 z-10">
               <div className="flex h-16 items-center gap-3 px-6">
                 <Button
@@ -615,9 +625,11 @@ function AppContent() {
                 }}
               />
             ) : currentView === "workflow" && isAdmin ? (
-              <main className="flex-1 overflow-y-auto">
-                <div className="p-6">
-                  <WorkflowView />
+              <main className="flex-1 overflow-hidden">
+                <div className="h-full w-full">
+                  <WorkflowView 
+                    onBuilderOpenChange={setIsWorkflowBuilderOpen}
+                  />
                 </div>
               </main>
             ) : currentView === "set-point" && isAdmin ? (

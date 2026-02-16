@@ -1,0 +1,68 @@
+// Types for React Flow workflow builder
+import type { Node, Edge } from 'reactflow'
+
+export type TriggerType = 'parameter-changed' | 'setpoint-changed'
+
+export type TriggerNodeData = {
+  label: string
+  description: string
+  triggerType: TriggerType
+  parameter?: string
+  setpoint?: string
+  enabled: boolean
+  // Backend mapping
+  source_id?: number // parameter_id or setpoint_id
+}
+
+export type LeftSourceType = 'parameter' | 'setpoint'
+export type RightValueType = 'static' | 'setpoint'
+
+export type ConditionNodeData = {
+  label: string
+  description: string
+  leftSourceType: LeftSourceType
+  leftValue: string
+  leftSourceId?: number // parameter_id or setpoint_id
+  operator: '>' | '<' | '>=' | '<=' | '==' | '!='
+  rightValueType: RightValueType
+  rightValue: string
+  rightSourceId?: number // setpoint_id (if rightValueType is setpoint)
+  enabled: boolean
+}
+
+export type ActionType = 'alarm-notification' | 'write-dynamic' | 'trigger-preset'
+
+export type ActionNodeData = {
+  label: string
+  description: string
+  actionType: ActionType
+  enabled: boolean
+  // Alarm Notification fields
+  alarmTitle?: string
+  alarmSeverity?: 'info' | 'warning' | 'critical'
+  alarmMessage?: string
+  // Write Dynamic Value fields
+  targetParameter?: string
+  targetId?: number // parameter_id
+  valueSource?: 'static' | 'setpoint'
+  staticValue?: string
+  sourceSetpoint?: string
+  sourceSetpointId?: number // setpoint_id
+  // Trigger Preset fields
+  presetName?: string
+  presetId?: number // parameter_id with PRESET mode
+}
+
+export type TriggerNode = Node<TriggerNodeData, 'trigger'>
+export type ConditionNode = Node<ConditionNodeData, 'condition'>
+export type ActionNode = Node<ActionNodeData, 'action'>
+
+export type WorkflowNode = TriggerNode | ConditionNode | ActionNode
+
+export type NodePaletteItem = {
+  type: 'trigger' | 'condition' | 'action'
+  subType: string
+  label: string
+  description: string
+  icon: string
+}

@@ -10,6 +10,9 @@ import { Badge } from '@/components/ui/badge'
 import { X, Plus, Trash2 } from 'lucide-react'
 import { workflowService, type Workflow, type WorkflowCondition, type WorkflowAction } from '@/services/workflowService'
 import { parameterService } from '@/services/parameterService'
+import { WorkflowNodeEditor } from './workflow-node-editor'
+import { deviceService } from '@/services/deviceService'
+import { splitNestedIFToWorkflows, type NestedIFStructure, invertOperator } from '@/utils/workflowSplitter'
 
 interface WorkflowFormProps {
   workflow?: Workflow | null
@@ -25,12 +28,29 @@ export function WorkflowForm({ workflow, onCancel, onSuccess }: WorkflowFormProp
   })
   const [conditions, setConditions] = useState<Omit<WorkflowCondition, 'id' | 'workflow_id' | 'created_at' | 'parameter'>[]>([])
   const [actions, setActions] = useState<Omit<WorkflowAction, 'id' | 'workflow_id' | 'created_at' | 'parameter'>[]>([])
+  // Metadata untuk nested IF: kondisi yang muncul setelah aksi tertentu
+  const [nestedConditions, setNestedConditions] = useState<Map<number, number[]>>(new Map()) // actionIndex -> conditionIndex[]
+  // Metadata untuk ELSE: aksi yang dijalankan jika kondisi tidak terpenuhi
+  const [elseActions, setElseActions] = useState<Map<number, Omit<WorkflowAction, 'id' | 'workflow_id' | 'created_at' | 'parameter'>[]>>(new Map()) // conditionIndex -> actions[]
 
   // Fetch all parameters
   const { data: allParameters = [] } = useQuery({
     queryKey: ['parameters'],
     queryFn: () => parameterService.getAll(),
   })
+
+  // Fetch devices (for creating internal parameters)
+  const { data: devices = [] } = useQuery({
+    queryKey: ['devices'],
+    queryFn: () => deviceService.getAll(),
+  })
+
+  // Get first device ID for internal parameter creation (or use device_id from first parameter)
+  const defaultDeviceId = useMemo(() => {
+    if (devices.length > 0) return devices[0].id
+    if (allParameters.length > 0) return (allParameters[0] as any).device_id || 1
+    return 1
+  }, [devices, allParameters])
 
   // ✅ 1. SIMPLIFIKASI PARAMETER FILTER
   // Clean parameters = DIRECT, CLEAN, FORMULA (semua yang punya clean data)
@@ -50,19 +70,28 @@ export function WorkflowForm({ workflow, onCancel, onSuccess }: WorkflowFormProp
         
         const paramMode = param.parameter_mode || param.parameterMode
         const isFormula = param.is_formula === true || param.isFormula === true
+        const isInternal = param.type === 'internal'
         
-        // Include DIRECT, CLEAN, FORMULA parameters (READ and READ_WRITE)
+        // Include DIRECT, CLEAN, FORMULA, INTERNAL parameters (READ and READ_WRITE)
         // DIRECT: parameter_mode = 'DIRECT' (clean data langsung dari device)
         // CLEAN: parameter_mode = 'CLEAN' (logical parameter dengan clean data)
         // FORMULA: parameter_mode = 'FORMULA' atau is_formula = true (derived parameter)
+        // INTERNAL: type = 'internal' (virtual parameter for workflow chaining)
         return (
           paramMode === 'DIRECT' ||
           paramMode === 'CLEAN' ||
           paramMode === 'FORMULA' ||
-          isFormula
+          isFormula ||
+          isInternal
         )
       })
     },
+    [allParameters]
+  )
+
+  // Internal parameters (for WRITE_INTERNAL actions)
+  const internalParameters = useMemo(
+    () => allParameters.filter(p => (p as any).type === 'internal'),
     [allParameters]
   )
 
@@ -141,7 +170,13 @@ export function WorkflowForm({ workflow, onCancel, onSuccess }: WorkflowFormProp
   }, [workflow?.id]) // Use workflow.id instead of workflow to prevent re-triggering on object reference changes
 
   const createMutation = useMutation({
-    mutationFn: (data: any) => workflowService.create(data),
+    mutationFn: async (data: any) => {
+      // Check if this is a nested IF structure
+      // Simple heuristic: if we have multiple conditions and actions, and user wants nested IF
+      // For now, we'll save as single workflow
+      // User can manually create nested IF by creating multiple workflows with internal flags
+      return workflowService.create(data)
+    },
     onSuccess,
   })
 
@@ -238,8 +273,69 @@ export function WorkflowForm({ workflow, onCancel, onSuccess }: WorkflowFormProp
     ])
   }
 
+  // Tambahkan kondisi setelah aksi tertentu (untuk nested IF)
+  const addConditionAfterAction = (actionIndex: number) => {
+    if (cleanParameters.length === 0) {
+      alert('Tidak ada parameter clean tersedia. Buat parameter formula terlebih dahulu.')
+      return
+    }
+
+    const newCondition = {
+      parameter_id: cleanParameters[0].id,
+      operator: '>',
+      threshold: 0,
+    }
+
+    setConditions(prev => {
+      const newConditions: Omit<WorkflowCondition, 'id' | 'workflow_id' | 'created_at' | 'parameter'>[] = [
+        ...prev,
+        {
+          ...newCondition,
+          operator: newCondition.operator as '>' | '<' | '>=' | '<=' | '==' | '!=',
+        },
+      ]
+      const newConditionIndex = newConditions.length - 1
+      
+      // Update nested conditions metadata
+      setNestedConditions(prev => {
+        const newMap = new Map(prev)
+        const existing = newMap.get(actionIndex) || []
+        newMap.set(actionIndex, [...existing, newConditionIndex])
+        return newMap
+      })
+      
+      return newConditions
+    })
+  }
+
   const removeCondition = (index: number) => {
     setConditions(prev => prev.filter((_, i) => i !== index))
+    
+    // Update nestedConditions metadata: hapus kondisi yang dihapus dan re-index
+    setNestedConditions(prev => {
+      const newMap = new Map<number, number[]>()
+      prev.forEach((conditionIndices, actionIndex) => {
+        const updatedIndices = conditionIndices
+          .filter(ci => ci !== index)
+          .map(ci => ci > index ? ci - 1 : ci) // Re-index jika setelah kondisi yang dihapus
+        if (updatedIndices.length > 0) {
+          newMap.set(actionIndex, updatedIndices)
+        }
+      })
+      return newMap
+    })
+    
+    // Update elseActions metadata: hapus ELSE actions untuk kondisi yang dihapus dan re-index
+    setElseActions(prev => {
+      const newMap = new Map<number, Omit<WorkflowAction, 'id' | 'workflow_id' | 'created_at' | 'parameter'>[]>()
+      prev.forEach((actions, conditionIndex) => {
+        if (conditionIndex !== index) {
+          const newIndex = conditionIndex > index ? conditionIndex - 1 : conditionIndex
+          newMap.set(newIndex, actions)
+        }
+      })
+      return newMap
+    })
   }
 
   const removeAction = (index: number) => {
@@ -263,7 +359,96 @@ export function WorkflowForm({ workflow, onCancel, onSuccess }: WorkflowFormProp
       return clean
     })
 
-  const handleSubmit = (e: React.FormEvent) => {
+  // Deteksi nested IF dari nestedConditions metadata dan ELSE dari elseActions
+  const detectNestedIFFromMetadata = (): NestedIFStructure | null => {
+    const hasNested = nestedConditions.size > 0
+    const hasElse = elseActions.size > 0
+    
+    // Jika tidak ada nested IF dan tidak ada ELSE, return null
+    if (!hasNested && !hasElse) {
+      return null
+    }
+
+    // Build nested structure dari metadata
+    const levels: Array<{
+      condition: Omit<WorkflowCondition, 'id' | 'workflow_id' | 'created_at' | 'parameter'>
+      actions: Omit<WorkflowAction, 'id' | 'workflow_id' | 'created_at' | 'parameter'>[]
+      elseActions?: Omit<WorkflowAction, 'id' | 'workflow_id' | 'created_at' | 'parameter'>[]
+    }> = []
+
+    // Level pertama: kondisi awal + semua aksi sampai aksi pertama yang memiliki nested condition
+    if (conditions.length > 0 && actions.length > 0) {
+      const firstLevelActions: Omit<WorkflowAction, 'id' | 'workflow_id' | 'created_at' | 'parameter'>[] = []
+      
+      // Cari aksi pertama yang memiliki nested condition setelahnya
+      let firstNestedActionIndex = actions.length
+      for (let i = 0; i < actions.length; i++) {
+        if (nestedConditions.has(i)) {
+          firstNestedActionIndex = i
+          break
+        }
+      }
+      
+      // Ambil semua aksi sampai (tidak termasuk) aksi yang memiliki nested condition
+      for (let i = 0; i < firstNestedActionIndex; i++) {
+        firstLevelActions.push(actions[i])
+      }
+
+      if (firstLevelActions.length > 0 || elseActions.has(0)) {
+        levels.push({
+          condition: conditions[0],
+          actions: firstLevelActions,
+          elseActions: elseActions.get(0),
+        })
+      }
+    }
+
+    // Level berikutnya: nested conditions setelah aksi tertentu
+    // Urutkan actionIndex untuk memproses secara berurutan
+    const sortedActionIndices = Array.from(nestedConditions.keys()).sort((a, b) => a - b)
+    
+    sortedActionIndices.forEach((actionIndex, levelIndex) => {
+      const conditionIndices = nestedConditions.get(actionIndex) || []
+      
+      conditionIndices.forEach(conditionIndex => {
+        if (conditionIndex < conditions.length) {
+          // Cari aksi setelah actionIndex ini
+          const nextActionStart = actionIndex + 1
+          const nextActionEnd = levelIndex < sortedActionIndices.length - 1
+            ? sortedActionIndices[levelIndex + 1]
+            : actions.length
+          
+          const nextActions: Omit<WorkflowAction, 'id' | 'workflow_id' | 'created_at' | 'parameter'>[] = []
+          
+          // Ambil aksi setelah actionIndex sampai aksi berikutnya yang memiliki nested condition atau akhir
+          for (let i = nextActionStart; i < nextActionEnd; i++) {
+            nextActions.push(actions[i])
+          }
+
+          if (nextActions.length > 0 || elseActions.has(conditionIndex)) {
+            levels.push({
+              condition: conditions[conditionIndex],
+              actions: nextActions,
+              elseActions: elseActions.get(conditionIndex),
+            })
+          }
+        }
+      })
+    })
+
+    // Jika hanya ada ELSE tanpa nested IF, buat struktur sederhana
+    if (levels.length === 0 && hasElse && conditions.length > 0) {
+      levels.push({
+        condition: conditions[0],
+        actions: actions,
+        elseActions: elseActions.get(0),
+      })
+    }
+
+    return levels.length > 0 ? { levels } : null
+  }
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
     if (conditions.length === 0) {
@@ -276,16 +461,48 @@ export function WorkflowForm({ workflow, onCancel, onSuccess }: WorkflowFormProp
       return
     }
 
-    const payload = {
-      ...formData,
-      conditions,
-      actions: sanitizeActions(actions),
-    }
+    // Deteksi nested IF dan ELSE
+    const nestedStructure = detectNestedIFFromMetadata()
 
-    if (workflow) {
-      updateMutation.mutate(payload)
+    // Jika ada nested IF atau ELSE, split menjadi multiple workflows
+    if (nestedStructure && (nestedStructure.levels.length > 1 || nestedStructure.levels.some(level => level.elseActions && level.elseActions.length > 0))) {
+      if (devices.length === 0) {
+        alert('Tidak ada device tersedia untuk membuat internal parameter. Silakan buat device terlebih dahulu.')
+        return
+      }
+
+      try {
+        const splitWorkflows = await splitNestedIFToWorkflows(
+          formData.nama,
+          formData.description,
+          formData.enabled,
+          nestedStructure,
+          defaultDeviceId
+        )
+
+        // Buat semua workflow
+        for (const wf of splitWorkflows) {
+          await workflowService.create(wf)
+        }
+        
+        onSuccess()
+      } catch (error) {
+        console.error('Failed to create chained workflows:', error)
+        alert('Gagal membuat workflow berantai. Silakan coba lagi.')
+      }
     } else {
-      createMutation.mutate(payload)
+      // Tidak ada nested IF atau ELSE, submit sebagai single workflow
+      const payload = {
+        ...formData,
+        conditions,
+        actions: sanitizeActions(actions),
+      }
+
+      if (workflow) {
+        updateMutation.mutate(payload)
+      } else {
+        createMutation.mutate(payload)
+      }
     }
   }
 
@@ -346,6 +563,24 @@ export function WorkflowForm({ workflow, onCancel, onSuccess }: WorkflowFormProp
 
       <Card>
         <CardHeader>
+          <CardTitle>Visualisasi Workflow (Node-based)</CardTitle>
+          <CardDescription>
+            Visualisasi kondisi dan aksi dalam bentuk node. Nested IF akan otomatis dipecah menjadi beberapa workflow.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <WorkflowNodeEditor
+            conditions={conditions}
+            actions={actions}
+            parameters={allParameters}
+            onConditionsChange={setConditions}
+            onActionsChange={setActions}
+          />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
           <div className="flex items-center justify-between">
             <div>
               <CardTitle>Kondisi (JIKA)</CardTitle>
@@ -363,18 +598,50 @@ export function WorkflowForm({ workflow, onCancel, onSuccess }: WorkflowFormProp
               Belum ada kondisi yang ditambahkan. Klik "Tambah Kondisi" untuk menambahkan.
             </p>
           ) : (
-            conditions.map((condition, index) => (
+            conditions.map((condition, index) => {
+              const conditionElseActions = elseActions.get(index) || []
+              return (
               <div key={index} className="border rounded-lg p-4 space-y-3">
                 <div className="flex items-center justify-between mb-2">
-                  <Badge variant="outline">Kondisi {index + 1}</Badge>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => removeCondition(index)}
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
+                  <Badge variant="outline">Kondisi {index + 1} (IF)</Badge>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        // Tambahkan ELSE action kosong
+                        const newElseAction: Omit<WorkflowAction, 'id' | 'workflow_id' | 'created_at' | 'parameter'> = {
+                          action_type: writeParameters.length > 0 ? 'WRITE_WITH_VALUE' : 'alarm',
+                          action_order: conditionElseActions.length,
+                          ...(writeParameters.length > 0 ? {
+                            parameter_id: dynamicParameters[0]?.id || writeParameters[0]?.id,
+                            value: 0,
+                          } : {
+                            alarm_message: '',
+                          }),
+                        }
+                        setElseActions(prev => {
+                          const newMap = new Map(prev)
+                          const existing = newMap.get(index) || []
+                          newMap.set(index, [...existing, newElseAction])
+                          return newMap
+                        })
+                      }}
+                      title="Tambah aksi ELSE (jika kondisi tidak terpenuhi)"
+                    >
+                      <Plus className="h-4 w-4 mr-1" />
+                      Tambah ELSE
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => removeCondition(index)}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
                 </div>
                 <div className="grid gap-4 md:grid-cols-3">
                   <div className="space-y-2">
@@ -435,8 +702,56 @@ export function WorkflowForm({ workflow, onCancel, onSuccess }: WorkflowFormProp
                     />
                   </div>
                 </div>
+                
+                {/* ELSE Actions Section */}
+                {conditionElseActions.length > 0 && (
+                  <div className="mt-4 pt-4 border-t">
+                    <div className="flex items-center justify-between mb-2">
+                      <Badge variant="outline" className="bg-orange-100 text-orange-800">
+                        ELSE Actions ({conditionElseActions.length})
+                      </Badge>
+                    </div>
+                    <div className="space-y-2">
+                      {conditionElseActions.map((elseAction, elseIndex) => (
+                        <div key={elseIndex} className="bg-orange-50 border border-orange-200 rounded p-3">
+                          <div className="flex items-center justify-between mb-2">
+                            <span className="text-sm font-medium text-orange-800">
+                              ELSE Action {elseIndex + 1}
+                            </span>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => {
+                                setElseActions(prev => {
+                                  const newMap = new Map(prev)
+                                  const existing = newMap.get(index) || []
+                                  newMap.set(index, existing.filter((_, i) => i !== elseIndex))
+                                  return newMap
+                                })
+                              }}
+                            >
+                              <Trash2 className="h-3 w-3" />
+                            </Button>
+                          </div>
+                          <div className="text-xs text-orange-700">
+                            {elseAction.action_type === 'WRITE_WITH_VALUE' && elseAction.parameter_id && (
+                              <>Write Parameter ID {elseAction.parameter_id} = {elseAction.value}</>
+                            )}
+                            {elseAction.action_type === 'alarm' && (
+                              <>Alarm: {elseAction.alarm_message || '(kosong)'}</>
+                            )}
+                            {elseAction.action_type === 'TRIGGER_WRITE' && elseAction.parameter_id && (
+                              <>Trigger Parameter ID {elseAction.parameter_id}</>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
-            ))
+            )})
           )}
         </CardContent>
       </Card>
@@ -471,14 +786,26 @@ export function WorkflowForm({ workflow, onCancel, onSuccess }: WorkflowFormProp
                   <Badge variant="outline" className="font-semibold">
                     Urutan {displayOrder} - Aksi {displayOrder}
                   </Badge>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => removeAction(index)}
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => addConditionAfterAction(index)}
+                      title="Tambah kondisi setelah aksi ini (untuk nested IF)"
+                    >
+                      <Plus className="h-4 w-4 mr-1" />
+                      Tambah IF Setelah Aksi
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => removeAction(index)}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
                 </div>
                 <div className="space-y-3">
                   <div className="space-y-2">
@@ -629,6 +956,7 @@ export function WorkflowForm({ workflow, onCancel, onSuccess }: WorkflowFormProp
                       </div>
                     </div>
                   )}
+
 
                   {action.action_type === 'event' && (
                     <div className="space-y-2">

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -6,14 +6,24 @@ import { Badge } from '@/components/ui/badge'
 import { Plus, Trash2, Edit, Play, Pause } from 'lucide-react'
 import { workflowService, type Workflow } from '@/services/workflowService'
 import { WorkflowForm } from './workflow-form'
+import { WorkflowBuilder } from './workflow-builder'
 import { DeleteConfirmationDialog } from '@/components/ui/delete-confirmation-dialog'
 
-export function WorkflowView() {
+interface WorkflowViewProps {
+  onBuilderOpenChange?: (isOpen: boolean) => void
+}
+
+export function WorkflowView({ onBuilderOpenChange }: WorkflowViewProps = {}) {
   const queryClient = useQueryClient()
   const [showForm, setShowForm] = useState(false)
   const [editingWorkflow, setEditingWorkflow] = useState<Workflow | null>(null)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [workflowToDelete, setWorkflowToDelete] = useState<Workflow | null>(null)
+
+  // Notify parent when builder opens/closes
+  useEffect(() => {
+    onBuilderOpenChange?.(showForm)
+  }, [showForm, onBuilderOpenChange])
 
   const { data: workflows = [], isLoading } = useQuery({
     queryKey: ['workflows'],
@@ -72,6 +82,27 @@ export function WorkflowView() {
   }
 
   if (showForm) {
+    // Use new WorkflowBuilder for version 2, fallback to old form for version 1
+    const useNewBuilder = !editingWorkflow || editingWorkflow.version === 2 || editingWorkflow.version === undefined
+
+    if (useNewBuilder) {
+      return (
+        <WorkflowBuilder
+          workflow={editingWorkflow}
+          onCancel={() => {
+            setShowForm(false)
+            setEditingWorkflow(null)
+          }}
+          onSuccess={() => {
+            setShowForm(false)
+            setEditingWorkflow(null)
+            queryClient.invalidateQueries({ queryKey: ['workflows'] })
+          }}
+        />
+      )
+    }
+
+    // Fallback to old form for version 1 workflows
     return (
       <WorkflowForm
         workflow={editingWorkflow}
@@ -89,8 +120,10 @@ export function WorkflowView() {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="h-full w-full">
+      {showForm ? null : (
+        <div className="space-y-6 p-6">
+          <div className="flex items-center justify-between">
         <div>
           <h2 className="text-2xl font-bold text-foreground">Workflows</h2>
           <p className="text-sm text-muted-foreground mt-1">
@@ -278,22 +311,24 @@ export function WorkflowView() {
         </div>
       )}
 
-      {/* Delete Confirmation Dialog */}
-      <DeleteConfirmationDialog
-        open={deleteDialogOpen}
-        onOpenChange={(open) => {
-          setDeleteDialogOpen(open)
-          if (!open) {
-            setWorkflowToDelete(null)
-          }
-        }}
-        onConfirm={handleConfirmDelete}
-        title="Hapus Workflow"
-        description="Apakah Anda yakin ingin menghapus workflow ini? Tindakan ini tidak dapat dibatalkan."
-        itemName={workflowToDelete?.nama}
-        isDeleting={deleteMutation.isPending}
-        error={null}
-      />
+          {/* Delete Confirmation Dialog */}
+          <DeleteConfirmationDialog
+            open={deleteDialogOpen}
+            onOpenChange={(open) => {
+              setDeleteDialogOpen(open)
+              if (!open) {
+                setWorkflowToDelete(null)
+              }
+            }}
+            onConfirm={handleConfirmDelete}
+            title="Hapus Workflow"
+            description="Apakah Anda yakin ingin menghapus workflow ini? Tindakan ini tidak dapat dibatalkan."
+            itemName={workflowToDelete?.nama}
+            isDeleting={deleteMutation.isPending}
+            error={null}
+          />
+        </div>
+      )}
     </div>
   )
 }
