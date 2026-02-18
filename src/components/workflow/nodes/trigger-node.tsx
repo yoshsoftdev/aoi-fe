@@ -125,7 +125,6 @@ function TriggerNodeComponent({ id, data, selected, parameters = [], setPoints =
             </SelectTrigger>
             <SelectContent 
               onPointerDownOutside={(e) => e.preventDefault()}
-              onInteractOutside={(e) => e.preventDefault()}
             >
               <SelectItem value="parameter-changed">
                 <span className="flex items-center gap-2">
@@ -157,7 +156,6 @@ function TriggerNodeComponent({ id, data, selected, parameters = [], setPoints =
             </SelectTrigger>
             <SelectContent 
               onPointerDownOutside={(e) => e.preventDefault()}
-              onInteractOutside={(e) => e.preventDefault()}
             >
               {sourceOptions.length === 0 ? (
                 <div className="px-2 py-1.5 text-sm text-muted-foreground">

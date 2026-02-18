@@ -214,7 +214,6 @@ function ConditionNodeComponent({ id, data, selected, parameters = [], setPoints
             </SelectTrigger>
             <SelectContent 
               onPointerDownOutside={(e) => e.preventDefault()}
-              onInteractOutside={(e) => e.preventDefault()}
             >
               <SelectItem value="parameter">Parameter</SelectItem>
               <SelectItem value="setpoint">Set-Point</SelectItem>
@@ -229,7 +228,6 @@ function ConditionNodeComponent({ id, data, selected, parameters = [], setPoints
             </SelectTrigger>
             <SelectContent 
               onPointerDownOutside={(e) => e.preventDefault()}
-              onInteractOutside={(e) => e.preventDefault()}
             >
               {leftItems.length === 0 ? (
                 <div className="px-2 py-1.5 text-sm text-muted-foreground">
@@ -262,7 +260,6 @@ function ConditionNodeComponent({ id, data, selected, parameters = [], setPoints
             </SelectTrigger>
             <SelectContent 
               onPointerDownOutside={(e) => e.preventDefault()}
-              onInteractOutside={(e) => e.preventDefault()}
             >
               {OPERATORS.map((op) => (
                 <SelectItem key={op} value={op}>
@@ -287,7 +284,6 @@ function ConditionNodeComponent({ id, data, selected, parameters = [], setPoints
             </SelectTrigger>
             <SelectContent 
               onPointerDownOutside={(e) => e.preventDefault()}
-              onInteractOutside={(e) => e.preventDefault()}
             >
               <SelectItem value="static">Static Value</SelectItem>
               <SelectItem value="setpoint">Set-Point</SelectItem>
@@ -311,7 +307,6 @@ function ConditionNodeComponent({ id, data, selected, parameters = [], setPoints
               </SelectTrigger>
               <SelectContent 
                 onPointerDownOutside={(e) => e.preventDefault()}
-                onInteractOutside={(e) => e.preventDefault()}
               >
                 {rightItems.length === 0 ? (
                   <div className="px-2 py-1.5 text-sm text-muted-foreground">No set-points available</div>

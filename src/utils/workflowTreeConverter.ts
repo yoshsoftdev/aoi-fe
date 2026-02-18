@@ -132,10 +132,20 @@ export function convertNodesToTree(
   // buildTreeNode will traverse all connected nodes through edges
   const root = buildTreeNode(rootNode, nodes, edges, new Set<string>(), 0)
 
+  // Extract node positions (including trigger node)
+  const nodePositions: Record<string, { x: number; y: number }> = {}
+  nodes.forEach((node) => {
+    nodePositions[node.id] = {
+      x: node.position.x,
+      y: node.position.y,
+    }
+  })
+
   return {
     name: workflowName,
     trigger,
     root,
+    node_positions: nodePositions,
   }
 }
 
@@ -298,6 +308,7 @@ function buildTreeNode(
 
 /**
  * Converts WorkflowTree JSON to React Flow nodes and edges
+ * Uses saved node positions if available, otherwise uses auto-arrange
  */
 export function convertTreeToNodes(tree: WorkflowTree): { nodes: Node[]; edges: Edge[] } {
   const nodes: Node[] = []
@@ -306,13 +317,22 @@ export function convertTreeToNodes(tree: WorkflowTree): { nodes: Node[]; edges: 
 
   const getId = () => `node_${nodeIdCounter++}`
 
+  // Check if we have saved node positions
+  const hasSavedPositions = tree.node_positions && Object.keys(tree.node_positions).length > 0
+
   // Create trigger node
   const triggerId = getId()
   const isParameterTrigger = tree.trigger.type === 'PARAMETER_CHANGED'
+  
+  // Use saved position if available, otherwise use default
+  const triggerPosition = hasSavedPositions && tree.node_positions![triggerId]
+    ? tree.node_positions![triggerId]
+    : { x: 300, y: 50 }
+  
   const triggerNode: Node = {
     id: triggerId,
     type: 'trigger',
-    position: { x: 300, y: 50 },
+    position: triggerPosition,
     data: {
       label: isParameterTrigger ? 'Parameter Changed' : 'Set-Point Changed',
       description: isParameterTrigger
@@ -328,8 +348,16 @@ export function convertTreeToNodes(tree: WorkflowTree): { nodes: Node[]; edges: 
   nodes.push(triggerNode)
 
   // Build root node recursively
-  let yOffset = 200
-  const rootId = buildNodeFromTree(tree.root, nodes, edges, triggerId, yOffset, getId)
+  // If we have saved positions, use them; otherwise use default positioning
+  const rootId = buildNodeFromTree(
+    tree.root,
+    nodes,
+    edges,
+    triggerId,
+    hasSavedPositions ? undefined : 200, // yOffset only used if no saved positions
+    getId,
+    hasSavedPositions ? tree.node_positions! : undefined
+  )
 
   return { nodes, edges }
 }
@@ -342,8 +370,10 @@ function buildNodeFromTree(
   nodes: Node[],
   edges: Edge[],
   parentId: string,
-  yOffset: number,
-  getId: () => string
+  yOffset: number | undefined,
+  getId: () => string,
+  savedPositions?: Record<string, { x: number; y: number }>,
+  skipDefaultEdge: boolean = false // Flag to skip creating default edge (used for IF node children)
 ): string {
   // Use treeNode.id if available, otherwise generate new ID
   // But check if node with this ID already exists to prevent duplicates
@@ -356,7 +386,19 @@ function buildNodeFromTree(
     nodeId = treeNode.id || getId()
   }
   
-  let currentY = yOffset
+  // Use saved position if available, otherwise use yOffset-based positioning
+  let nodePosition: { x: number; y: number }
+  if (savedPositions && savedPositions[nodeId]) {
+    nodePosition = savedPositions[nodeId]
+  } else if (yOffset !== undefined) {
+    // Fallback to default positioning if no saved position
+    nodePosition = { x: 300, y: yOffset }
+  } else {
+    // If no saved positions and no yOffset, use default
+    nodePosition = { x: 300, y: 200 }
+  }
+  
+  let currentY = yOffset !== undefined ? yOffset : 200
   
   // Check if node already exists
   const existingNode = nodes.find((n) => n.id === nodeId)
@@ -414,23 +456,35 @@ function buildNodeFromTree(
     const actionNode: Node = {
       id: nodeId,
       type: 'action',
-      position: { x: 300, y: currentY },
+      position: nodePosition,
       data: nodeData,
     }
     nodes.push(actionNode)
-    edges.push({
-      id: `e-${parentId}-${nodeId}`,
-      source: parentId,
-      target: nodeId,
-    })
+    
+    // Only create default edge if not skipped (for IF node children, edge will be created with sourceHandle)
+    if (!skipDefaultEdge) {
+      edges.push({
+        id: `e-${parentId}-${nodeId}`,
+        source: parentId,
+        target: nodeId,
+      })
+    }
 
     // Process THEN branch for action chaining
     // Note: buildNodeFromTree already creates edge from parent to child, so we don't need to create it again
-    currentY += 150
-    let thenY = currentY
-    for (const thenChild of treeNode.then || []) {
-      buildNodeFromTree(thenChild, nodes, edges, nodeId, thenY, getId)
-      thenY += 150
+    if (savedPositions) {
+      // If we have saved positions, use them (no need to calculate yOffset)
+      for (const thenChild of treeNode.then || []) {
+        buildNodeFromTree(thenChild, nodes, edges, nodeId, undefined, getId, savedPositions)
+      }
+    } else {
+      // Fallback to sequential positioning if no saved positions
+      currentY += 150
+      let thenY = currentY
+      for (const thenChild of treeNode.then || []) {
+        buildNodeFromTree(thenChild, nodes, edges, nodeId, thenY, getId, savedPositions)
+        thenY += 150
+      }
     }
 
     return nodeId
@@ -440,7 +494,7 @@ function buildNodeFromTree(
     const conditionNode: Node = {
       id: nodeId,
       type: 'condition',
-      position: { x: 300, y: currentY },
+      position: nodePosition,
       data: {
         label: 'IF Condition',
         description: '',
@@ -464,42 +518,73 @@ function buildNodeFromTree(
       target: nodeId,
     })
 
-    currentY += 150
-
     // Build THEN branch
-    let thenY = currentY
-    for (const thenChild of treeNode.then || []) {
-      const thenChildId = buildNodeFromTree(thenChild, nodes, edges, nodeId, thenY, getId)
-      edges.push({
-        id: `e-${nodeId}-${thenChildId}-then`,
-        source: nodeId,
-        sourceHandle: 'then',
-        target: thenChildId,
-        label: 'THEN',
-        style: { stroke: 'hsl(142 71% 45%)', strokeWidth: 2 },
-      })
-      thenY += 150
+    if (savedPositions) {
+      // If we have saved positions, use them
+      for (const thenChild of treeNode.then || []) {
+        const thenChildId = buildNodeFromTree(thenChild, nodes, edges, nodeId, undefined, getId, savedPositions, true) // skipDefaultEdge = true
+        edges.push({
+          id: `e-${nodeId}-${thenChildId}-then`,
+          source: nodeId,
+          sourceHandle: 'then',
+          target: thenChildId,
+          label: 'THEN',
+          style: { stroke: 'hsl(142 71% 45%)', strokeWidth: 2 },
+        })
+      }
+    } else {
+      // Fallback to sequential positioning if no saved positions
+      currentY += 150
+      let thenY = currentY
+      for (const thenChild of treeNode.then || []) {
+        const thenChildId = buildNodeFromTree(thenChild, nodes, edges, nodeId, thenY, getId, savedPositions, true) // skipDefaultEdge = true
+        edges.push({
+          id: `e-${nodeId}-${thenChildId}-then`,
+          source: nodeId,
+          sourceHandle: 'then',
+          target: thenChildId,
+          label: 'THEN',
+          style: { stroke: 'hsl(142 71% 45%)', strokeWidth: 2 },
+        })
+        thenY += 150
+      }
     }
 
     // Build ELSE branch
-    let elseX = 500
-    let elseY = currentY
-    for (const elseChild of treeNode.else || []) {
-      const elseChildId = buildNodeFromTree(elseChild, nodes, edges, nodeId, elseY, getId)
-      // Update position for ELSE branch (to the right)
-      const elseNode = nodes.find((n) => n.id === elseChildId)
-      if (elseNode) {
-        elseNode.position.x = elseX
+    if (savedPositions) {
+      // If we have saved positions, use them
+      for (const elseChild of treeNode.else || []) {
+        const elseChildId = buildNodeFromTree(elseChild, nodes, edges, nodeId, undefined, getId, savedPositions, true) // skipDefaultEdge = true
+        edges.push({
+          id: `e-${nodeId}-${elseChildId}-else`,
+          source: nodeId,
+          sourceHandle: 'else',
+          target: elseChildId,
+          label: 'ELSE',
+          style: { stroke: 'hsl(0 72% 51%)', strokeWidth: 2 },
+        })
       }
-      edges.push({
-        id: `e-${nodeId}-${elseChildId}-else`,
-        source: nodeId,
-        sourceHandle: 'else',
-        target: elseChildId,
-        label: 'ELSE',
-        style: { stroke: 'hsl(0 72% 51%)', strokeWidth: 2 },
-      })
-      elseY += 150
+    } else {
+      // Fallback to sequential positioning if no saved positions
+      let elseX = 500
+      let elseY = currentY
+      for (const elseChild of treeNode.else || []) {
+        const elseChildId = buildNodeFromTree(elseChild, nodes, edges, nodeId, elseY, getId, savedPositions, true) // skipDefaultEdge = true
+        // Update position for ELSE branch (to the right) only if no saved positions
+        const elseNode = nodes.find((n) => n.id === elseChildId)
+        if (elseNode && !savedPositions) {
+          elseNode.position.x = elseX
+        }
+        edges.push({
+          id: `e-${nodeId}-${elseChildId}-else`,
+          source: nodeId,
+          sourceHandle: 'else',
+          target: elseChildId,
+          label: 'ELSE',
+          style: { stroke: 'hsl(0 72% 51%)', strokeWidth: 2 },
+        })
+        elseY += 150
+      }
     }
 
     return nodeId

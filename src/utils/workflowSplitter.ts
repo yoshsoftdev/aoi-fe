@@ -85,8 +85,8 @@ export function detectNestedIF(nodes: any[], edges: any[]): NestedIFStructure | 
 
     // Traverse to find all consecutive action nodes
     while (actionNodeId) {
-      const nextActionNodes = outgoingEdges.get(actionNodeId) || []
-      const nextActionNodeId = nextActionNodes.find(id => {
+      const nextActionNodes: string[] = outgoingEdges.get(actionNodeId) || []
+      const nextActionNodeId: string | undefined = nextActionNodes.find((id: string) => {
         const node = nodeMap.get(id)
         return node?.type === 'action'
       })
@@ -257,10 +257,11 @@ export async function splitNestedIFToWorkflows(
         }
 
         // ELSE workflow: IF internal_flag_{index-1} == 1 AND NOT condition_{index} THEN elseActions
-        const elseActionsWithOrder = level.elseActions.map((action, actionIndex) => ({
-          ...action,
-          action_order: actionIndex,
-        }))
+        const elseActionsWithOrder: Omit<WorkflowAction, 'id' | 'workflow_id' | 'created_at' | 'parameter'>[] = 
+          level.elseActions.map((action, actionIndex) => ({
+            ...action,
+            action_order: actionIndex,
+          }))
 
         // If last level, reset flags after ELSE execution
         if (index === totalLevels - 1) {

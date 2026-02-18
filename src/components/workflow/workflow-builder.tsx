@@ -22,6 +22,7 @@ import { NodePalette } from './node-palette'
 import { PropertiesPanel } from './properties-panel'
 import { TopBar } from './top-bar'
 import { validateWorkflowGraph, convertNodesToTree, convertTreeToNodes } from '@/utils/workflowTreeConverter'
+import { autoArrangeNodes } from '@/utils/workflowAutoArrange'
 import type { WorkflowTree } from '@/services/workflowService'
 
 interface WorkflowBuilderProps {
@@ -38,7 +39,7 @@ function WorkflowBuilderInner({ workflow, onCancel, onSuccess }: WorkflowBuilder
     return id
   }, [])
 
-  const [nodes, setNodes, onNodesChange] = useNodesState<Node[]>([])
+  const [nodes, setNodes, onNodesChange] = useNodesState([])
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge[]>([])
   const [selectedNode, setSelectedNode] = useState<Node | null>(null)
   const [workflowName, setWorkflowName] = useState(workflow?.nama || 'New Workflow')
@@ -58,8 +59,13 @@ function WorkflowBuilderInner({ workflow, onCancel, onSuccess }: WorkflowBuilder
   })
 
   // Filter parameters for different use cases
+  // Only include DIRECT, CLEAN, FORMULA parameters (exclude RAW, SOURCE, and undefined)
   const cleanParameters = useMemo(
-    () => parameters.filter((p) => ['DIRECT', 'CLEAN', 'FORMULA'].includes(p.parameter_mode || '')),
+    () => parameters.filter((p) => {
+      const mode = p.parameter_mode || ''
+      // Only include DIRECT, CLEAN, FORMULA - explicitly exclude RAW, SOURCE, and empty
+      return ['DIRECT', 'CLEAN', 'FORMULA'].includes(mode)
+    }),
     [parameters]
   )
 
@@ -95,6 +101,28 @@ function WorkflowBuilderInner({ workflow, onCancel, onSuccess }: WorkflowBuilder
         // Set new nodes and edges
         setNodes(treeNodes)
         setEdges(treeEdges)
+        
+        // Auto arrange only if no saved positions exist
+        if (!treeData.node_positions || Object.keys(treeData.node_positions).length === 0) {
+          setTimeout(() => {
+            const arrangedNodes = autoArrangeNodes(treeNodes, treeEdges)
+            setNodes(arrangedNodes)
+            
+            // Fit view after arrangement
+            setTimeout(() => {
+              if (reactFlowInstance) {
+                reactFlowInstance.fitView({ padding: 0.2, duration: 300 })
+              }
+            }, 100)
+          }, 100)
+        } else {
+          // If we have saved positions, just fit view
+          setTimeout(() => {
+            if (reactFlowInstance) {
+              reactFlowInstance.fitView({ padding: 0.2, duration: 300 })
+            }
+          }, 100)
+        }
         
         // Extract max node ID from loaded nodes to set counter
         const maxId = treeNodes.reduce((max, node) => {
@@ -296,6 +324,60 @@ function WorkflowBuilderInner({ workflow, onCancel, onSuccess }: WorkflowBuilder
     alert('Test functionality not yet implemented')
   }, [])
 
+  const handleAutoArrange = useCallback(() => {
+    // Get current viewport to preserve zoom
+    const viewport = reactFlowInstance?.getViewport()
+    
+    const arrangedNodes = autoArrangeNodes(nodes, edges)
+    
+    // Update nodes with animation
+    setNodes((prevNodes) => {
+      return arrangedNodes.map((newNode) => {
+        const oldNode = prevNodes.find((n) => n.id === newNode.id)
+        if (oldNode) {
+          return {
+            ...newNode,
+            // Add animated position transition
+            position: oldNode.position, // Start from old position
+          }
+        }
+        return newNode
+      }) as Node[]
+    })
+    
+    // Animate to new positions
+    setTimeout(() => {
+      setNodes((prevNodes) => {
+        return arrangedNodes.map((newNode) => {
+          const prevNode = prevNodes.find((n) => n.id === newNode.id)
+          if (prevNode && (prevNode.position.x !== newNode.position.x || prevNode.position.y !== newNode.position.y)) {
+            return {
+              ...newNode,
+              position: newNode.position,
+            }
+          }
+          return newNode
+        }) as Node[]
+      })
+      
+      // Fit view after arrangement (preserve zoom if possible)
+      setTimeout(() => {
+        if (reactFlowInstance) {
+          if (viewport) {
+            // Try to maintain zoom level
+            reactFlowInstance.setViewport(viewport, { duration: 300 })
+            // Then fit view with padding
+            setTimeout(() => {
+              reactFlowInstance.fitView({ padding: 0.2, duration: 300 })
+            }, 50)
+          } else {
+            reactFlowInstance.fitView({ padding: 0.2, duration: 300 })
+          }
+        }
+      }, 100)
+    }, 50)
+  }, [nodes, edges, setNodes, reactFlowInstance])
+
   return (
     <div className="flex h-screen w-screen flex-col overflow-hidden bg-background">
         <TopBar
@@ -307,6 +389,7 @@ function WorkflowBuilderInner({ workflow, onCancel, onSuccess }: WorkflowBuilder
           onSave={handleSave}
           onTest={handleTest}
           onCancel={onCancel}
+          onAutoArrange={handleAutoArrange}
         />
       <div className="flex flex-1 overflow-hidden">
         <NodePalette />
@@ -321,7 +404,7 @@ function WorkflowBuilderInner({ workflow, onCancel, onSuccess }: WorkflowBuilder
           onDrop={onDrop}
           reactFlowInstance={reactFlowInstance}
           setReactFlowInstance={setReactFlowInstance}
-          parameters={parameters}
+          parameters={cleanParameters}
           setPoints={setPoints}
         />
         <PropertiesPanel

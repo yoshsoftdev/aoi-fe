@@ -227,7 +227,6 @@ function ActionNodeComponent({ id, data, selected, parameters = [], setPoints = 
           </SelectTrigger>
           <SelectContent 
             onPointerDownOutside={(e) => e.preventDefault()}
-            onInteractOutside={(e) => e.preventDefault()}
           >
             <SelectItem value="alarm-notification">
               <span className="flex items-center gap-2">
@@ -296,7 +295,6 @@ function ActionNodeComponent({ id, data, selected, parameters = [], setPoints = 
               </SelectTrigger>
               <SelectContent 
                 onPointerDownOutside={(e) => e.preventDefault()}
-                onInteractOutside={(e) => e.preventDefault()}
               >
                 {parameters
                   .filter((p) => p.direction === 'WRITE' || p.read_write === 1 || p.read_write === 2)
@@ -316,7 +314,6 @@ function ActionNodeComponent({ id, data, selected, parameters = [], setPoints = 
               </SelectTrigger>
               <SelectContent 
                 onPointerDownOutside={(e) => e.preventDefault()}
-                onInteractOutside={(e) => e.preventDefault()}
               >
                 <SelectItem value="static">Static Value</SelectItem>
                 <SelectItem value="setpoint">Set-Point</SelectItem>
@@ -341,7 +338,6 @@ function ActionNodeComponent({ id, data, selected, parameters = [], setPoints = 
                 </SelectTrigger>
                 <SelectContent 
                   onPointerDownOutside={(e) => e.preventDefault()}
-                  onInteractOutside={(e) => e.preventDefault()}
                 >
                   {setPoints.map((sp) => (
                     <SelectItem key={sp.id} value={String(sp.id)}>
@@ -366,7 +362,6 @@ function ActionNodeComponent({ id, data, selected, parameters = [], setPoints = 
               </SelectTrigger>
               <SelectContent 
                 onPointerDownOutside={(e) => e.preventDefault()}
-                onInteractOutside={(e) => e.preventDefault()}
               >
                 {parameters
                   .filter((p) => p.direction === 'WRITE' && p.write_mode === 'PRESET')

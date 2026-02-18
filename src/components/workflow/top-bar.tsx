@@ -1,4 +1,4 @@
-import { Save, Play, AlertTriangle, X } from 'lucide-react'
+import { Save, Play, AlertTriangle, X, LayoutGrid } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/switch'
@@ -13,6 +13,7 @@ interface TopBarProps {
   onSave: () => void
   onTest: () => void
   onCancel?: () => void
+  onAutoArrange?: () => void
 }
 
 export function TopBar({
@@ -24,6 +25,7 @@ export function TopBar({
   onSave,
   onTest,
   onCancel,
+  onAutoArrange,
 }: TopBarProps) {
   return (
     <header className="sticky top-0 z-50 flex h-14 flex-shrink-0 items-center justify-between border-b border-border bg-card px-4">
@@ -67,6 +69,18 @@ export function TopBar({
           <Switch id="workflow-toggle" checked={enabled} onCheckedChange={onEnabledChange} />
         </div>
         <div className="h-6 w-px bg-border" />
+        {onAutoArrange && (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={onAutoArrange}
+            className="gap-1.5 border-border bg-secondary text-foreground hover:bg-muted"
+            title="Auto arrange nodes"
+          >
+            <LayoutGrid className="h-3.5 w-3.5" />
+            Arrange
+          </Button>
+        )}
         {onCancel && (
           <Button variant="outline" size="sm" onClick={onCancel} className="gap-1.5">
             <X className="h-3.5 w-3.5" />

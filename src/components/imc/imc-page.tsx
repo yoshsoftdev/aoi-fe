@@ -123,11 +123,16 @@ export function ImcPage() {
     queryFn: () => parameterService.getAll(),
   });
 
-  // Filter only READ parameters
+  // Filter only READ parameters with clean data (DIRECT, CLEAN, FORMULA)
+  // Exclude RAW, SOURCE, and parameters without valid parameter_mode
   const readParameters = useMemo(() => {
     return parameters.filter((p) => {
       const isRead = p.direction === 'READ' || (p.direction === undefined && !p.read_write);
-      return isRead;
+      if (!isRead) return false;
+      
+      const mode = p.parameter_mode || '';
+      // Only include DIRECT, CLEAN, FORMULA - explicitly exclude RAW, SOURCE, and empty
+      return ['DIRECT', 'CLEAN', 'FORMULA'].includes(mode);
     });
   }, [parameters]);
 

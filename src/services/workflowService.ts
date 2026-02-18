@@ -52,6 +52,7 @@ export interface WorkflowTree {
   name: string
   trigger: TriggerNode
   root: TreeNode
+  node_positions?: Record<string, { x: number; y: number }> // Map of nodeId -> position
 }
 
 export interface TriggerNode {
