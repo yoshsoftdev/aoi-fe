@@ -7,7 +7,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import type { Parameter } from '@/types/parameter'
 import type { SetPoint } from '@/services/setPointService'
-import type { TriggerNodeData, ConditionNodeData, ActionNodeData } from '@/types/workflow-builder'
+import type { TriggerNodeData, ConditionNodeData, ActionNodeData, TimerNodeData } from '@/types/workflow-builder'
 
 const OPERATORS = ['>', '<', '>=', '<=', '==', '!='] as const
 
@@ -606,6 +606,41 @@ export function PropertiesPanel({
                   </div>
                 </>
               )}
+            </>
+          )}
+
+          {nodeType === 'timer' && (
+            <>
+              <div className="space-y-2">
+                <Label htmlFor="timer-duration" className="text-xs text-muted-foreground">
+                  Duration
+                </Label>
+                <Input
+                  id="timer-duration"
+                  type="number"
+                  min="1"
+                  value={(data.duration as number) || 0}
+                  onChange={(e) => handleChange('duration', parseInt(e.target.value) || 0)}
+                  placeholder="Enter duration..."
+                  className="border-border bg-secondary text-foreground"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-xs text-muted-foreground">Unit</Label>
+                <Select
+                  value={(data.unit as string) || 'seconds'}
+                  onValueChange={(val) => handleChange('unit', val)}
+                >
+                  <SelectTrigger className="border-border bg-secondary text-foreground">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="seconds">Seconds</SelectItem>
+                    <SelectItem value="minutes">Minutes</SelectItem>
+                    <SelectItem value="hours">Hours</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </>
           )}
 

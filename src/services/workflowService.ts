@@ -62,13 +62,17 @@ export interface TriggerNode {
 }
 
 export interface TreeNode {
-  type: 'if' | 'action'
+  type: 'if' | 'action' | 'timer'
   id?: string
   condition?: Condition
   then?: TreeNode[]
   else?: TreeNode[]
   action_type?: 'ALARM_NOTIFICATION' | 'WRITE_DYNAMIC' | 'WRITE_PRESET'
   action_data?: Record<string, any>
+  timer_data?: {
+    duration: number
+    unit: 'seconds' | 'minutes' | 'hours'
+  }
 }
 
 export interface Condition {

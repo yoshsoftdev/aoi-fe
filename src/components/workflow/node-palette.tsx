@@ -1,4 +1,4 @@
-import { Activity, Target, GitBranch, Bell, Pencil, Zap } from 'lucide-react'
+import { Activity, Target, GitBranch, Bell, Pencil, Zap, Clock } from 'lucide-react'
 import type { NodePaletteItem } from '@/types/workflow-builder'
 
 const NODE_PALETTE: NodePaletteItem[] = [
@@ -44,6 +44,13 @@ const NODE_PALETTE: NodePaletteItem[] = [
     description: 'Execute a predefined preset action',
     icon: 'zap',
   },
+  {
+    type: 'timer',
+    subType: 'delay',
+    label: 'Timer',
+    description: 'Delay before continuing to next node',
+    icon: 'clock',
+  },
 ]
 
 const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
@@ -53,6 +60,7 @@ const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
   bell: Bell,
   pencil: Pencil,
   zap: Zap,
+  clock: Clock,
 }
 
 const sectionColors: Record<string, { bg: string; border: string; dot: string }> = {
@@ -71,12 +79,18 @@ const sectionColors: Record<string, { bg: string; border: string; dot: string }>
     border: 'border-success/20 hover:border-success/50',
     dot: 'bg-success',
   },
+  timer: {
+    bg: 'bg-warning/10',
+    border: 'border-warning/20 hover:border-warning/50',
+    dot: 'bg-warning',
+  },
 }
 
 const sectionLabels: Record<string, string> = {
   trigger: 'Trigger Nodes',
   condition: 'Condition Nodes',
   action: 'Action Nodes',
+  timer: 'Timer Nodes',
 }
 
 function PaletteCard({ item }: { item: NodePaletteItem }) {
@@ -126,7 +140,7 @@ export function NodePalette() {
       </div>
       <div className="flex-1 overflow-y-auto px-4 py-4">
         <div className="space-y-6">
-          {(['trigger', 'condition', 'action'] as const).map((type) => (
+          {(['trigger', 'condition', 'action', 'timer'] as const).map((type) => (
             <div key={type}>
               <div className="mb-2 flex items-center gap-2">
                 <div className={`h-2 w-2 rounded-full ${sectionColors[type].dot}`} />

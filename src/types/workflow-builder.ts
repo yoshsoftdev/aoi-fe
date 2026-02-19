@@ -53,14 +53,25 @@ export type ActionNodeData = {
   presetId?: number // parameter_id with PRESET mode
 }
 
+export type TimerUnit = 'seconds' | 'minutes' | 'hours'
+
+export type TimerNodeData = {
+  label: string
+  description: string
+  duration: number
+  unit: TimerUnit
+  enabled: boolean
+}
+
 export type TriggerNode = Node<TriggerNodeData, 'trigger'>
 export type ConditionNode = Node<ConditionNodeData, 'condition'>
 export type ActionNode = Node<ActionNodeData, 'action'>
+export type TimerNode = Node<TimerNodeData, 'timer'>
 
-export type WorkflowNode = TriggerNode | ConditionNode | ActionNode
+export type WorkflowNode = TriggerNode | ConditionNode | ActionNode | TimerNode
 
 export type NodePaletteItem = {
-  type: 'trigger' | 'condition' | 'action'
+  type: 'trigger' | 'condition' | 'action' | 'timer'
   subType: string
   label: string
   description: string

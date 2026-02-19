@@ -270,6 +270,15 @@ function WorkflowBuilderInner({ workflow, onCancel, onSuccess }: WorkflowBuilder
             presetName: '',
           }
           break
+        case 'timer':
+          data = {
+            label,
+            description,
+            duration: 5,
+            unit: 'seconds',
+            enabled: true,
+          }
+          break
       }
 
       const newNode: Node = {

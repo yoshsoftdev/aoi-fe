@@ -1,6 +1,6 @@
 import type { Node, Edge } from 'reactflow'
 import type { WorkflowTree, TreeNode, TriggerNode, Condition, ValueSource } from '@/services/workflowService'
-import type { TriggerNodeData, ConditionNodeData, ActionNodeData } from '@/types/workflow-builder'
+import type { TriggerNodeData, ConditionNodeData, ActionNodeData, TimerNodeData } from '@/types/workflow-builder'
 
 /**
  * Validates workflow graph structure
@@ -302,6 +302,38 @@ function buildTreeNode(
     }
   }
 
+  if (node.type === 'timer') {
+    const timerData = node.data as TimerNodeData
+
+    // Check for outgoing edges (timer continues to next node)
+    const outgoingEdges = allEdges.filter((e) => e.source === node.id)
+    const nextNodes: TreeNode[] = []
+
+    for (const edge of outgoingEdges) {
+      const childNode = allNodes.find((n) => n.id === edge.target)
+      if (childNode && !visited.has(childNode.id)) {
+        const childVisited = new Set(visited)
+        try {
+          nextNodes.push(buildTreeNode(childNode, allNodes, allEdges, childVisited, depth + 1))
+        } catch (error) {
+          console.warn(`Skipping node ${childNode.id} due to error:`, error)
+        }
+      }
+    }
+
+    visited.delete(node.id)
+
+    return {
+      type: 'timer',
+      id: node.id,
+      timer_data: {
+        duration: timerData.duration || 0,
+        unit: timerData.unit || 'seconds',
+      },
+      ...(nextNodes.length > 0 ? { then: nextNodes } : {}),
+    }
+  }
+
   visited.delete(node.id)
   throw new Error(`Unknown node type: ${node.type}`)
 }
@@ -584,6 +616,49 @@ function buildNodeFromTree(
           style: { stroke: 'hsl(0 72% 51%)', strokeWidth: 2 },
         })
         elseY += 150
+      }
+    }
+
+    return nodeId
+  }
+
+  if (treeNode.type === 'timer') {
+    const timerData = treeNode.timer_data || { duration: 0, unit: 'seconds' }
+    
+    const timerNode: Node = {
+      id: nodeId,
+      type: 'timer',
+      position: nodePosition,
+      data: {
+        label: 'Timer',
+        description: `Delay ${timerData.duration} ${timerData.unit}`,
+        duration: timerData.duration || 0,
+        unit: timerData.unit || 'seconds',
+        enabled: true,
+      },
+    }
+    nodes.push(timerNode)
+
+    // Only create default edge if not skipped
+    if (!skipDefaultEdge) {
+      edges.push({
+        id: `e-${parentId}-${nodeId}`,
+        source: parentId,
+        target: nodeId,
+      })
+    }
+
+    // Process THEN branch for continuing after delay
+    if (savedPositions) {
+      for (const thenChild of treeNode.then || []) {
+        buildNodeFromTree(thenChild, nodes, edges, nodeId, undefined, getId, savedPositions)
+      }
+    } else {
+      currentY += 150
+      let thenY = currentY
+      for (const thenChild of treeNode.then || []) {
+        buildNodeFromTree(thenChild, nodes, edges, nodeId, thenY, getId, savedPositions)
+        thenY += 150
       }
     }
 

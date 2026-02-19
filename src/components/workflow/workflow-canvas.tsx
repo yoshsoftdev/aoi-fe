@@ -16,6 +16,7 @@ import 'reactflow/dist/style.css'
 import { TriggerNode } from './nodes/trigger-node'
 import { ConditionNode } from './nodes/condition-node'
 import { ActionNode } from './nodes/action-node'
+import { TimerNodeComponent } from './nodes/timer-node'
 import type { Parameter } from '@/types/parameter'
 import type { SetPoint } from '@/services/setPointService'
 
@@ -82,6 +83,7 @@ export function WorkflowCanvas({
     trigger: (props: any) => <TriggerNode {...props} parameters={parameters} setPoints={setPoints} />,
     condition: (props: any) => <ConditionNode {...props} parameters={parameters} setPoints={setPoints} />,
     action: (props: any) => <ActionNode {...props} parameters={parameters} setPoints={setPoints} />,
+    timer: (props: any) => <TimerNodeComponent {...props} />,
   }), [parameters, setPoints])
 
   return (
