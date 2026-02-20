@@ -94,13 +94,25 @@ function WorkflowBuilderInner({ workflow, onCancel, onSuccess }: WorkflowBuilder
 
         const { nodes: treeNodes, edges: treeEdges } = convertTreeToNodes(treeData)
         
+        // Clean up edges: remove edges from condition nodes that don't have sourceHandle
+        // Condition nodes should only have edges with sourceHandle='then' or 'else'
+        const cleanedEdges = treeEdges.filter((edge) => {
+          const sourceNode = treeNodes.find((n) => n.id === edge.source)
+          if (sourceNode?.type === 'condition') {
+            // For condition nodes, only keep edges with sourceHandle='then' or 'else'
+            return edge.sourceHandle === 'then' || edge.sourceHandle === 'else'
+          }
+          // For other node types, keep all edges
+          return true
+        })
+        
         // Clear existing nodes/edges first to prevent duplicates
         setNodes([])
         setEdges([])
         
         // Set new nodes and edges
         setNodes(treeNodes)
-        setEdges(treeEdges)
+        setEdges(cleanedEdges)
         
         // Auto arrange only if no saved positions exist
         if (!treeData.node_positions || Object.keys(treeData.node_positions).length === 0) {
@@ -152,6 +164,15 @@ function WorkflowBuilderInner({ workflow, onCancel, onSuccess }: WorkflowBuilder
   const onConnect = useCallback(
     (params: Connection) => {
       const sourceNode = nodes.find((n) => n.id === params.source)
+      
+      // For condition nodes, only allow connections with sourceHandle='then' or 'else'
+      if (sourceNode?.type === 'condition') {
+        if (params.sourceHandle !== 'then' && params.sourceHandle !== 'else') {
+          // Reject connection if sourceHandle is not 'then' or 'else'
+          return
+        }
+      }
+      
       let edgeStyle = { stroke: 'hsl(220 12% 30%)', strokeWidth: 2 }
       let label = undefined as string | undefined
       let labelStyle = undefined as Record<string, unknown> | undefined
@@ -210,15 +231,38 @@ function WorkflowBuilderInner({ workflow, onCancel, onSuccess }: WorkflowBuilder
       setNodes((nds) =>
         nds.map((node) => {
           if (node.id === id) {
-            return { ...node, data }
+            // Create a new data object to ensure React Flow detects the change
+            return { ...node, data: { ...data } }
           }
           return node
         })
       )
-      setSelectedNode((prev) => (prev && prev.id === id ? { ...prev, data } : prev))
+      // Update selectedNode with the new data
+      setSelectedNode((prev) => {
+        if (prev && prev.id === id) {
+          return { ...prev, data: { ...data } }
+        }
+        return prev
+      })
     },
     [setNodes]
   )
+
+  // Sync selectedNode with nodes when nodes change (only if selectedNode exists)
+  useEffect(() => {
+    if (selectedNode) {
+      const updatedNode = nodes.find((n) => n.id === selectedNode.id)
+      if (updatedNode) {
+        // Compare data objects by stringifying to detect changes
+        const currentDataStr = JSON.stringify(selectedNode.data)
+        const updatedDataStr = JSON.stringify(updatedNode.data)
+        if (currentDataStr !== updatedDataStr) {
+          setSelectedNode(updatedNode)
+        }
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [nodes])
 
   const onDrop = useCallback(
     (
@@ -243,15 +287,30 @@ function WorkflowBuilderInner({ workflow, onCancel, onSuccess }: WorkflowBuilder
           }
           break
         case 'condition':
-          data = {
-            label,
-            description,
-            leftSourceType: 'parameter',
-            leftValue: '',
-            operator: '>',
-            rightValueType: 'static',
-            rightValue: '',
-            enabled: true,
+          if (subType === 'time-window') {
+            data = {
+              label,
+              description,
+              conditionType: 'time_window',
+              timeWindow: {
+                startTime: '08:00',
+                endTime: '17:00',
+                days: [],
+              },
+              enabled: true,
+            }
+          } else {
+            data = {
+              label,
+              description,
+              conditionType: 'comparison',
+              leftSourceType: 'parameter',
+              leftValue: '',
+              operator: '>',
+              rightValueType: 'static',
+              rightValue: '',
+              enabled: true,
+            }
           }
           break
         case 'action':

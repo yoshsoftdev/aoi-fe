@@ -76,9 +76,15 @@ export interface TreeNode {
 }
 
 export interface Condition {
-  left: ValueSource
-  operator: '>' | '<' | '>=' | '<=' | '==' | '!='
-  right: ValueSource
+  type?: 'comparison' | 'time_window' // Default: 'comparison'
+  left?: ValueSource // For comparison condition
+  operator?: '>' | '<' | '>=' | '<=' | '==' | '!=' // For comparison condition
+  right?: ValueSource // For comparison condition
+  time_window?: { // For time window condition
+    start_time: string // Format: "HH:MM"
+    end_time: string   // Format: "HH:MM"
+    days?: string[]   // Optional: ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]
+  }
 }
 
 export interface ValueSource {

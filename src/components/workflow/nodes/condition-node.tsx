@@ -1,13 +1,9 @@
-import { memo, useCallback } from 'react'
-import { Handle, Position, type NodeProps, useReactFlow } from 'reactflow'
-import { GitBranch, AlertTriangle } from 'lucide-react'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Input } from '@/components/ui/input'
-import type { ConditionNodeData, LeftSourceType, RightValueType } from '@/types/workflow-builder'
+import { memo } from 'react'
+import { Handle, Position, type NodeProps } from 'reactflow'
+import { GitBranch, AlertTriangle, Clock } from 'lucide-react'
+import type { ConditionNodeData } from '@/types/workflow-builder'
 import type { Parameter } from '@/types/parameter'
 import type { SetPoint } from '@/services/setPointService'
-
-const OPERATORS = ['>', '<', '>=', '<=', '==', '!='] as const
 
 interface ConditionNodeComponentProps extends NodeProps {
   data: ConditionNodeData
@@ -15,148 +11,26 @@ interface ConditionNodeComponentProps extends NodeProps {
   setPoints?: SetPoint[]
 }
 
-function ConditionNodeComponent({ id, data, selected, parameters = [], setPoints = [] }: ConditionNodeComponentProps) {
-  const { setNodes } = useReactFlow()
-
+function ConditionNodeComponent({ data, selected, parameters = [], setPoints = [] }: ConditionNodeComponentProps) {
+  const conditionType = data.conditionType || 'comparison'
   const leftSourceType = data.leftSourceType || 'parameter'
-  const rightValueType = data.rightValueType || 'static'
 
-  const leftItems = leftSourceType === 'parameter' ? parameters : setPoints
-  const rightItems = setPoints
-
-  const hasWarning = !data.leftValue || !data.rightValue
-
-  const handleChange = useCallback(
-    (key: string, value: unknown) => {
-      setNodes((nds) =>
-        nds.map((node) => {
-          if (node.id === id) {
-            return { ...node, data: { ...node.data, [key]: value } }
-          }
-          return node
-        })
-      )
-    },
-    [id, setNodes]
-  )
-
-  const handleLeftSourceTypeChange = useCallback(
-    (val: string) => {
-      setNodes((nds) =>
-        nds.map((node) => {
-          if (node.id === id) {
-            const sourceId = val === 'parameter'
-              ? parameters.find((p) => String(p.id) === node.data.leftValue)?.id
-              : setPoints.find((sp) => String(sp.id) === node.data.leftValue)?.id
-
-            return {
-              ...node,
-              data: {
-                ...node.data,
-                leftSourceType: val as LeftSourceType,
-                leftValue: '',
-                leftSourceId: sourceId,
-              },
-            }
-          }
-          return node
-        })
-      )
-    },
-    [id, parameters, setPoints, setNodes]
-  )
-
-  const handleLeftValueChange = useCallback(
-    (val: string) => {
-      // Use current data.leftSourceType instead of closure value
-      const currentLeftSourceType = data.leftSourceType || 'parameter'
-      const sourceId = currentLeftSourceType === 'parameter'
-        ? parameters.find((p) => String(p.id) === val)?.id
-        : setPoints.find((sp) => String(sp.id) === val)?.id
-
-      // Update both values in a single state update to avoid race condition
-      setNodes((nds) =>
-        nds.map((node) => {
-          if (node.id === id) {
-            return {
-              ...node,
-              data: {
-                ...node.data,
-                leftValue: val,
-                leftSourceId: sourceId,
-              },
-            }
-          }
-          return node
-        })
-      )
-    },
-    [id, data.leftSourceType, parameters, setPoints, setNodes]
-  )
-
-  const handleRightValueTypeChange = useCallback(
-    (val: string) => {
-      setNodes((nds) =>
-        nds.map((node) => {
-          if (node.id === id) {
-            const sourceId = val === 'setpoint'
-              ? setPoints.find((sp) => String(sp.id) === node.data.rightValue)?.id
-              : undefined
-
-            return {
-              ...node,
-              data: {
-                ...node.data,
-                rightValueType: val as RightValueType,
-                rightValue: '',
-                rightSourceId: sourceId,
-              },
-            }
-          }
-          return node
-        })
-      )
-    },
-    [id, setPoints, setNodes]
-  )
-
-  const handleRightValueChange = useCallback(
-    (val: string) => {
-      // Use current data.rightValueType instead of closure value
-      const currentRightValueType = data.rightValueType || 'static'
-      if (currentRightValueType === 'setpoint') {
-        const sourceId = setPoints.find((sp) => String(sp.id) === val)?.id
-        // Update both values in a single state update
-        setNodes((nds) =>
-          nds.map((node) => {
-            if (node.id === id) {
-              return {
-                ...node,
-                data: {
-                  ...node.data,
-                  rightValue: val,
-                  rightSourceId: sourceId,
-                },
-              }
-            }
-            return node
-          })
-        )
-      } else {
-        handleChange('rightValue', val)
-      }
-    },
-    [id, data.rightValueType, setPoints, setNodes, handleChange]
-  )
+  const hasWarning = conditionType === 'comparison' 
+    ? (!data.leftValue || !data.rightValue)
+    : (!data.timeWindow?.startTime || !data.timeWindow?.endTime)
 
   // Build display string for the IF summary
-  const leftDisplay = data.leftValue
-    ? leftSourceType === 'parameter'
-      ? parameters.find((p) => String(p.id) === data.leftValue)?.nama || data.leftValue
-      : setPoints.find((sp) => String(sp.id) === data.leftValue)?.name || data.leftValue
-    : '?'
-  const opDisplay = data.operator || '?'
-  const rightDisplay = data.rightValue || '?'
+  const leftDisplay = conditionType === 'time_window'
+    ? `${data.timeWindow?.startTime || '?'} - ${data.timeWindow?.endTime || '?'}`
+    : data.leftValue
+      ? leftSourceType === 'parameter'
+        ? parameters.find((p) => String(p.id) === data.leftValue)?.nama || data.leftValue
+        : setPoints.find((sp) => String(sp.id) === data.leftValue)?.name || data.leftValue
+      : '?'
+  const opDisplay = conditionType === 'time_window' ? 'TIME' : (data.operator || '?')
+  const rightDisplay = conditionType === 'time_window' 
+    ? (data.timeWindow?.days && data.timeWindow.days.length > 0 ? data.timeWindow.days.join(', ') : 'Every day')
+    : (data.rightValue || '?')
 
   return (
     <div
@@ -166,14 +40,6 @@ function ConditionNodeComponent({ id, data, selected, parameters = [], setPoints
           : 'border-border hover:border-accent/50'
       }`}
       style={{ background: 'hsl(220 13% 14%)' }}
-      onMouseDown={(e) => {
-        // Don't stop propagation on mousedown, let React Flow handle node selection
-        // Only stop if clicking on interactive elements
-        const target = e.target as HTMLElement
-        if (target.closest('button, [role="combobox"], input, select')) {
-          e.stopPropagation()
-        }
-      }}
     >
       <Handle
         type="target"
@@ -184,10 +50,20 @@ function ConditionNodeComponent({ id, data, selected, parameters = [], setPoints
       {/* Header */}
       <div
         className="flex items-center gap-2 rounded-t-lg px-3 py-2"
-        style={{ background: 'hsl(38 92% 50%)' }}
+        style={{ 
+          background: conditionType === 'time_window' 
+            ? 'hsl(217 91% 60%)' // Blue color for time window
+            : 'hsl(38 92% 50%)'   // Orange/yellow for comparison
+        }}
       >
-        <GitBranch className="h-4 w-4 text-white" />
-        <span className="text-sm font-semibold text-white">IF Condition</span>
+        {conditionType === 'time_window' ? (
+          <Clock className="h-4 w-4 text-white" />
+        ) : (
+          <GitBranch className="h-4 w-4 text-white" />
+        )}
+        <span className="text-sm font-semibold text-white">
+          {conditionType === 'time_window' ? 'Time Window' : 'IF Condition'}
+        </span>
         {!data.enabled && (
           <span className="ml-auto rounded bg-black/20 px-1.5 py-0.5 text-[10px] font-medium text-white/80">
             Disabled
@@ -200,152 +76,135 @@ function ConditionNodeComponent({ id, data, selected, parameters = [], setPoints
 
       {/* Body */}
       <div className="px-3 py-3 space-y-2.5">
-        {/* Left Source */}
-        <div className="space-y-1">
-          <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
-            Left Source
-          </span>
-          <Select value={leftSourceType} onValueChange={handleLeftSourceTypeChange}>
-            <SelectTrigger 
-              className="h-7 border-border bg-secondary text-xs text-foreground"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent 
-              onPointerDownOutside={(e) => e.preventDefault()}
-            >
-              <SelectItem value="parameter">Parameter</SelectItem>
-              <SelectItem value="setpoint">Set-Point</SelectItem>
-            </SelectContent>
-          </Select>
-          <Select value={data.leftValue || ''} onValueChange={handleLeftValueChange}>
-            <SelectTrigger 
-              className="h-7 border-border bg-secondary text-xs text-foreground"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <SelectValue placeholder={`Select ${leftSourceType}...`} />
-            </SelectTrigger>
-            <SelectContent 
-              onPointerDownOutside={(e) => e.preventDefault()}
-            >
-              {leftItems.length === 0 ? (
-                <div className="px-2 py-1.5 text-sm text-muted-foreground">
-                  No {leftSourceType}s available
+        {conditionType === 'time_window' ? (
+          <>
+            {/* Time Window Display */}
+            <div className="space-y-2">
+              <div className="rounded border border-border bg-secondary px-2 py-2">
+                <div className="flex items-center gap-2">
+                  <Clock className="h-3.5 w-3.5" style={{ color: 'hsl(217 91% 60%)' }} />
+                  <div className="flex-1">
+                    <div className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground mb-1">
+                      Time Range
+                    </div>
+                    <div className="font-mono text-sm font-semibold text-foreground">
+                      {data.timeWindow?.startTime || '08:00'} - {data.timeWindow?.endTime || '17:00'}
+                    </div>
+                  </div>
                 </div>
-              ) : (
-                leftItems.map((item) => (
-                  <SelectItem key={item.id} value={String(item.id)}>
-                    {leftSourceType === 'parameter'
-                      ? (item as Parameter).nama
-                      : (item as SetPoint).name}
-                  </SelectItem>
-                ))
+              </div>
+              {data.timeWindow?.days && data.timeWindow.days.length > 0 && (
+                <div className="rounded border border-border bg-secondary px-2 py-2">
+                  <div className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground mb-1">
+                    Days
+                  </div>
+                  <div className="flex flex-wrap gap-1">
+                    {data.timeWindow.days.map((day) => (
+                      <span
+                        key={day}
+                        className="rounded bg-primary/20 px-1.5 py-0.5 text-[10px] font-medium text-primary capitalize"
+                      >
+                        {day}
+                      </span>
+                    ))}
+                  </div>
+                </div>
               )}
-            </SelectContent>
-          </Select>
-        </div>
+            </div>
 
-        {/* Operator */}
-        <div className="space-y-1">
-          <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
-            Operator
-          </span>
-          <Select value={data.operator || '>'} onValueChange={(val) => handleChange('operator', val)}>
-            <SelectTrigger 
-              className="h-7 border-border bg-secondary text-xs text-foreground"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent 
-              onPointerDownOutside={(e) => e.preventDefault()}
-            >
-              {OPERATORS.map((op) => (
-                <SelectItem key={op} value={op}>
-                  {op}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-
-        {/* Right Value */}
-        <div className="space-y-1">
-          <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
-            Right Value
-          </span>
-          <Select value={rightValueType} onValueChange={handleRightValueTypeChange}>
-            <SelectTrigger 
-              className="h-7 border-border bg-secondary text-xs text-foreground"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent 
-              onPointerDownOutside={(e) => e.preventDefault()}
-            >
-              <SelectItem value="static">Static Value</SelectItem>
-              <SelectItem value="setpoint">Set-Point</SelectItem>
-            </SelectContent>
-          </Select>
-          {rightValueType === 'static' ? (
-            <Input
-              type="number"
-              value={data.rightValue || ''}
-              onChange={(e) => handleRightValueChange(e.target.value)}
-              placeholder="Enter value..."
-              className="h-7 border-border bg-secondary text-xs text-foreground"
-            />
-          ) : (
-            <Select value={data.rightValue || ''} onValueChange={handleRightValueChange}>
-              <SelectTrigger 
-                className="h-7 border-border bg-secondary text-xs text-foreground"
-                onClick={(e) => e.stopPropagation()}
-              >
-                <SelectValue placeholder="Select set-point..." />
-              </SelectTrigger>
-              <SelectContent 
-                onPointerDownOutside={(e) => e.preventDefault()}
-              >
-                {rightItems.length === 0 ? (
-                  <div className="px-2 py-1.5 text-sm text-muted-foreground">No set-points available</div>
-                ) : (
-                  rightItems.map((item) => (
-                    <SelectItem key={item.id} value={String(item.id)}>
-                      {(item as SetPoint).name}
-                    </SelectItem>
-                  ))
+            {/* Time Window Summary */}
+            <div className="rounded border border-border bg-secondary px-2 py-1.5">
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <span className="text-[10px] font-semibold uppercase" style={{ color: 'hsl(217 91% 60%)' }}>
+                  IF TIME
+                </span>
+                <span className="font-mono text-xs text-primary">{leftDisplay}</span>
+                {data.timeWindow?.days && data.timeWindow.days.length > 0 && (
+                  <>
+                    <span className="text-xs text-muted-foreground">on</span>
+                    <span className="font-mono text-xs text-primary">{rightDisplay}</span>
+                  </>
                 )}
-              </SelectContent>
-            </Select>
-          )}
-        </div>
+              </div>
+            </div>
 
-        {/* IF Summary display */}
-        <div className="rounded border border-border bg-secondary px-2 py-1.5">
-          <div className="flex items-center gap-1.5 flex-wrap">
-            <span className="text-[10px] font-semibold uppercase text-accent">IF</span>
-            <span className="font-mono text-xs text-primary">{leftDisplay}</span>
-            <span className="rounded bg-accent/20 px-1.5 py-0.5 font-mono text-xs font-bold text-accent">
-              {opDisplay}
-            </span>
-            <span className="font-mono text-xs text-primary">{rightDisplay}</span>
-          </div>
-        </div>
+            {/* Validation warning */}
+            {hasWarning && (
+              <div className="flex items-start gap-1.5 rounded border border-accent/30 bg-accent/10 px-2 py-1.5">
+                <AlertTriangle className="mt-0.5 h-3 w-3 flex-shrink-0 text-accent" />
+                <span className="text-[10px] leading-tight text-accent">
+                  Start time and end time are required
+                </span>
+              </div>
+            )}
+          </>
+        ) : (
+          <>
+            {/* Comparison Condition Display */}
+            <div className="space-y-2">
+              {/* Left Source Display */}
+              <div className="rounded border border-border bg-secondary px-2 py-2">
+                <div className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground mb-1">
+                  Left Source ({leftSourceType})
+                </div>
+                <div className="text-sm font-semibold text-foreground">
+                  {data.leftValue
+                    ? leftSourceType === 'parameter'
+                      ? parameters.find((p) => String(p.id) === data.leftValue)?.nama || data.leftValue
+                      : setPoints.find((sp) => String(sp.id) === data.leftValue)?.name || data.leftValue
+                    : 'Not set'}
+                </div>
+              </div>
 
-        {/* Validation warning */}
-        {hasWarning && (
-          <div className="flex items-start gap-1.5 rounded border border-accent/30 bg-accent/10 px-2 py-1.5">
-            <AlertTriangle className="mt-0.5 h-3 w-3 flex-shrink-0 text-accent" />
-            <span className="text-[10px] leading-tight text-accent">
-              {!data.leftValue && !data.rightValue
-                ? 'Left and right values required'
-                : !data.leftValue
-                  ? 'Left value required'
-                  : 'Right value required'}
-            </span>
-          </div>
+              {/* Operator Display */}
+              <div className="rounded border border-border bg-secondary px-2 py-2">
+                <div className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground mb-1">
+                  Operator
+                </div>
+                <div className="text-sm font-semibold text-foreground">
+                  {data.operator || '?'}
+                </div>
+              </div>
+
+              {/* Right Value Display */}
+              <div className="rounded border border-border bg-secondary px-2 py-2">
+                <div className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground mb-1">
+                  Right Value ({data.rightValueType || 'static'})
+                </div>
+                <div className="text-sm font-semibold text-foreground">
+                  {data.rightValueType === 'setpoint' && data.rightValue
+                    ? setPoints.find((sp) => String(sp.id) === data.rightValue)?.name || data.rightValue
+                    : data.rightValue || 'Not set'}
+                </div>
+              </div>
+            </div>
+
+            {/* IF Summary display */}
+            <div className="rounded border border-border bg-secondary px-2 py-1.5">
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <span className="text-[10px] font-semibold uppercase text-accent">IF</span>
+                <span className="font-mono text-xs text-primary">{leftDisplay}</span>
+                <span className="rounded bg-accent/20 px-1.5 py-0.5 font-mono text-xs font-bold text-accent">
+                  {opDisplay}
+                </span>
+                <span className="font-mono text-xs text-primary">{rightDisplay}</span>
+              </div>
+            </div>
+
+            {/* Validation warning */}
+            {hasWarning && (
+              <div className="flex items-start gap-1.5 rounded border border-accent/30 bg-accent/10 px-2 py-1.5">
+                <AlertTriangle className="mt-0.5 h-3 w-3 flex-shrink-0 text-accent" />
+                <span className="text-[10px] leading-tight text-accent">
+                  {!data.leftValue && !data.rightValue
+                    ? 'Left and right values required'
+                    : !data.leftValue
+                      ? 'Left value required'
+                      : 'Right value required'}
+                </span>
+              </div>
+            )}
+          </>
         )}
 
         {/* THEN / ELSE indicators */}
@@ -370,17 +229,45 @@ function ConditionNodeComponent({ id, data, selected, parameters = [], setPoints
         position={Position.Bottom}
         id="then"
         className="!h-3 !w-3 !rounded-full !border-2 !bg-background"
-        style={{ left: '30%', borderColor: 'hsl(142 71% 45%)' }}
+        style={{ 
+          left: '30%', 
+          borderColor: conditionType === 'time_window' 
+            ? 'hsl(142 71% 45%)' 
+            : 'hsl(142 71% 45%)' 
+        }}
       />
       <Handle
         type="source"
         position={Position.Bottom}
         id="else"
         className="!h-3 !w-3 !rounded-full !border-2 !bg-background"
-        style={{ left: '70%', borderColor: 'hsl(0 72% 51%)' }}
+        style={{ 
+          left: '70%', 
+          borderColor: conditionType === 'time_window' 
+            ? 'hsl(0 72% 51%)' 
+            : 'hsl(0 72% 51%)' 
+        }}
       />
     </div>
   )
 }
 
-export const ConditionNode = memo(ConditionNodeComponent)
+export const ConditionNode = memo(ConditionNodeComponent, (prevProps, nextProps) => {
+  // Custom comparison: re-render if data changed (return false means props are different, need re-render)
+  const prevData = prevProps.data
+  const nextData = nextProps.data
+  if (
+    prevData.conditionType !== nextData.conditionType ||
+    prevData.leftSourceType !== nextData.leftSourceType ||
+    prevData.leftValue !== nextData.leftValue ||
+    prevData.operator !== nextData.operator ||
+    prevData.rightValueType !== nextData.rightValueType ||
+    prevData.rightValue !== nextData.rightValue ||
+    JSON.stringify(prevData.timeWindow) !== JSON.stringify(nextData.timeWindow) ||
+    prevData.enabled !== nextData.enabled ||
+    prevProps.selected !== nextProps.selected
+  ) {
+    return false // Props are different, need re-render
+  }
+  return true // Props are same, skip re-render
+})

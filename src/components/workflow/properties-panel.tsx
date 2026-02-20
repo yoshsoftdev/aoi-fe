@@ -261,8 +261,12 @@ export function PropertiesPanel({
                       ? cleanParameters.find((p) => String(p.id) === val)?.id
                       : setPoints.find((sp) => String(sp.id) === val)?.id
 
-                    handleChange(isParameterTrigger ? 'parameter' : 'setpoint', val)
-                    handleChange('source_id', sourceId)
+                    // Update both fields in a single call
+                    onNodeChange(selectedNode.id, {
+                      ...data,
+                      [isParameterTrigger ? 'parameter' : 'setpoint']: val,
+                      source_id: sourceId,
+                    })
                   }}
                 >
                   <SelectTrigger className="border-border bg-secondary text-foreground">
@@ -288,19 +292,123 @@ export function PropertiesPanel({
           {/* ============ CONDITION (IF) FIELDS ============ */}
           {nodeType === 'condition' && (
             <>
-              {/* Left Source Type */}
+              {/* Condition Type */}
               <div className="space-y-2">
-                <Label className="text-xs text-muted-foreground">Left Source Type</Label>
-                <Select value={leftSourceType} onValueChange={handleLeftSourceTypeChange}>
+                <Label className="text-xs text-muted-foreground">Condition Type</Label>
+                <Select
+                  value={(data.conditionType as string) || 'comparison'}
+                  onValueChange={(val) => {
+                    if (val === 'time_window') {
+                      handleChange('conditionType', 'time_window')
+                      handleChange('timeWindow', {
+                        startTime: '08:00',
+                        endTime: '17:00',
+                        days: [],
+                      })
+                    } else {
+                      handleChange('conditionType', 'comparison')
+                      handleChange('leftSourceType', 'parameter')
+                      handleChange('leftValue', '')
+                      handleChange('operator', '>')
+                      handleChange('rightValueType', 'static')
+                      handleChange('rightValue', '')
+                    }
+                  }}
+                >
                   <SelectTrigger className="border-border bg-secondary text-foreground">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="parameter">Parameter</SelectItem>
-                    <SelectItem value="setpoint">Set-Point</SelectItem>
+                    <SelectItem value="comparison">Parameter Comparison</SelectItem>
+                    <SelectItem value="time_window">Time Window</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
+
+              {(data.conditionType as string) === 'time_window' ? (
+                <>
+                  {/* Time Window Configuration */}
+                  <div className="space-y-2">
+                    <Label htmlFor="start-time" className="text-xs text-muted-foreground">
+                      Start Time (HH:MM)
+                    </Label>
+                    <Input
+                      id="start-time"
+                      type="time"
+                      value={(data.timeWindow as any)?.startTime || '08:00'}
+                      onChange={(e) =>
+                        handleChange('timeWindow', {
+                          ...(data.timeWindow as any),
+                          startTime: e.target.value,
+                        })
+                      }
+                      className="border-border bg-secondary text-foreground"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="end-time" className="text-xs text-muted-foreground">
+                      End Time (HH:MM)
+                    </Label>
+                    <Input
+                      id="end-time"
+                      type="time"
+                      value={(data.timeWindow as any)?.endTime || '17:00'}
+                      onChange={(e) =>
+                        handleChange('timeWindow', {
+                          ...(data.timeWindow as any),
+                          endTime: e.target.value,
+                        })
+                      }
+                      className="border-border bg-secondary text-foreground"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-xs text-muted-foreground">Days (Optional)</Label>
+                    <div className="space-y-2">
+                      {['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'].map((day) => (
+                        <div key={day} className="flex items-center space-x-2">
+                          <input
+                            type="checkbox"
+                            id={`day-${day}`}
+                            checked={(data.timeWindow as any)?.days?.includes(day) || false}
+                            onChange={(e) => {
+                              const currentDays = (data.timeWindow as any)?.days || []
+                              const newDays = e.target.checked
+                                ? [...currentDays, day]
+                                : currentDays.filter((d: string) => d !== day)
+                              handleChange('timeWindow', {
+                                ...(data.timeWindow as any),
+                                days: newDays,
+                              })
+                            }}
+                            className="h-4 w-4 rounded border-border"
+                          />
+                          <Label htmlFor={`day-${day}`} className="text-xs text-foreground capitalize">
+                            {day}
+                          </Label>
+                        </div>
+                      ))}
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Leave empty to allow all days
+                    </p>
+                  </div>
+                </>
+              ) : (
+                <>
+                  {/* Left Source Type */}
+                  <div className="space-y-2">
+                    <Label className="text-xs text-muted-foreground">Left Source Type</Label>
+                    <Select value={leftSourceType} onValueChange={handleLeftSourceTypeChange}>
+                      <SelectTrigger className="border-border bg-secondary text-foreground">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="parameter">Parameter</SelectItem>
+                        <SelectItem value="setpoint">Set-Point</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
 
               {/* Left Value dropdown */}
               <div className="space-y-2">
@@ -315,8 +423,12 @@ export function PropertiesPanel({
                         ? cleanParameters.find((p) => String(p.id) === val)?.id
                         : setPoints.find((sp) => String(sp.id) === val)?.id
 
-                    handleChange('leftValue', val)
-                    handleChange('leftSourceId', sourceId)
+                    // Update both fields in a single call
+                    onNodeChange(selectedNode.id, {
+                      ...data,
+                      leftValue: val,
+                      leftSourceId: sourceId,
+                    })
                   }}
                 >
                   <SelectTrigger className="border-border bg-secondary text-foreground">
@@ -392,8 +504,12 @@ export function PropertiesPanel({
                     value={String((data.rightValue as string) || '')}
                     onValueChange={(val) => {
                       const sourceId = setPoints.find((sp) => String(sp.id) === val)?.id
-                      handleChange('rightValue', val)
-                      handleChange('rightSourceId', sourceId)
+                      // Update both fields in a single call
+                      onNodeChange(selectedNode.id, {
+                        ...data,
+                        rightValue: val,
+                        rightSourceId: sourceId,
+                      })
                     }}
                   >
                     <SelectTrigger className="border-border bg-secondary text-foreground">
@@ -413,6 +529,8 @@ export function PropertiesPanel({
                   </Select>
                 )}
               </div>
+                </>
+              )}
             </>
           )}
 
@@ -494,8 +612,12 @@ export function PropertiesPanel({
                       value={String((data.targetParameter as string) || '')}
                       onValueChange={(val) => {
                         const targetId = writeParameters.find((p) => String(p.id) === val)?.id
-                        handleChange('targetParameter', val)
-                        handleChange('targetId', targetId)
+                        // Update both fields in a single call
+                        onNodeChange(selectedNode.id, {
+                          ...data,
+                          targetParameter: val,
+                          targetId: targetId,
+                        })
                       }}
                     >
                       <SelectTrigger className="border-border bg-secondary text-foreground">
@@ -551,8 +673,12 @@ export function PropertiesPanel({
                         value={String((data.sourceSetpoint as string) || '')}
                         onValueChange={(val) => {
                           const sourceId = setPoints.find((sp) => String(sp.id) === val)?.id
-                          handleChange('sourceSetpoint', val)
-                          handleChange('sourceSetpointId', sourceId)
+                          // Update both fields in a single call
+                          onNodeChange(selectedNode.id, {
+                            ...data,
+                            sourceSetpoint: val,
+                            sourceSetpointId: sourceId,
+                          })
                         }}
                       >
                         <SelectTrigger className="border-border bg-secondary text-foreground">
@@ -584,8 +710,12 @@ export function PropertiesPanel({
                       value={String((data.presetName as string) || '')}
                       onValueChange={(val) => {
                         const presetId = presetParameters.find((p) => String(p.id) === val)?.id
-                        handleChange('presetName', val)
-                        handleChange('presetId', presetId)
+                        // Update both fields in a single call
+                        onNodeChange(selectedNode.id, {
+                          ...data,
+                          presetName: val,
+                          presetId: presetId,
+                        })
                       }}
                     >
                       <SelectTrigger className="border-border bg-secondary text-foreground">

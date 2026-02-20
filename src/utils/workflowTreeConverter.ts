@@ -232,33 +232,50 @@ function buildTreeNode(
   if (node.type === 'condition') {
     const conditionData = node.data as ConditionNodeData
 
-    // Build condition
-    const left: ValueSource = {
-      type: conditionData.leftSourceType,
-      source_id: conditionData.leftSourceId,
-    }
+    // Check condition type
+    const conditionType = conditionData.conditionType || 'comparison'
+    
+    let condition: Condition
+    if (conditionType === 'time_window') {
+      // Build time window condition
+      condition = {
+        type: 'time_window',
+        time_window: {
+          start_time: conditionData.timeWindow?.startTime || '08:00',
+          end_time: conditionData.timeWindow?.endTime || '17:00',
+          days: conditionData.timeWindow?.days || [],
+        },
+      }
+    } else {
+      // Build comparison condition
+      const left: ValueSource = {
+        type: conditionData.leftSourceType || 'parameter',
+        source_id: conditionData.leftSourceId,
+      }
 
-    const right: ValueSource =
-      conditionData.rightValueType === 'static'
-        ? {
-            type: 'static',
-            value: parseFloat(conditionData.rightValue || '0'),
-          }
-        : {
-            type: 'setpoint',
-            source_id: conditionData.rightSourceId,
-          }
+      const right: ValueSource =
+        conditionData.rightValueType === 'static'
+          ? {
+              type: 'static',
+              value: parseFloat(conditionData.rightValue || '0'),
+            }
+          : {
+              type: 'setpoint',
+              source_id: conditionData.rightSourceId,
+            }
 
-    const condition: Condition = {
-      left,
-      operator: conditionData.operator,
-      right,
+      condition = {
+        type: 'comparison',
+        left,
+        operator: conditionData.operator || '>',
+        right,
+      }
     }
 
     // Build THEN branch
-    // Get edges with sourceHandle='then' OR edges without sourceHandle (default to then)
+    // Only get edges with sourceHandle='then' (ignore edges without sourceHandle for IF nodes)
     const thenEdges = allEdges.filter(
-      (e) => e.source === node.id && (e.sourceHandle === 'then' || !e.sourceHandle)
+      (e) => e.source === node.id && e.sourceHandle === 'then'
     )
     const then: TreeNode[] = []
     for (const edge of thenEdges) {
@@ -523,25 +540,47 @@ function buildNodeFromTree(
   }
 
   if (treeNode.type === 'if') {
+    const conditionType = treeNode.condition?.type || 'comparison'
+    
+    let nodeData: any
+    if (conditionType === 'time_window') {
+      // Build time window condition node
+      nodeData = {
+        label: 'Time Window',
+        description: `${treeNode.condition?.time_window?.start_time || '08:00'} - ${treeNode.condition?.time_window?.end_time || '17:00'}`,
+        conditionType: 'time_window',
+        timeWindow: {
+          startTime: treeNode.condition?.time_window?.start_time || '08:00',
+          endTime: treeNode.condition?.time_window?.end_time || '17:00',
+          days: treeNode.condition?.time_window?.days || [],
+        },
+        enabled: true,
+      }
+    } else {
+      // Build comparison condition node
+      nodeData = {
+        label: 'IF Condition',
+        description: '',
+        conditionType: 'comparison',
+        leftSourceType: treeNode.condition?.left?.type || 'parameter',
+        leftValue: String(treeNode.condition?.left?.source_id || ''),
+        leftSourceId: treeNode.condition?.left?.source_id,
+        operator: treeNode.condition?.operator || '>',
+        rightValueType: treeNode.condition?.right?.type === 'static' ? 'static' : 'setpoint',
+        rightValue:
+          treeNode.condition?.right?.type === 'static'
+            ? String(treeNode.condition?.right?.value || '0')
+            : String(treeNode.condition?.right?.source_id || ''),
+        rightSourceId: treeNode.condition?.right?.type === 'setpoint' ? treeNode.condition?.right?.source_id : undefined,
+        enabled: true,
+      }
+    }
+    
     const conditionNode: Node = {
       id: nodeId,
       type: 'condition',
       position: nodePosition,
-      data: {
-        label: 'IF Condition',
-        description: '',
-        leftSourceType: treeNode.condition?.left.type || 'parameter',
-        leftValue: String(treeNode.condition?.left.source_id || ''),
-        leftSourceId: treeNode.condition?.left.source_id,
-        operator: treeNode.condition?.operator || '>',
-        rightValueType: treeNode.condition?.right.type === 'static' ? 'static' : 'setpoint',
-        rightValue:
-          treeNode.condition?.right.type === 'static'
-            ? String(treeNode.condition?.right.value || '0')
-            : String(treeNode.condition?.right.source_id || ''),
-        rightSourceId: treeNode.condition?.right.type === 'setpoint' ? treeNode.condition?.right.source_id : undefined,
-        enabled: true,
-      },
+      data: nodeData,
     }
     nodes.push(conditionNode)
     edges.push({

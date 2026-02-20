@@ -1,8 +1,6 @@
-import { memo, useCallback } from 'react'
-import { Handle, Position, type NodeProps, useReactFlow } from 'reactflow'
+import { memo } from 'react'
+import { Handle, Position, type NodeProps } from 'reactflow'
 import { Bell, Pencil, Zap, AlertTriangle } from 'lucide-react'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Input } from '@/components/ui/input'
 import type { ActionNodeData, ActionType } from '@/types/workflow-builder'
 import type { Parameter } from '@/types/parameter'
 import type { SetPoint } from '@/services/setPointService'
@@ -58,119 +56,11 @@ interface ActionNodeComponentProps extends NodeProps {
   setPoints?: SetPoint[]
 }
 
-function ActionNodeComponent({ id, data, selected, parameters = [], setPoints = [] }: ActionNodeComponentProps) {
-  const { setNodes } = useReactFlow()
+function ActionNodeComponent({ data, selected, parameters = [], setPoints = [] }: ActionNodeComponentProps) {
   const config = ACTION_CONFIG[data.actionType] || ACTION_CONFIG['alarm-notification']
   const Icon = config.icon
   const warnings = getValidationWarnings(data)
   const hasWarnings = warnings.length > 0
-
-  const handleTypeChange = useCallback(
-    (val: string) => {
-      setNodes((nds) =>
-        nds.map((node) => {
-          if (node.id === id) {
-            return {
-              ...node,
-              data: {
-                ...node.data,
-                actionType: val as ActionType,
-                label:
-                  val === 'alarm-notification'
-                    ? 'Alarm Notification'
-                    : val === 'write-dynamic'
-                      ? 'Write Dynamic Value'
-                      : 'Trigger Preset',
-                alarmTitle: '',
-                alarmSeverity: undefined,
-                alarmMessage: '',
-                targetParameter: '',
-                targetId: undefined,
-                valueSource: undefined,
-                staticValue: '',
-                sourceSetpoint: '',
-                sourceSetpointId: undefined,
-                presetName: '',
-                presetId: undefined,
-              },
-            }
-          }
-          return node
-        })
-      )
-    },
-    [id, setNodes]
-  )
-
-  const handleChange = useCallback(
-    (key: string, value: unknown) => {
-      setNodes((nds) =>
-        nds.map((node) => {
-          if (node.id === id) {
-            return { ...node, data: { ...node.data, [key]: value } }
-          }
-          return node
-        })
-      )
-    },
-    [id, setNodes]
-  )
-
-  const handleTargetChange = useCallback(
-    (val: string) => {
-      const targetId = parameters.find((p) => String(p.id) === val)?.id
-      // Update both values in a single state update to avoid race condition
-      setNodes((nds) =>
-        nds.map((node) => {
-          if (node.id === id) {
-            return {
-              ...node,
-              data: {
-                ...node.data,
-                targetParameter: val,
-                targetId: targetId,
-              },
-            }
-          }
-          return node
-        })
-      )
-    },
-    [id, parameters, setNodes]
-  )
-
-  const handleValueSourceChange = useCallback(
-    (val: string) => {
-      handleChange('valueSource', val)
-      handleChange('staticValue', '')
-      handleChange('sourceSetpoint', '')
-      handleChange('sourceSetpointId', undefined)
-    },
-    [handleChange]
-  )
-
-  const handleSetpointChange = useCallback(
-    (val: string) => {
-      const sourceId = setPoints.find((sp) => String(sp.id) === val)?.id
-      // Update both values in a single state update to avoid race condition
-      setNodes((nds) =>
-        nds.map((node) => {
-          if (node.id === id) {
-            return {
-              ...node,
-              data: {
-                ...node.data,
-                sourceSetpoint: val,
-                sourceSetpointId: sourceId,
-              },
-            }
-          }
-          return node
-        })
-      )
-    },
-    [id, setPoints, setNodes]
-  )
 
   return (
     <div
@@ -181,14 +71,6 @@ function ActionNodeComponent({ id, data, selected, parameters = [], setPoints = 
         background: 'hsl(220 13% 14%)',
         borderColor: selected ? config.borderColor : 'hsl(220 12% 22%)',
         ...(selected ? { boxShadow: `0 0 20px ${config.borderColor}33` } : {}),
-      }}
-      onMouseDown={(e) => {
-        // Don't stop propagation on mousedown, let React Flow handle node selection
-        // Only stop if clicking on interactive elements
-        const target = e.target as HTMLElement
-        if (target.closest('button, [role="combobox"], input, select')) {
-          e.stopPropagation()
-        }
       }}
     >
       <Handle
@@ -217,161 +99,98 @@ function ActionNodeComponent({ id, data, selected, parameters = [], setPoints = 
 
       {/* Body */}
       <div className="px-3 py-3 space-y-2.5">
-        {/* Action type selector */}
-        <Select value={data.actionType} onValueChange={handleTypeChange}>
-          <SelectTrigger 
-            className="h-8 border-border bg-secondary text-xs text-foreground"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent 
-            onPointerDownOutside={(e) => e.preventDefault()}
-          >
-            <SelectItem value="alarm-notification">
-              <span className="flex items-center gap-2">
-                <Bell className="h-3 w-3" />
-                Alarm Notification
-              </span>
-            </SelectItem>
-            <SelectItem value="write-dynamic">
-              <span className="flex items-center gap-2">
-                <Pencil className="h-3 w-3" />
-                Write Dynamic Value
-              </span>
-            </SelectItem>
-            <SelectItem value="trigger-preset">
-              <span className="flex items-center gap-2">
-                <Zap className="h-3 w-3" />
-                Trigger Preset
-              </span>
-            </SelectItem>
-          </SelectContent>
-        </Select>
+        {/* Action Type Display */}
+        <div className="rounded border border-border bg-secondary px-2 py-2">
+          <div className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground mb-1">
+            Action Type
+          </div>
+          <div className="flex items-center gap-2">
+            <Icon className="h-3.5 w-3.5" style={{ color: config.color }} />
+            <div className="text-sm font-semibold text-foreground">{config.label}</div>
+          </div>
+        </div>
 
-        {/* Description */}
-        <p className="text-xs text-muted-foreground">{data.description}</p>
-
-        {/* Alarm Notification fields */}
+        {/* Alarm Notification Display */}
         {data.actionType === 'alarm-notification' && (
           <div className="space-y-2">
-            <Input
-              value={data.alarmTitle || ''}
-              onChange={(e) => handleChange('alarmTitle', e.target.value)}
-              placeholder="Alarm title..."
-              className="h-7 border-border bg-secondary text-xs text-foreground"
-            />
-            <Select
-              value={data.alarmSeverity || ''}
-              onValueChange={(val) => handleChange('alarmSeverity', val)}
-            >
-              <SelectTrigger className="h-7 border-border bg-secondary text-xs text-foreground">
-                <SelectValue placeholder="Select severity..." />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="info">Info</SelectItem>
-                <SelectItem value="warning">Warning</SelectItem>
-                <SelectItem value="critical">Critical</SelectItem>
-              </SelectContent>
-            </Select>
-            <Input
-              value={data.alarmMessage || ''}
-              onChange={(e) => handleChange('alarmMessage', e.target.value)}
-              placeholder="Alarm message..."
-              className="h-7 border-border bg-secondary text-xs text-foreground"
-            />
+            {data.alarmTitle && (
+              <div className="rounded border border-border bg-secondary px-2 py-2">
+                <div className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground mb-1">
+                  Title
+                </div>
+                <div className="text-sm font-semibold text-foreground">{data.alarmTitle}</div>
+              </div>
+            )}
+            {data.alarmSeverity && (
+              <div className="rounded border border-border bg-secondary px-2 py-2">
+                <div className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground mb-1">
+                  Severity
+                </div>
+                <div className="text-sm font-semibold text-foreground capitalize">{data.alarmSeverity}</div>
+              </div>
+            )}
+            {data.alarmMessage && (
+              <div className="rounded border border-border bg-secondary px-2 py-2">
+                <div className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground mb-1">
+                  Message
+                </div>
+                <div className="text-sm font-semibold text-foreground">{data.alarmMessage}</div>
+              </div>
+            )}
           </div>
         )}
 
-        {/* Write Dynamic Value fields */}
+        {/* Write Dynamic Value Display */}
         {data.actionType === 'write-dynamic' && (
           <div className="space-y-2">
-            <Select value={data.targetParameter || ''} onValueChange={handleTargetChange}>
-              <SelectTrigger 
-                className="h-7 border-border bg-secondary text-xs text-foreground"
-                onClick={(e) => e.stopPropagation()}
-              >
-                <SelectValue placeholder="Select target..." />
-              </SelectTrigger>
-              <SelectContent 
-                onPointerDownOutside={(e) => e.preventDefault()}
-              >
-                {parameters
-                  .filter((p) => p.direction === 'WRITE' || p.read_write === 1 || p.read_write === 2)
-                  .map((p) => (
-                    <SelectItem key={p.id} value={String(p.id)}>
-                      {p.nama} {p.unit && `(${p.unit})`}
-                    </SelectItem>
-                  ))}
-              </SelectContent>
-            </Select>
-            <Select value={data.valueSource || ''} onValueChange={handleValueSourceChange}>
-              <SelectTrigger 
-                className="h-7 border-border bg-secondary text-xs text-foreground"
-                onClick={(e) => e.stopPropagation()}
-              >
-                <SelectValue placeholder="Select source..." />
-              </SelectTrigger>
-              <SelectContent 
-                onPointerDownOutside={(e) => e.preventDefault()}
-              >
-                <SelectItem value="static">Static Value</SelectItem>
-                <SelectItem value="setpoint">Set-Point</SelectItem>
-              </SelectContent>
-            </Select>
-            {data.valueSource === 'static' && (
-              <Input
-                type="number"
-                value={data.staticValue || ''}
-                onChange={(e) => handleChange('staticValue', e.target.value)}
-                placeholder="Enter value..."
-                className="h-7 border-border bg-secondary text-xs text-foreground"
-              />
+            {data.targetParameter && (
+              <div className="rounded border border-border bg-secondary px-2 py-2">
+                <div className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground mb-1">
+                  Target Parameter
+                </div>
+                <div className="text-sm font-semibold text-foreground">
+                  {parameters.find((p) => String(p.id) === data.targetParameter)?.nama || data.targetParameter}
+                </div>
+              </div>
             )}
-            {data.valueSource === 'setpoint' && (
-              <Select value={data.sourceSetpoint || ''} onValueChange={handleSetpointChange}>
-                <SelectTrigger 
-                  className="h-7 border-border bg-secondary text-xs text-foreground"
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  <SelectValue placeholder="Select set-point..." />
-                </SelectTrigger>
-                <SelectContent 
-                  onPointerDownOutside={(e) => e.preventDefault()}
-                >
-                  {setPoints.map((sp) => (
-                    <SelectItem key={sp.id} value={String(sp.id)}>
-                      {sp.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+            {data.valueSource && (
+              <div className="rounded border border-border bg-secondary px-2 py-2">
+                <div className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground mb-1">
+                  Value Source
+                </div>
+                <div className="text-sm font-semibold text-foreground capitalize">{data.valueSource}</div>
+              </div>
+            )}
+            {data.valueSource === 'static' && data.staticValue && (
+              <div className="rounded border border-border bg-secondary px-2 py-2">
+                <div className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground mb-1">
+                  Static Value
+                </div>
+                <div className="text-sm font-semibold text-foreground">{data.staticValue}</div>
+              </div>
+            )}
+            {data.valueSource === 'setpoint' && data.sourceSetpoint && (
+              <div className="rounded border border-border bg-secondary px-2 py-2">
+                <div className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground mb-1">
+                  Set-Point
+                </div>
+                <div className="text-sm font-semibold text-foreground">
+                  {setPoints.find((sp) => String(sp.id) === data.sourceSetpoint)?.name || data.sourceSetpoint}
+                </div>
+              </div>
             )}
           </div>
         )}
 
-        {/* Trigger Preset fields */}
-        {data.actionType === 'trigger-preset' && (
-          <div className="space-y-2">
-            <Select value={data.presetName || ''} onValueChange={(val) => handleChange('presetName', val)}>
-              <SelectTrigger 
-                className="h-7 border-border bg-secondary text-xs text-foreground"
-                onClick={(e) => e.stopPropagation()}
-              >
-                <SelectValue placeholder="Select preset..." />
-              </SelectTrigger>
-              <SelectContent 
-                onPointerDownOutside={(e) => e.preventDefault()}
-              >
-                {parameters
-                  .filter((p) => p.direction === 'WRITE' && p.write_mode === 'PRESET')
-                  .map((p) => (
-                    <SelectItem key={p.id} value={String(p.id)}>
-                      {p.nama} {p.unit && `(${p.unit})`}
-                    </SelectItem>
-                  ))}
-              </SelectContent>
-            </Select>
+        {/* Trigger Preset Display */}
+        {data.actionType === 'trigger-preset' && data.presetName && (
+          <div className="rounded border border-border bg-secondary px-2 py-2">
+            <div className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground mb-1">
+              Preset Parameter
+            </div>
+            <div className="text-sm font-semibold text-foreground">
+              {parameters.find((p) => String(p.id) === data.presetName)?.nama || data.presetName}
+            </div>
           </div>
         )}
 
@@ -394,4 +213,24 @@ function ActionNodeComponent({ id, data, selected, parameters = [], setPoints = 
   )
 }
 
-export const ActionNode = memo(ActionNodeComponent)
+export const ActionNode = memo(ActionNodeComponent, (prevProps, nextProps) => {
+  // Custom comparison: re-render if data changed (return false means props are different, need re-render)
+  const prevData = prevProps.data
+  const nextData = nextProps.data
+  if (
+    prevData.actionType !== nextData.actionType ||
+    prevData.alarmTitle !== nextData.alarmTitle ||
+    prevData.alarmSeverity !== nextData.alarmSeverity ||
+    prevData.alarmMessage !== nextData.alarmMessage ||
+    prevData.targetParameter !== nextData.targetParameter ||
+    prevData.valueSource !== nextData.valueSource ||
+    prevData.staticValue !== nextData.staticValue ||
+    prevData.sourceSetpoint !== nextData.sourceSetpoint ||
+    prevData.presetName !== nextData.presetName ||
+    prevData.enabled !== nextData.enabled ||
+    prevProps.selected !== nextProps.selected
+  ) {
+    return false // Props are different, need re-render
+  }
+  return true // Props are same, skip re-render
+})

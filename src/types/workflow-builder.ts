@@ -20,13 +20,21 @@ export type RightValueType = 'static' | 'setpoint'
 export type ConditionNodeData = {
   label: string
   description: string
-  leftSourceType: LeftSourceType
-  leftValue: string
+  conditionType?: 'comparison' | 'time_window' // Default: 'comparison'
+  // For comparison condition
+  leftSourceType?: LeftSourceType
+  leftValue?: string
   leftSourceId?: number // parameter_id or setpoint_id
-  operator: '>' | '<' | '>=' | '<=' | '==' | '!='
-  rightValueType: RightValueType
-  rightValue: string
+  operator?: '>' | '<' | '>=' | '<=' | '==' | '!='
+  rightValueType?: RightValueType
+  rightValue?: string
   rightSourceId?: number // setpoint_id (if rightValueType is setpoint)
+  // For time window condition
+  timeWindow?: {
+    startTime: string // Format: "HH:MM" (e.g., "08:00")
+    endTime: string   // Format: "HH:MM" (e.g., "17:00")
+    days?: string[]   // Optional: ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]
+  }
   enabled: boolean
 }
 

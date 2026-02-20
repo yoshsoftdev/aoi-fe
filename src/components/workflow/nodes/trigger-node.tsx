@@ -1,8 +1,7 @@
-import { memo, useCallback } from 'react'
-import { Handle, Position, type NodeProps, useReactFlow } from 'reactflow'
+import { memo } from 'react'
+import { Handle, Position, type NodeProps } from 'reactflow'
 import { Activity, Target, AlertTriangle } from 'lucide-react'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import type { TriggerNodeData, TriggerType } from '@/types/workflow-builder'
+import type { TriggerNodeData } from '@/types/workflow-builder'
 import type { Parameter } from '@/types/parameter'
 import type { SetPoint } from '@/services/setPointService'
 
@@ -12,68 +11,12 @@ interface TriggerNodeComponentProps extends NodeProps {
   setPoints?: SetPoint[]
 }
 
-function TriggerNodeComponent({ id, data, selected, parameters = [], setPoints = [] }: TriggerNodeComponentProps) {
-  const { setNodes } = useReactFlow()
+function TriggerNodeComponent({ data, selected, parameters = [], setPoints = [] }: TriggerNodeComponentProps) {
   const Icon = data.triggerType === 'parameter-changed' ? Activity : Target
 
   const isParameterTrigger = data.triggerType === 'parameter-changed'
   const selectedSource = isParameterTrigger ? data.parameter : data.setpoint
   const hasWarning = !selectedSource
-
-  const handleTriggerTypeChange = useCallback(
-    (val: string) => {
-      setNodes((nds) =>
-        nds.map((node) => {
-          if (node.id === id) {
-            return {
-              ...node,
-              data: {
-                ...node.data,
-                triggerType: val as TriggerType,
-                label: val === 'parameter-changed' ? 'Parameter Changed' : 'Set-Point Changed',
-                description:
-                  val === 'parameter-changed'
-                    ? 'Fires when a parameter value changes'
-                    : 'Fires when a set-point is modified',
-                parameter: '',
-                setpoint: '',
-                source_id: undefined,
-              },
-            }
-          }
-          return node
-        })
-      )
-    },
-    [id, setNodes]
-  )
-
-  const handleSourceChange = useCallback(
-    (val: string) => {
-      setNodes((nds) =>
-        nds.map((node) => {
-          if (node.id === id) {
-            const sourceId = isParameterTrigger
-              ? parameters.find((p) => String(p.id) === val)?.id
-              : setPoints.find((sp) => String(sp.id) === val)?.id
-
-            return {
-              ...node,
-              data: {
-                ...node.data,
-                ...(isParameterTrigger ? { parameter: val } : { setpoint: val }),
-                source_id: sourceId,
-              },
-            }
-          }
-          return node
-        })
-      )
-    },
-    [id, isParameterTrigger, parameters, setPoints, setNodes]
-  )
-
-  const sourceOptions = isParameterTrigger ? parameters : setPoints
 
   return (
     <div
@@ -83,14 +26,6 @@ function TriggerNodeComponent({ id, data, selected, parameters = [], setPoints =
           : 'border-border hover:border-primary/50'
       }`}
       style={{ background: 'hsl(220 13% 14%)' }}
-      onMouseDown={(e) => {
-        // Don't stop propagation on mousedown, let React Flow handle node selection
-        // Only stop if clicking on interactive elements
-        const target = e.target as HTMLElement
-        if (target.closest('button, [role="combobox"], input, select')) {
-          e.stopPropagation()
-        }
-      }}
     >
       {/* Header */}
       <div
@@ -111,66 +46,31 @@ function TriggerNodeComponent({ id, data, selected, parameters = [], setPoints =
 
       {/* Body */}
       <div className="px-3 py-3 space-y-2.5">
-        {/* Trigger type selector */}
-        <div className="space-y-1">
-          <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+        {/* Trigger Type Display */}
+        <div className="rounded border border-border bg-secondary px-2 py-2">
+          <div className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground mb-1">
             Trigger Type
-          </span>
-          <Select value={data.triggerType} onValueChange={handleTriggerTypeChange}>
-            <SelectTrigger 
-              className="h-8 border-border bg-secondary text-xs text-foreground"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent 
-              onPointerDownOutside={(e) => e.preventDefault()}
-            >
-              <SelectItem value="parameter-changed">
-                <span className="flex items-center gap-2">
-                  <Activity className="h-3 w-3" />
-                  Parameter Changed
-                </span>
-              </SelectItem>
-              <SelectItem value="setpoint-changed">
-                <span className="flex items-center gap-2">
-                  <Target className="h-3 w-3" />
-                  Set-Point Changed
-                </span>
-              </SelectItem>
-            </SelectContent>
-          </Select>
+          </div>
+          <div className="flex items-center gap-2">
+            <Icon className="h-3.5 w-3.5" style={{ color: 'hsl(207 90% 54%)' }} />
+            <div className="text-sm font-semibold text-foreground">
+              {data.triggerType === 'parameter-changed' ? 'Parameter Changed' : 'Set-Point Changed'}
+            </div>
+          </div>
         </div>
 
-        {/* Contextual source selector */}
-        <div className="space-y-1">
-          <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+        {/* Source Display */}
+        <div className="rounded border border-border bg-secondary px-2 py-2">
+          <div className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground mb-1">
             {isParameterTrigger ? 'Parameter' : 'Set-Point'}
-          </span>
-          <Select value={selectedSource || ''} onValueChange={handleSourceChange}>
-            <SelectTrigger 
-              className="h-8 border-border bg-secondary text-xs text-foreground"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <SelectValue placeholder={`Select ${isParameterTrigger ? 'parameter' : 'set-point'}...`} />
-            </SelectTrigger>
-            <SelectContent 
-              onPointerDownOutside={(e) => e.preventDefault()}
-            >
-              {sourceOptions.length === 0 ? (
-                <div className="px-2 py-1.5 text-sm text-muted-foreground">
-                  No {isParameterTrigger ? 'parameters' : 'set-points'} available
-                </div>
-              ) : (
-                sourceOptions.map((item) => (
-                  <SelectItem key={item.id} value={String(item.id)}>
-                    {isParameterTrigger ? (item as Parameter).nama : (item as SetPoint).name}
-                    {isParameterTrigger && (item as Parameter).unit && ` (${(item as Parameter).unit})`}
-                  </SelectItem>
-                ))
-              )}
-            </SelectContent>
-          </Select>
+          </div>
+          <div className="text-sm font-semibold text-foreground">
+            {selectedSource
+              ? isParameterTrigger
+                ? parameters.find((p) => String(p.id) === selectedSource)?.nama || selectedSource
+                : setPoints.find((sp) => String(sp.id) === selectedSource)?.name || selectedSource
+              : 'Not set'}
+          </div>
         </div>
 
         {/* Preview */}
@@ -208,4 +108,18 @@ function TriggerNodeComponent({ id, data, selected, parameters = [], setPoints =
   )
 }
 
-export const TriggerNode = memo(TriggerNodeComponent)
+export const TriggerNode = memo(TriggerNodeComponent, (prevProps, nextProps) => {
+  // Custom comparison: re-render if data changed (return false means props are different, need re-render)
+  const prevData = prevProps.data
+  const nextData = nextProps.data
+  if (
+    prevData.triggerType !== nextData.triggerType ||
+    prevData.parameter !== nextData.parameter ||
+    prevData.setpoint !== nextData.setpoint ||
+    prevData.enabled !== nextData.enabled ||
+    prevProps.selected !== nextProps.selected
+  ) {
+    return false // Props are different, need re-render
+  }
+  return true // Props are same, skip re-render
+})

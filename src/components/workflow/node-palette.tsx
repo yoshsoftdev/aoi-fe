@@ -24,6 +24,13 @@ const NODE_PALETTE: NodePaletteItem[] = [
     icon: 'git-branch',
   },
   {
+    type: 'condition',
+    subType: 'time-window',
+    label: 'Time Window Condition',
+    description: 'Check if current time is within a time range',
+    icon: 'clock',
+  },
+  {
     type: 'action',
     subType: 'alarm-notification',
     label: 'Alarm Notification',
