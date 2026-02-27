@@ -105,7 +105,9 @@ function ActionNodeComponent({ data, selected, parameters = [], setPoints = [] }
             Action Type
           </div>
           <div className="flex items-center gap-2">
-            <Icon className="h-3.5 w-3.5" style={{ color: config.color }} />
+            <span style={{ color: config.color }}>
+              <Icon className="h-3.5 w-3.5" />
+            </span>
             <div className="text-sm font-semibold text-foreground">{config.label}</div>
           </div>
         </div>

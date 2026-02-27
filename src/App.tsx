@@ -17,6 +17,7 @@ import { SetPointView } from "@/components/set-point/set-point-view";
 import { BypassView } from "@/components/bypass/bypass-view";
 import ReadWriteParameterForm from "@/pages/Parameters/ReadWriteParameterForm";
 import { ImcPage } from "./components/imc/imc-page";
+import { HTTPParameterRead } from "@/pages/HTTP/HTTPParameterRead";
 import {
   LayoutDashboard,
   TestTube2,
@@ -29,6 +30,7 @@ import {
   LogOut,
   FileText,
   ArrowLeftRight,
+  Globe,
 } from "lucide-react";
 import logoctg1 from "../logoctg1.png";
 import type {
@@ -61,6 +63,7 @@ function AppContent() {
     | "bypass"
     | "write-log"
     | "read-write"
+    | "http-parameter-read"
   >("dashboard");
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [loginDialogOpen, setLoginDialogOpen] = useState(false);
@@ -82,7 +85,8 @@ function AppContent() {
         cleaned === "/set-point" ||
         cleaned === "/bypass" ||
         cleaned === "/write-log" ||
-        cleaned === "/read-write"
+        cleaned === "/read-write" ||
+        cleaned === "/http-parameter-read"
       ) {
         return cleaned.slice(1);
       }
@@ -155,11 +159,14 @@ function AppContent() {
   // Live data from backend via WebSocket
   const { data: wsData } = useWebSocket();
 
+  // Convert Map to Array for dependency tracking (ensures re-render when Map contents change)
+  const wsDataArray = useMemo(() => Array.from(wsData.values()), [wsData]);
+
   const liveDashboardData: SavedDashboardData[] = useMemo(() => {
     // Group WebSocket data by device_nama (or "All Devices" if empty)
     const groupedByDevice = new Map<string, DashboardData[]>();
 
-    wsData.forEach((d) => {
+    wsDataArray.forEach((d) => {
       const deviceName = d.device_nama || "All Devices";
       if (!groupedByDevice.has(deviceName)) {
         groupedByDevice.set(deviceName, []);
@@ -212,7 +219,7 @@ function AppContent() {
     items.sort((a, b) => a.connectionName.localeCompare(b.connectionName));
 
     return items;
-  }, [wsData]);
+  }, [wsDataArray]);
 
   const addLog = (
     message: string,
@@ -276,7 +283,8 @@ function AppContent() {
       | "set-point"
       | "bypass"
       | "write-log"
-      | "read-write",
+      | "read-write"
+      | "http-parameter-read",
   ) => {
     // Only allow tester/write/workflow/write-log views if admin
     if (
@@ -428,6 +436,15 @@ function AppContent() {
                     Read/Write Parameter
                   </Button>
 
+                  <Button
+                    variant={currentView === "http-parameter-read" ? "default" : "ghost"}
+                    className="w-full justify-start"
+                    onClick={() => handleViewChange("http-parameter-read")}
+                  >
+                    <Globe className="h-4 w-4 mr-2" />
+                    HTTP Parameter Read
+                  </Button>
+
                   <Separator className="my-2" />
 
                   <Button
@@ -503,7 +520,9 @@ function AppContent() {
                                 ? "Bypass"
                                 : currentView === "read-write"
                                   ? "Read/Write Parameter"
-                                  : "Write Log"}
+                                  : currentView === "http-parameter-read"
+                                    ? "HTTP Parameter Read"
+                                    : "Write Log"}
                   </h1>
                   <p className="text-xs text-muted-foreground">
                     {currentView === "dashboard"
@@ -520,7 +539,9 @@ function AppContent() {
                                 ? "Bypass: IF (kondisi) THEN WRITE (aksi) dieksekusi oleh engine"
                                 : currentView === "read-write"
                                   ? "Buat parameter yang bisa membaca dan menulis"
-                                  : "Riwayat semua write action ke parameter"}
+                                  : currentView === "http-parameter-read"
+                                    ? "Buat parameter read dari HTTP GET endpoint"
+                                    : "Riwayat semua write action ke parameter"}
                   </p>
                 </div>
                 <div className="flex items-center gap-2">
@@ -653,6 +674,10 @@ function AppContent() {
                   }}
                 />
               </main>
+            ) : currentView === "http-parameter-read" && isAdmin ? (
+              <main className="flex-1 overflow-y-auto">
+                <HTTPParameterRead />
+              </main>
             ) : !isAdmin &&
               (currentView === "tester" ||
                 currentView === "write" ||
@@ -660,7 +685,8 @@ function AppContent() {
                 currentView === "set-point" ||
                 currentView === "bypass" ||
                 currentView === "write-log" ||
-                currentView === "read-write") ? (
+                currentView === "read-write" ||
+                currentView === "http-parameter-read") ? (
               <main className="flex-1 overflow-y-auto">
                 <div className="p-6">
                   <div className="flex flex-col items-center justify-center h-full text-center">
