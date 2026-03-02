@@ -16,25 +16,31 @@ export function TimerNodeComponent({ data, selected }: TimerNodeComponentProps) 
 
   const hasWarning = !data.duration || data.duration <= 0
 
+  const timerColor = 'hsl(270 80% 60%)'
+  const timerBorderColor = 'hsl(270 80% 60%)'
+
   return (
     <div
       className={`min-w-[200px] max-w-[240px] rounded-lg border shadow-lg transition-all duration-200 ${
-        selected
-          ? 'border-warning ring-2 ring-warning/30 shadow-warning/20'
-          : 'border-border hover:border-warning/50'
+        selected ? 'ring-2 ring-offset-1 ring-offset-background' : 'hover:shadow-xl'
       }`}
-      style={{ background: 'hsl(220 13% 14%)' }}
+      style={{
+        background: 'hsl(220 13% 14%)',
+        borderColor: selected ? timerBorderColor : 'hsl(220 12% 22%)',
+        ...(selected ? { boxShadow: `0 0 20px ${timerBorderColor}33` } : {}),
+      }}
     >
       <Handle
         type="target"
         position={Position.Top}
-        className="!h-3 !w-3 !rounded-full !border-2 !border-warning !bg-background"
+        className="!h-3 !w-3 !rounded-full !border-2 !bg-background"
+        style={{ borderColor: timerBorderColor }}
       />
 
       {/* Header */}
       <div
         className="flex items-center gap-2 rounded-t-lg px-3 py-2"
-        style={{ background: 'hsl(38 92% 50%)' }}
+        style={{ background: timerColor }}
       >
         <Clock className="h-4 w-4 text-white" />
         <span className="text-sm font-semibold text-white">Timer</span>
@@ -80,7 +86,8 @@ export function TimerNodeComponent({ data, selected }: TimerNodeComponentProps) 
       <Handle
         type="source"
         position={Position.Bottom}
-        className="!h-3 !w-3 !rounded-full !border-2 !border-warning !bg-background"
+        className="!h-3 !w-3 !rounded-full !border-2 !bg-background"
+        style={{ borderColor: timerBorderColor }}
       />
     </div>
   )

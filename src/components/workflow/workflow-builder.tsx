@@ -21,7 +21,7 @@ import { WorkflowCanvas } from './workflow-canvas'
 import { NodePalette } from './node-palette'
 import { PropertiesPanel } from './properties-panel'
 import { TopBar } from './top-bar'
-import { validateWorkflowGraph, convertNodesToTree, convertTreeToNodes } from '@/utils/workflowTreeConverter'
+import { validateWorkflowGraph, validateNodeData, convertNodesToTree, convertTreeToNodes } from '@/utils/workflowTreeConverter'
 import { autoArrangeNodes } from '@/utils/workflowAutoArrange'
 import type { WorkflowTree } from '@/services/workflowService'
 
@@ -39,9 +39,40 @@ function WorkflowBuilderInner({ workflow, onCancel, onSuccess }: WorkflowBuilder
     return id
   }, [])
 
-  const [nodes, setNodes, onNodesChange] = useNodesState([])
+  const [nodes, setNodes, onNodesChangeBase] = useNodesState([])
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge[]>([])
   const [selectedNode, setSelectedNode] = useState<Node | null>(null)
+
+  // Custom onNodesChange that also removes edges when nodes are deleted
+  const onNodesChange = useCallback(
+    (changes: any[]) => {
+      // Process node changes first
+      onNodesChangeBase(changes)
+
+      // Find deleted node IDs
+      const deletedNodeIds = changes
+        .filter((change) => change.type === 'remove')
+        .map((change) => change.id)
+
+      // Remove edges connected to deleted nodes
+      if (deletedNodeIds.length > 0) {
+        setEdges((eds) =>
+          eds.filter(
+            (edge) => !deletedNodeIds.includes(edge.source) && !deletedNodeIds.includes(edge.target)
+          )
+        )
+
+        // Clear selected node if it was deleted
+        setSelectedNode((prev) => {
+          if (prev && deletedNodeIds.includes(prev.id)) {
+            return null
+          }
+          return prev
+        })
+      }
+    },
+    [onNodesChangeBase, setEdges]
+  )
   const [workflowName, setWorkflowName] = useState(workflow?.nama || 'New Workflow')
   const [workflowDescription, setWorkflowDescription] = useState(workflow?.description || '')
   const [workflowEnabled, setWorkflowEnabled] = useState(workflow?.enabled ?? true)
@@ -81,7 +112,9 @@ function WorkflowBuilderInner({ workflow, onCancel, onSuccess }: WorkflowBuilder
 
   // Validation errors
   const validationErrors = useMemo(() => {
-    return validateWorkflowGraph(nodes, edges)
+    const graphErrors = validateWorkflowGraph(nodes, edges)
+    const nodeDataErrors = validateNodeData(nodes, edges)
+    return [...graphErrors, ...nodeDataErrors]
   }, [nodes, edges])
 
   // Load workflow data if editing
@@ -173,27 +206,39 @@ function WorkflowBuilderInner({ workflow, onCancel, onSuccess }: WorkflowBuilder
         }
       }
       
-      let edgeStyle = { stroke: 'hsl(220 12% 30%)', strokeWidth: 2 }
-      let label = undefined as string | undefined
-      let labelStyle = undefined as Record<string, unknown> | undefined
-      let labelBgStyle = undefined as Record<string, unknown> | undefined
-
-      if (sourceNode?.type === 'condition') {
-        if (params.sourceHandle === 'then') {
-          edgeStyle = { stroke: 'hsl(142 71% 45%)', strokeWidth: 2 }
-          label = 'THEN'
-          labelStyle = { fill: 'hsl(142 71% 45%)', fontWeight: 600, fontSize: 10 }
-          labelBgStyle = { fill: 'hsl(220 14% 10%)', fillOpacity: 0.8 }
-        } else if (params.sourceHandle === 'else') {
-          edgeStyle = { stroke: 'hsl(0 72% 51%)', strokeWidth: 2 }
-          label = 'ELSE'
-          labelStyle = { fill: 'hsl(0 72% 51%)', fontWeight: 600, fontSize: 10 }
-          labelBgStyle = { fill: 'hsl(220 14% 10%)', fillOpacity: 0.8 }
+      // Check if edge already exists to prevent duplicates
+      setEdges((eds) => {
+        const edgeExists = eds.some(
+          (edge) =>
+            edge.source === params.source &&
+            edge.target === params.target &&
+            edge.sourceHandle === params.sourceHandle &&
+            edge.targetHandle === params.targetHandle
+        )
+        if (edgeExists) {
+          return eds // Return existing edges if duplicate found
         }
-      }
 
-      setEdges((eds) =>
-        addEdge(
+        let edgeStyle = { stroke: 'hsl(220 12% 30%)', strokeWidth: 2 }
+        let label = undefined as string | undefined
+        let labelStyle = undefined as Record<string, unknown> | undefined
+        let labelBgStyle = undefined as Record<string, unknown> | undefined
+
+        if (sourceNode?.type === 'condition') {
+          if (params.sourceHandle === 'then') {
+            edgeStyle = { stroke: 'hsl(142 71% 45%)', strokeWidth: 2 }
+            label = 'THEN'
+            labelStyle = { fill: 'hsl(142 71% 45%)', fontWeight: 600, fontSize: 10 }
+            labelBgStyle = { fill: 'hsl(220 14% 10%)', fillOpacity: 0.8 }
+          } else if (params.sourceHandle === 'else') {
+            edgeStyle = { stroke: 'hsl(0 72% 51%)', strokeWidth: 2 }
+            label = 'ELSE'
+            labelStyle = { fill: 'hsl(0 72% 51%)', fontWeight: 600, fontSize: 10 }
+            labelBgStyle = { fill: 'hsl(220 14% 10%)', fillOpacity: 0.8 }
+          }
+        }
+
+        return addEdge(
           {
             ...params,
             type: 'smoothstep',
@@ -204,7 +249,7 @@ function WorkflowBuilderInner({ workflow, onCancel, onSuccess }: WorkflowBuilder
           },
           eds
         )
-      )
+      })
     },
     [nodes, setEdges]
   )
@@ -354,7 +399,10 @@ function WorkflowBuilderInner({ workflow, onCancel, onSuccess }: WorkflowBuilder
 
   const handleSave = useCallback(async () => {
     if (validationErrors.length > 0) {
-      alert(`Validation errors:\n${validationErrors.join('\n')}`)
+      const errorMessage = validationErrors.length === 1 
+        ? validationErrors[0]
+        : `Terdapat ${validationErrors.length} masalah:\n\n${validationErrors.map((e, i) => `${i + 1}. ${e}`).join('\n')}`
+      alert(`Gagal menyimpan workflow:\n\n${errorMessage}`)
       return
     }
 
@@ -362,7 +410,7 @@ function WorkflowBuilderInner({ workflow, onCancel, onSuccess }: WorkflowBuilder
       // Convert nodes/edges to tree JSON
       const tree = convertNodesToTree(nodes, edges, workflowName)
       if (!tree) {
-        alert('Failed to convert workflow to tree structure')
+        alert('Gagal membuat workflow, ada node yang belum diisi atau line yang belum terhubung')
         return
       }
 
@@ -381,9 +429,49 @@ function WorkflowBuilderInner({ workflow, onCancel, onSuccess }: WorkflowBuilder
       }
 
       onSuccess()
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to save workflow:', error)
-      alert('Failed to save workflow. Please check the console for details.')
+      
+      // Extract error message from axios error response
+      let errorMessage = 'Gagal menyimpan workflow'
+      
+      if (error?.response?.data?.error) {
+        // Backend returned an error message
+        const backendError = error.response.data.error
+        
+        // Parse backend error to make it more user-friendly
+        if (backendError.includes('Tree validation failed')) {
+          // Extract the specific field that failed
+          const match = backendError.match(/condition (left|right): (.+)/)
+          if (match) {
+            const side = match[1] === 'left' ? 'kiri' : 'kanan'
+            const fieldError = match[2]
+            if (fieldError.includes('source_id')) {
+              errorMessage = `Validasi gagal: Node Condition - Parameter ${side} belum dipilih atau belum lengkap`
+            } else {
+              errorMessage = `Validasi gagal: Node Condition - ${fieldError}`
+            }
+          } else {
+            // Try to extract node path
+            const pathMatch = backendError.match(/then\[(\d+)\]/g)
+            if (pathMatch) {
+              errorMessage = `Validasi gagal: Ada node di dalam workflow yang belum lengkap datanya`
+            } else {
+              errorMessage = `Validasi gagal: ${backendError.replace('Tree validation failed: ', '')}`
+            }
+          }
+        } else {
+          errorMessage = backendError
+        }
+      } else if (error?.response?.data?.message) {
+        // Alternative error message field
+        errorMessage = error.response.data.message
+      } else if (error?.message) {
+        // Axios or other error message
+        errorMessage = error.message
+      }
+      
+      alert(`Gagal menyimpan workflow:\n\n${errorMessage}\n\nSilakan periksa semua node dan pastikan semua field sudah diisi dengan benar.`)
     }
   }, [nodes, edges, workflowName, workflowDescription, workflowEnabled, validationErrors, workflow, onSuccess])
 

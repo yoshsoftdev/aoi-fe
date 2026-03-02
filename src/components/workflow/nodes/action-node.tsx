@@ -23,9 +23,9 @@ const ACTION_CONFIG: Record<
   },
   'trigger-preset': {
     icon: Zap,
-    color: 'hsl(207 90% 54%)',
+    color: 'hsl(142 71% 50%)',
     label: 'Trigger Preset',
-    borderColor: 'hsl(207 90% 54%)',
+    borderColor: 'hsl(142 71% 50%)',
   },
 }
 

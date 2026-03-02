@@ -32,28 +32,34 @@ function ConditionNodeComponent({ data, selected, parameters = [], setPoints = [
     ? (data.timeWindow?.days && data.timeWindow.days.length > 0 ? data.timeWindow.days.join(', ') : 'Every day')
     : (data.rightValue || '?')
 
+  // Use the same color for both Time Window and IF Condition for visual consistency
+  const conditionColor = 'hsl(38 92% 50%)'
+  const borderColor = conditionColor
+
   return (
     <div
       className={`min-w-[260px] max-w-[300px] rounded-lg border shadow-lg transition-all duration-200 ${
-        selected
-          ? 'border-accent ring-2 ring-accent/30 shadow-accent/20'
-          : 'border-border hover:border-accent/50'
+        selected ? 'ring-2 ring-offset-1 ring-offset-background' : 'hover:shadow-xl'
       }`}
-      style={{ background: 'hsl(220 13% 14%)' }}
+      style={{
+        background: 'hsl(220 13% 14%)',
+        borderColor: selected ? borderColor : 'hsl(220 12% 22%)',
+        ...(selected ? { boxShadow: `0 0 20px ${borderColor}33` } : {}),
+      }}
     >
       <Handle
         type="target"
         position={Position.Top}
-        className="!h-3 !w-3 !rounded-full !border-2 !border-accent !bg-background"
+        className="!h-3 !w-3 !rounded-full !border-2 !bg-background"
+        style={{ borderColor }}
       />
 
       {/* Header */}
       <div
         className="flex items-center gap-2 rounded-t-lg px-3 py-2"
-        style={{ 
-          background: conditionType === 'time_window' 
-            ? 'hsl(217 91% 60%)' // Blue color for time window
-            : 'hsl(38 92% 50%)'   // Orange/yellow for comparison
+        style={{
+          // Same header color for both Time Window and IF Condition
+          background: conditionColor,
         }}
       >
         {conditionType === 'time_window' ? (

@@ -1,5 +1,5 @@
 import type { Node } from 'reactflow'
-import { Activity, Target, GitBranch, Bell, Pencil, Zap, X } from 'lucide-react'
+import { Activity, Target, GitBranch, Bell, Pencil, Zap, Clock, X } from 'lucide-react'
 import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
@@ -139,7 +139,8 @@ export function PropertiesPanel({
   const actionColors: Record<string, string> = {
     'alarm-notification': 'hsl(0 72% 51%)',
     'write-dynamic': 'hsl(142 71% 45%)',
-    'trigger-preset': 'hsl(207 90% 54%)',
+    // Match Trigger Preset action node color
+    'trigger-preset': 'hsl(142 71% 50%)',
   }
 
   const headerConfig: Record<string, { color: string; icon: React.ReactNode; label: string }> = {
@@ -157,6 +158,12 @@ export function PropertiesPanel({
       color: 'hsl(38 92% 50%)',
       icon: <GitBranch className="h-4 w-4" />,
       label: 'IF Condition',
+    },
+    // Match Timer node color
+    timer: {
+      color: 'hsl(270 80% 60%)',
+      icon: <Clock className="h-4 w-4" />,
+      label: 'Timer Node',
     },
     action: {
       color: actionColors[(data.actionType as string) || 'alarm-notification'],

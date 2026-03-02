@@ -3,6 +3,108 @@ import type { WorkflowTree, TreeNode, TriggerNode, Condition, ValueSource } from
 import type { TriggerNodeData, ConditionNodeData, ActionNodeData, TimerNodeData } from '@/types/workflow-builder'
 
 /**
+ * Validates node data completeness
+ * Returns array of validation errors (empty if valid)
+ */
+export function validateNodeData(nodes: Node[], edges: Edge[]): string[] {
+  const errors: string[] = []
+
+  for (const node of nodes) {
+    const nodeLabel = (node.data as any)?.label || node.id
+
+    if (node.type === 'trigger') {
+      const triggerData = node.data as TriggerNodeData
+      if (!triggerData.source_id && !triggerData.parameter && !triggerData.setpoint) {
+        errors.push(`Node "${nodeLabel}" (Trigger): Parameter atau Set-point belum dipilih`)
+      }
+    } else if (node.type === 'condition') {
+      const conditionData = node.data as ConditionNodeData
+      if (conditionData.conditionType === 'comparison') {
+        // Check left source
+        if (conditionData.leftSourceType === 'parameter' && !conditionData.leftSourceId && !conditionData.leftValue) {
+          errors.push(`Node "${nodeLabel}" (Condition): Parameter kiri belum dipilih`)
+        } else if (conditionData.leftSourceType === 'setpoint' && !conditionData.leftSourceId) {
+          errors.push(`Node "${nodeLabel}" (Condition): Set-point kiri belum dipilih`)
+        }
+        // Check right value
+        if (conditionData.rightValueType === 'static' && !conditionData.rightValue) {
+          errors.push(`Node "${nodeLabel}" (Condition): Nilai kanan belum diisi`)
+        } else if (conditionData.rightValueType === 'setpoint' && !conditionData.rightSourceId) {
+          errors.push(`Node "${nodeLabel}" (Condition): Set-point kanan belum dipilih`)
+        }
+      } else if (conditionData.conditionType === 'time_window') {
+        if (!conditionData.timeWindow?.startTime || !conditionData.timeWindow?.endTime) {
+          errors.push(`Node "${nodeLabel}" (Condition): Waktu mulai atau waktu akhir belum diisi`)
+        }
+      }
+    } else if (node.type === 'action') {
+      const actionData = node.data as ActionNodeData
+      if (actionData.actionType === 'alarm-notification') {
+        if (!actionData.alarmTitle) {
+          errors.push(`Node "${nodeLabel}" (Action): Judul alarm belum diisi`)
+        }
+        if (!actionData.alarmMessage) {
+          errors.push(`Node "${nodeLabel}" (Action): Pesan alarm belum diisi`)
+        }
+        if (!actionData.alarmSeverity) {
+          errors.push(`Node "${nodeLabel}" (Action): Tingkat keparahan alarm belum dipilih`)
+        }
+      } else if (actionData.actionType === 'write-dynamic') {
+        if (!actionData.targetId && !actionData.targetParameter) {
+          errors.push(`Node "${nodeLabel}" (Action): Target parameter belum dipilih`)
+        }
+        if (!actionData.valueSource) {
+          errors.push(`Node "${nodeLabel}" (Action): Sumber nilai belum dipilih`)
+        } else if (actionData.valueSource === 'static' && !actionData.staticValue) {
+          errors.push(`Node "${nodeLabel}" (Action): Nilai statis belum diisi`)
+        } else if (actionData.valueSource === 'setpoint' && !actionData.sourceSetpointId && !actionData.sourceSetpoint) {
+          errors.push(`Node "${nodeLabel}" (Action): Set-point sumber belum dipilih`)
+        }
+      } else if (actionData.actionType === 'trigger-preset') {
+        if (!actionData.presetId && !actionData.presetName) {
+          errors.push(`Node "${nodeLabel}" (Action): Preset parameter belum dipilih`)
+        }
+      }
+    } else if (node.type === 'timer') {
+      const timerData = node.data as TimerNodeData
+      if (!timerData.duration || timerData.duration <= 0) {
+        errors.push(`Node "${nodeLabel}" (Timer): Durasi belum diisi atau tidak valid`)
+      }
+    }
+  }
+
+  // Check for disconnected nodes (nodes without incoming edges except trigger)
+  const triggerNode = nodes.find((n) => n.type === 'trigger')
+  if (triggerNode) {
+    const connectedNodeIds = new Set<string>()
+    connectedNodeIds.add(triggerNode.id)
+    
+    // BFS to find all connected nodes
+    const queue = [triggerNode.id]
+    while (queue.length > 0) {
+      const currentNodeId = queue.shift()!
+      const outgoingEdges = edges.filter((e) => e.source === currentNodeId)
+      for (const edge of outgoingEdges) {
+        if (!connectedNodeIds.has(edge.target)) {
+          connectedNodeIds.add(edge.target)
+          queue.push(edge.target)
+        }
+      }
+    }
+
+    // Check for disconnected nodes
+    for (const node of nodes) {
+      if (node.type !== 'trigger' && !connectedNodeIds.has(node.id)) {
+        const nodeLabel = (node.data as any)?.label || node.id
+        errors.push(`Node "${nodeLabel}" tidak terhubung ke workflow (line belum terhubung)`)
+      }
+    }
+  }
+
+  return errors
+}
+
+/**
  * Validates workflow graph structure
  * Returns array of validation errors (empty if valid)
  */
@@ -512,11 +614,17 @@ function buildNodeFromTree(
     
     // Only create default edge if not skipped (for IF node children, edge will be created with sourceHandle)
     if (!skipDefaultEdge) {
-      edges.push({
-        id: `e-${parentId}-${nodeId}`,
-        source: parentId,
-        target: nodeId,
-      })
+      // Check if edge already exists to prevent duplicates
+      const edgeExists = edges.some(
+        (e) => e.source === parentId && e.target === nodeId && !e.sourceHandle
+      )
+      if (!edgeExists) {
+        edges.push({
+          id: `e-${parentId}-${nodeId}`,
+          source: parentId,
+          target: nodeId,
+        })
+      }
     }
 
     // Process THEN branch for action chaining
@@ -583,25 +691,37 @@ function buildNodeFromTree(
       data: nodeData,
     }
     nodes.push(conditionNode)
-    edges.push({
-      id: `e-${parentId}-${nodeId}`,
-      source: parentId,
-      target: nodeId,
-    })
+    // Check if edge already exists to prevent duplicates
+    const edgeExists = edges.some(
+      (e) => e.source === parentId && e.target === nodeId && !e.sourceHandle
+    )
+    if (!edgeExists) {
+      edges.push({
+        id: `e-${parentId}-${nodeId}`,
+        source: parentId,
+        target: nodeId,
+      })
+    }
 
     // Build THEN branch
     if (savedPositions) {
       // If we have saved positions, use them
       for (const thenChild of treeNode.then || []) {
         const thenChildId = buildNodeFromTree(thenChild, nodes, edges, nodeId, undefined, getId, savedPositions, true) // skipDefaultEdge = true
-        edges.push({
-          id: `e-${nodeId}-${thenChildId}-then`,
-          source: nodeId,
-          sourceHandle: 'then',
-          target: thenChildId,
-          label: 'THEN',
-          style: { stroke: 'hsl(142 71% 45%)', strokeWidth: 2 },
-        })
+        // Check if edge already exists to prevent duplicates
+        const edgeExists = edges.some(
+          (e) => e.source === nodeId && e.target === thenChildId && e.sourceHandle === 'then'
+        )
+        if (!edgeExists) {
+          edges.push({
+            id: `e-${nodeId}-${thenChildId}-then`,
+            source: nodeId,
+            sourceHandle: 'then',
+            target: thenChildId,
+            label: 'THEN',
+            style: { stroke: 'hsl(142 71% 45%)', strokeWidth: 2 },
+          })
+        }
       }
     } else {
       // Fallback to sequential positioning if no saved positions
@@ -609,14 +729,20 @@ function buildNodeFromTree(
       let thenY = currentY
       for (const thenChild of treeNode.then || []) {
         const thenChildId = buildNodeFromTree(thenChild, nodes, edges, nodeId, thenY, getId, savedPositions, true) // skipDefaultEdge = true
-        edges.push({
-          id: `e-${nodeId}-${thenChildId}-then`,
-          source: nodeId,
-          sourceHandle: 'then',
-          target: thenChildId,
-          label: 'THEN',
-          style: { stroke: 'hsl(142 71% 45%)', strokeWidth: 2 },
-        })
+        // Check if edge already exists to prevent duplicates
+        const edgeExists = edges.some(
+          (e) => e.source === nodeId && e.target === thenChildId && e.sourceHandle === 'then'
+        )
+        if (!edgeExists) {
+          edges.push({
+            id: `e-${nodeId}-${thenChildId}-then`,
+            source: nodeId,
+            sourceHandle: 'then',
+            target: thenChildId,
+            label: 'THEN',
+            style: { stroke: 'hsl(142 71% 45%)', strokeWidth: 2 },
+          })
+        }
         thenY += 150
       }
     }
@@ -626,14 +752,20 @@ function buildNodeFromTree(
       // If we have saved positions, use them
       for (const elseChild of treeNode.else || []) {
         const elseChildId = buildNodeFromTree(elseChild, nodes, edges, nodeId, undefined, getId, savedPositions, true) // skipDefaultEdge = true
-        edges.push({
-          id: `e-${nodeId}-${elseChildId}-else`,
-          source: nodeId,
-          sourceHandle: 'else',
-          target: elseChildId,
-          label: 'ELSE',
-          style: { stroke: 'hsl(0 72% 51%)', strokeWidth: 2 },
-        })
+        // Check if edge already exists to prevent duplicates
+        const edgeExists = edges.some(
+          (e) => e.source === nodeId && e.target === elseChildId && e.sourceHandle === 'else'
+        )
+        if (!edgeExists) {
+          edges.push({
+            id: `e-${nodeId}-${elseChildId}-else`,
+            source: nodeId,
+            sourceHandle: 'else',
+            target: elseChildId,
+            label: 'ELSE',
+            style: { stroke: 'hsl(0 72% 51%)', strokeWidth: 2 },
+          })
+        }
       }
     } else {
       // Fallback to sequential positioning if no saved positions
@@ -646,14 +778,20 @@ function buildNodeFromTree(
         if (elseNode && !savedPositions) {
           elseNode.position.x = elseX
         }
-        edges.push({
-          id: `e-${nodeId}-${elseChildId}-else`,
-          source: nodeId,
-          sourceHandle: 'else',
-          target: elseChildId,
-          label: 'ELSE',
-          style: { stroke: 'hsl(0 72% 51%)', strokeWidth: 2 },
-        })
+        // Check if edge already exists to prevent duplicates
+        const edgeExists = edges.some(
+          (e) => e.source === nodeId && e.target === elseChildId && e.sourceHandle === 'else'
+        )
+        if (!edgeExists) {
+          edges.push({
+            id: `e-${nodeId}-${elseChildId}-else`,
+            source: nodeId,
+            sourceHandle: 'else',
+            target: elseChildId,
+            label: 'ELSE',
+            style: { stroke: 'hsl(0 72% 51%)', strokeWidth: 2 },
+          })
+        }
         elseY += 150
       }
     }
@@ -680,11 +818,17 @@ function buildNodeFromTree(
 
     // Only create default edge if not skipped
     if (!skipDefaultEdge) {
-      edges.push({
-        id: `e-${parentId}-${nodeId}`,
-        source: parentId,
-        target: nodeId,
-      })
+      // Check if edge already exists to prevent duplicates
+      const edgeExists = edges.some(
+        (e) => e.source === parentId && e.target === nodeId && !e.sourceHandle
+      )
+      if (!edgeExists) {
+        edges.push({
+          id: `e-${parentId}-${nodeId}`,
+          source: parentId,
+          target: nodeId,
+        })
+      }
     }
 
     // Process THEN branch for continuing after delay
