@@ -177,58 +177,81 @@ export const useWebSocket = () => {
 
     ws.onopen = () => {
       setConnected(true)
+      console.log('[WebSocket] Connected successfully')
       // Subscribe to all parameters
       ws.send(JSON.stringify({
         type: 'subscribe',
         parameter_ids: null,
       }))
     }
+    
+    ws.onerror = (error) => {
+      console.error('[WebSocket] Error:', error)
+    }
+    
+    ws.onclose = () => {
+      setConnected(false)
+      console.log('[WebSocket] Connection closed')
+    }
 
     ws.onmessage = (event) => {
-      const message = JSON.parse(event.data)
-      
-      // Handle alarm notifications (alarm created/updated)
-      if (message.type === 'alarm' && message.data) {
-        const alarmData = message.data
-        const workflowName = alarmData.workflow_name || 'Unknown Workflow'
-        const alarmMessage = alarmData.message || 'Alarm triggered'
+      try {
+        const message = JSON.parse(event.data)
         
-        // Show toast notification (internal popup, no browser permission needed)
-        // duration: 0 means notification stays until manually closed
-        showToast({
-          title: `Alarm: ${workflowName}`,
-          message: alarmMessage,
-          type: 'warning',
-          duration: 0, // Stay until user closes manually
-        })
+        // Debug logging for alarm messages
+        if (message.type === 'alarm') {
+          console.log('[WebSocket] Received alarm message:', message)
+        }
         
-        // Also log to console
-        console.warn(`[ALARM] ${workflowName}: ${alarmMessage}`)
+        // Handle alarm notifications (alarm created/updated)
+        if (message.type === 'alarm' && message.data) {
+          const alarmData = message.data
+          const workflowName = alarmData.workflow_name || 'Unknown Workflow'
+          const alarmMessage = alarmData.message || 'Alarm triggered'
+          
+          console.log('[WebSocket] Processing alarm:', { workflowName, alarmMessage })
+          
+          // Show toast notification (internal popup, no browser permission needed)
+          // duration: 0 means notification stays until manually closed
+          try {
+            showToast({
+              title: `Alarm: ${workflowName}`,
+              message: alarmMessage,
+              type: 'warning',
+              duration: 0, // Stay until user closes manually
+            })
+            console.log('[WebSocket] Toast notification shown')
+          } catch (toastError) {
+            console.error('[WebSocket] Failed to show toast:', toastError)
+          }
+          
+          // Also log to console
+          console.warn(`[ALARM] ${workflowName}: ${alarmMessage}`)
+          
+          // Trigger custom event for alarm list component to refresh
+          window.dispatchEvent(new CustomEvent('alarm-updated', { detail: { workflowId: alarmData.workflow_id } }))
+          
+          return
+        }
         
-        // Trigger custom event for alarm list component to refresh
-        window.dispatchEvent(new CustomEvent('alarm-updated', { detail: { workflowId: alarmData.workflow_id } }))
+        // Handle alarm removal notifications
+        if (message.type === 'alarm_removed' && message.data) {
+          const alarmData = message.data
+          const workflowId = alarmData.workflow_id
+          
+          // Remove toast notification if exists
+          // Note: We can't directly remove specific toast, but we can trigger refresh
+          console.log(`[ALARM] Alarm removed for workflow ${workflowId}`)
+          
+          // Trigger custom event for alarm list component to refresh
+          window.dispatchEvent(new CustomEvent('alarm-removed', { detail: { workflowId } }))
+          
+          return
+        }
         
-        return
-      }
-      
-      // Handle alarm removal notifications
-      if (message.type === 'alarm_removed' && message.data) {
-        const alarmData = message.data
-        const workflowId = alarmData.workflow_id
-        
-        // Remove toast notification if exists
-        // Note: We can't directly remove specific toast, but we can trigger refresh
-        console.log(`[ALARM] Alarm removed for workflow ${workflowId}`)
-        
-        // Trigger custom event for alarm list component to refresh
-        window.dispatchEvent(new CustomEvent('alarm-removed', { detail: { workflowId } }))
-        
-        return
-      }
-      
-      // Handle batch updates (optimized for many parameters)
-      // Format: {"batch":true,"data":{"count":N,"updates":[...]},"type":"data_update_batch"}
-      if (message.type === 'data_update_batch' && message.batch === true && message.data) {
+        // Handle batch updates (optimized for many parameters)
+        // Format: {"batch":true,"data":{"count":N,"updates":[...]},"type":"data_update_batch"}
+        if (message.type === 'data_update_batch' && message.batch === true && message.data) {
         const batchData = message.data as { updates?: DashboardData[]; count?: number }
         const updates = batchData.updates || []
         
@@ -357,10 +380,13 @@ export const useWebSocket = () => {
           return newMap
         })
       }
+      } catch (error) {
+        console.error('[WebSocket] Error parsing message:', error, event.data)
+      }
     }
 
     ws.onerror = (error) => {
-      console.error('WebSocket error:', error)
+      console.error('[WebSocket] Error:', error)
       setConnected(false)
     }
 

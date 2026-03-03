@@ -14,7 +14,6 @@ import { WriteControlView } from "@/components/write/write-control-view";
 import { WriteControlViewStepper } from "@/components/write/write-control-stepper";
 import { WorkflowView } from "@/components/workflow/workflow-view";
 import { SetPointView } from "@/components/set-point/set-point-view";
-import { BypassView } from "@/components/bypass/bypass-view";
 import ReadWriteParameterForm from "@/pages/Parameters/ReadWriteParameterForm";
 import { ImcPage } from "./components/imc/imc-page";
 import { HTTPParameterRead } from "@/pages/HTTP/HTTPParameterRead";
@@ -60,7 +59,6 @@ function AppContent() {
     | "write"
     | "workflow"
     | "set-point"
-    | "bypass"
     | "write-log"
     | "read-write"
     | "http-parameter-read"
@@ -83,7 +81,6 @@ function AppContent() {
         cleaned === "/write" ||
         cleaned === "/workflow" ||
         cleaned === "/set-point" ||
-        cleaned === "/bypass" ||
         cleaned === "/write-log" ||
         cleaned === "/read-write" ||
         cleaned === "/http-parameter-read"
@@ -281,7 +278,6 @@ function AppContent() {
       | "write"
       | "workflow"
       | "set-point"
-      | "bypass"
       | "write-log"
       | "read-write"
       | "http-parameter-read",
@@ -292,7 +288,6 @@ function AppContent() {
         view === "write" ||
         view === "workflow" ||
         view === "set-point" ||
-        view === "bypass" ||
         view === "write-log") &&
       !isAdmin
     ) {
@@ -466,15 +461,6 @@ function AppContent() {
                   </Button>
 
                   <Button
-                    variant={currentView === "bypass" ? "default" : "ghost"}
-                    className="w-full justify-start"
-                    onClick={() => handleViewChange("bypass")}
-                  >
-                    <Workflow className="h-4 w-4 mr-2" />
-                    Bypass
-                  </Button>
-
-                  <Button
                     variant={currentView === "write-log" ? "default" : "ghost"}
                     className="w-full justify-start"
                     onClick={() => handleViewChange("write-log")}
@@ -516,9 +502,7 @@ function AppContent() {
                             ? "Workflow"
                             : currentView === "set-point"
                               ? "Set-Point"
-                              : currentView === "bypass"
-                                ? "Bypass"
-                                : currentView === "read-write"
+                              : currentView === "read-write"
                                   ? "Read/Write Parameter"
                                   : currentView === "http-parameter-read"
                                     ? "HTTP Parameter Read"
@@ -534,10 +518,8 @@ function AppContent() {
                           : currentView === "workflow"
                             ? "JIKA kondisi MAKA aksi"
                             : currentView === "set-point"
-                              ? "Kelola nilai set-point untuk workflow / bypass"
-                              : currentView === "bypass"
-                                ? "Bypass: IF (kondisi) THEN WRITE (aksi) dieksekusi oleh engine"
-                                : currentView === "read-write"
+                              ? "Kelola nilai set-point untuk workflow"
+                              : currentView === "read-write"
                                   ? "Buat parameter yang bisa membaca dan menulis"
                                   : currentView === "http-parameter-read"
                                     ? "Buat parameter read dari HTTP GET endpoint"
@@ -659,12 +641,6 @@ function AppContent() {
                   <SetPointView />
                 </div>
               </main>
-            ) : currentView === "bypass" && isAdmin ? (
-              <main className="flex-1 overflow-y-auto">
-                <div className="p-6">
-                  <BypassView />
-                </div>
-              </main>
             ) : currentView === "read-write" && isAdmin ? (
               <main className="flex-1 overflow-y-auto">
                 <ReadWriteParameterForm
@@ -683,7 +659,6 @@ function AppContent() {
                 currentView === "write" ||
                 currentView === "workflow" ||
                 currentView === "set-point" ||
-                currentView === "bypass" ||
                 currentView === "write-log" ||
                 currentView === "read-write" ||
                 currentView === "http-parameter-read") ? (
