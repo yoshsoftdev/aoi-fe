@@ -32,12 +32,17 @@ const getWebSocketURL = (): string => {
 
 const WS_URL = getWebSocketURL()
 
+type UseWebSocketOptions = {
+  enableAlarms?: boolean
+}
+
 // Log for debugging (remove in production if needed)
 if (import.meta.env.DEV) {
   console.log('[WebSocket] URL:', WS_URL)
 }
 
-export const useWebSocket = () => {
+export const useWebSocket = (options: UseWebSocketOptions = {}) => {
+  const { enableAlarms = false } = options
   // Store dashboard data by parameter_id
   const [data, setData] = useState<Map<string, DashboardData>>(new Map())
   const [connected, setConnected] = useState(false)
@@ -208,29 +213,33 @@ export const useWebSocket = () => {
           const alarmData = message.data
           const workflowName = alarmData.workflow_name || 'Unknown Workflow'
           const alarmMessage = alarmData.message || 'Alarm triggered'
-          
+
           console.log('[WebSocket] Processing alarm:', { workflowName, alarmMessage })
-          
-          // Show toast notification (internal popup, no browser permission needed)
-          // duration: 0 means notification stays until manually closed
-          try {
-            showToast({
-              title: `Alarm: ${workflowName}`,
-              message: alarmMessage,
-              type: 'warning',
-              duration: 0, // Stay until user closes manually
-            })
-            console.log('[WebSocket] Toast notification shown')
-          } catch (toastError) {
-            console.error('[WebSocket] Failed to show toast:', toastError)
+
+          if (enableAlarms) {
+            // Show toast notification (internal popup, no browser permission needed)
+            // duration: 0 means notification stays until manually closed
+            try {
+              showToast({
+                title: `Alarm: ${workflowName}`,
+                message: alarmMessage,
+                type: 'warning',
+                duration: 0, // Stay until user closes manually
+              })
+              console.log('[WebSocket] Toast notification shown')
+            } catch (toastError) {
+              console.error('[WebSocket] Failed to show toast:', toastError)
+            }
+
+            // Also log to console
+            console.warn(`[ALARM] ${workflowName}: ${alarmMessage}`)
           }
-          
-          // Also log to console
-          console.warn(`[ALARM] ${workflowName}: ${alarmMessage}`)
-          
+
           // Trigger custom event for alarm list component to refresh
-          window.dispatchEvent(new CustomEvent('alarm-updated', { detail: { workflowId: alarmData.workflow_id } }))
-          
+          window.dispatchEvent(
+            new CustomEvent('alarm-updated', { detail: { workflowId: alarmData.workflow_id } })
+          )
+
           return
         }
         

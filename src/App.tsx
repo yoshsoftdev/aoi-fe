@@ -154,7 +154,8 @@ function AppContent() {
     useState<Connection | null>(null);
 
   // Live data from backend via WebSocket
-  const { data: wsData } = useWebSocket();
+  // Enable alarm popups only from this global WebSocket instance
+  const { data: wsData } = useWebSocket({ enableAlarms: true });
 
   // Convert Map to Array for dependency tracking (ensures re-render when Map contents change)
   const wsDataArray = useMemo(() => Array.from(wsData.values()), [wsData]);
