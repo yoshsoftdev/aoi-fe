@@ -17,6 +17,14 @@ export default defineConfig({
         target: 'http://localhost:8071',
         changeOrigin: true,
       },
+      // Proxy khusus untuk Trend API (Trans-Data HTTP API)
+      // Supaya frontend bisa akses lewat origin yang sama saat `pnpm dev`:
+      //   /trend-api/days  -> http://localhost:8072/days
+      '/trend-api': {
+        target: 'http://192.168.113.142:8072',
+        changeOrigin: true,
+        rewrite: (p) => p.replace(/^\/trend-api/, ''),
+      },
     },
   },
 })

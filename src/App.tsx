@@ -17,6 +17,7 @@ import { SetPointView } from "@/components/set-point/set-point-view";
 import ReadWriteParameterForm from "@/pages/Parameters/ReadWriteParameterForm";
 import { ImcPage } from "./components/imc/imc-page";
 import { HTTPParameterRead } from "@/pages/HTTP/HTTPParameterRead";
+import { TrendView } from "@/components/trend/trend-view";
 import {
   LayoutDashboard,
   TestTube2,
@@ -30,6 +31,7 @@ import {
   FileText,
   ArrowLeftRight,
   Globe,
+  LineChart,
 } from "lucide-react";
 import logoctg1 from "../logoctg1.png";
 import type {
@@ -55,6 +57,7 @@ function AppContent() {
   const [currentView, setCurrentView] = useState<
     | "dashboard"
     | "imc"
+    | "trend"
     | "tester"
     | "write"
     | "workflow"
@@ -77,6 +80,7 @@ function AppContent() {
       if (
         cleaned === "/dashboard" ||
         cleaned === "/imc" ||
+        cleaned === "/trend" ||
         cleaned === "/tester" ||
         cleaned === "/write" ||
         cleaned === "/workflow" ||
@@ -116,6 +120,9 @@ function AppContent() {
     const t = window.setTimeout(() => setImcTapCount(0), 1200);
     return () => window.clearTimeout(t);
   }, [imcTapCount, isImcView]);
+
+  // TODO: Add new "trend" view and route to visualize per-minute, per-hour, and per-day data
+  // using the Trans-Data HTTP API documented in `bahan/trend.md`.
 
   useEffect(() => {
     if (isWorkflowBuilderOpen) {
@@ -275,6 +282,7 @@ function AppContent() {
     view:
       | "dashboard"
       | "imc"
+      | "trend"
       | "tester"
       | "write"
       | "workflow"
@@ -453,6 +461,15 @@ function AppContent() {
                   </Button>
 
                   <Button
+                    variant={currentView === "trend" ? "default" : "ghost"}
+                    className="w-full justify-start"
+                    onClick={() => handleViewChange("trend")}
+                  >
+                    <LineChart className="h-4 w-4 mr-2" />
+                    Trend
+                  </Button>
+
+                  <Button
                     variant={currentView === "workflow" ? "default" : "ghost"}
                     className="w-full justify-start"
                     onClick={() => handleViewChange("workflow")}
@@ -495,6 +512,8 @@ function AppContent() {
                   <h1 className="text-lg font-semibold text-foreground">
                     {currentView === "dashboard"
                       ? "Dashboard"
+                      : currentView === "trend"
+                        ? "Trend Data"
                       : currentView === "tester"
                         ? "Communication Tester"
                         : currentView === "write"
@@ -512,6 +531,8 @@ function AppContent() {
                   <p className="text-xs text-muted-foreground">
                     {currentView === "dashboard"
                       ? "Pantau nilai data yang telah dipetakan"
+                      : currentView === "trend"
+                        ? "Trend data per menit, per jam, dan per hari untuk parameter yang dipilih"
                       : currentView === "tester"
                         ? "Uji → Petakan → Transformasi"
                         : currentView === "write"
@@ -640,6 +661,12 @@ function AppContent() {
               <main className="flex-1 overflow-y-auto">
                 <div className="p-6">
                   <SetPointView />
+                </div>
+              </main>
+            ) : currentView === "trend" ? (
+              <main className="flex-1 overflow-y-auto">
+                <div className="p-6">
+                  <TrendView />
                 </div>
               </main>
             ) : currentView === "read-write" && isAdmin ? (
