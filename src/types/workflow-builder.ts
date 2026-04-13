@@ -20,7 +20,7 @@ export type RightValueType = 'static' | 'setpoint'
 export type ConditionNodeData = {
   label: string
   description: string
-  conditionType?: 'comparison' | 'time_window' // Default: 'comparison'
+  conditionType?: 'comparison' | 'time_window' | 'parameter_status' // Default: 'comparison'
   // For comparison condition
   leftSourceType?: LeftSourceType
   leftValue?: string
@@ -35,6 +35,9 @@ export type ConditionNodeData = {
     endTime: string   // Format: "HH:MM" (e.g., "17:00")
     days?: string[]   // Optional: ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]
   }
+  // For parameter status condition
+  statusSourceId?: number // parameter_id
+  statusValue?: 'online' | 'offline'
   enabled: boolean
 }
 

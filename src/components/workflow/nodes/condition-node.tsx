@@ -1,6 +1,6 @@
 import { memo } from 'react'
 import { Handle, Position, type NodeProps } from 'reactflow'
-import { GitBranch, AlertTriangle, Clock } from 'lucide-react'
+import { GitBranch, AlertTriangle, Clock, Activity } from 'lucide-react'
 import type { ConditionNodeData } from '@/types/workflow-builder'
 import type { Parameter } from '@/types/parameter'
 import type { SetPoint } from '@/services/setPointService'
@@ -11,28 +11,41 @@ interface ConditionNodeComponentProps extends NodeProps {
   setPoints?: SetPoint[]
 }
 
-function ConditionNodeComponent({ data, selected, parameters = [], setPoints = [] }: ConditionNodeComponentProps) {
+function ConditionNodeComponent({
+  data,
+  selected,
+  parameters = [],
+  setPoints = [],
+}: ConditionNodeComponentProps) {
   const conditionType = data.conditionType || 'comparison'
   const leftSourceType = data.leftSourceType || 'parameter'
+  const isTimeWindow = conditionType === 'time_window'
+  const isParameterStatus = conditionType === 'parameter_status'
 
-  const hasWarning = conditionType === 'comparison' 
-    ? (!data.leftValue || !data.rightValue)
-    : (!data.timeWindow?.startTime || !data.timeWindow?.endTime)
+  const hasWarning = isParameterStatus
+    ? (!data.statusSourceId || !data.statusValue)
+    : isTimeWindow
+      ? (!data.timeWindow?.startTime || !data.timeWindow?.endTime)
+      : (!data.leftValue || !data.rightValue)
 
-  // Build display string for the IF summary
-  const leftDisplay = conditionType === 'time_window'
+  const leftDisplay = isTimeWindow
     ? `${data.timeWindow?.startTime || '?'} - ${data.timeWindow?.endTime || '?'}`
-    : data.leftValue
-      ? leftSourceType === 'parameter'
-        ? parameters.find((p) => String(p.id) === data.leftValue)?.nama || data.leftValue
-        : setPoints.find((sp) => String(sp.id) === data.leftValue)?.name || data.leftValue
-      : '?'
-  const opDisplay = conditionType === 'time_window' ? 'TIME' : (data.operator || '?')
-  const rightDisplay = conditionType === 'time_window' 
-    ? (data.timeWindow?.days && data.timeWindow.days.length > 0 ? data.timeWindow.days.join(', ') : 'Every day')
-    : (data.rightValue || '?')
+    : isParameterStatus
+      ? parameters.find((p) => p.id === data.statusSourceId)?.nama || '?'
+      : data.leftValue
+        ? leftSourceType === 'parameter'
+          ? parameters.find((p) => String(p.id) === data.leftValue)?.nama || data.leftValue
+          : setPoints.find((sp) => String(sp.id) === data.leftValue)?.name || data.leftValue
+        : '?'
 
-  // Use the same color for both Time Window and IF Condition for visual consistency
+  const opDisplay = isTimeWindow ? 'TIME' : isParameterStatus ? 'STATUS' : (data.operator || '?')
+
+  const rightDisplay = isTimeWindow
+    ? (data.timeWindow?.days && data.timeWindow.days.length > 0 ? data.timeWindow.days.join(', ') : 'Every day')
+    : isParameterStatus
+      ? (data.statusValue || '?')
+      : (data.rightValue || '?')
+
   const conditionColor = 'hsl(38 92% 50%)'
   const borderColor = conditionColor
 
@@ -54,21 +67,16 @@ function ConditionNodeComponent({ data, selected, parameters = [], setPoints = [
         style={{ borderColor }}
       />
 
-      {/* Header */}
-      <div
-        className="flex items-center gap-2 rounded-t-lg px-3 py-2"
-        style={{
-          // Same header color for both Time Window and IF Condition
-          background: conditionColor,
-        }}
-      >
-        {conditionType === 'time_window' ? (
+      <div className="flex items-center gap-2 rounded-t-lg px-3 py-2" style={{ background: conditionColor }}>
+        {isTimeWindow ? (
           <Clock className="h-4 w-4 text-white" />
+        ) : isParameterStatus ? (
+          <Activity className="h-4 w-4 text-white" />
         ) : (
           <GitBranch className="h-4 w-4 text-white" />
         )}
         <span className="text-sm font-semibold text-white">
-          {conditionType === 'time_window' ? 'Time Window' : 'IF Condition'}
+          {isTimeWindow ? 'Time Window' : isParameterStatus ? 'Parameter Status' : 'IF Condition'}
         </span>
         {!data.enabled && (
           <span className="ml-auto rounded bg-black/20 px-1.5 py-0.5 text-[10px] font-medium text-white/80">
@@ -80,17 +88,15 @@ function ConditionNodeComponent({ data, selected, parameters = [], setPoints = [
         )}
       </div>
 
-      {/* Body */}
-      <div className="px-3 py-3 space-y-2.5">
-        {conditionType === 'time_window' ? (
+      <div className="space-y-2.5 px-3 py-3">
+        {isTimeWindow ? (
           <>
-            {/* Time Window Display */}
             <div className="space-y-2">
               <div className="rounded border border-border bg-secondary px-2 py-2">
                 <div className="flex items-center gap-2">
                   <Clock className="h-3.5 w-3.5" style={{ color: 'hsl(217 91% 60%)' }} />
                   <div className="flex-1">
-                    <div className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground mb-1">
+                    <div className="mb-1 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
                       Time Range
                     </div>
                     <div className="font-mono text-sm font-semibold text-foreground">
@@ -101,7 +107,7 @@ function ConditionNodeComponent({ data, selected, parameters = [], setPoints = [
               </div>
               {data.timeWindow?.days && data.timeWindow.days.length > 0 && (
                 <div className="rounded border border-border bg-secondary px-2 py-2">
-                  <div className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground mb-1">
+                  <div className="mb-1 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
                     Days
                   </div>
                   <div className="flex flex-wrap gap-1">
@@ -117,8 +123,6 @@ function ConditionNodeComponent({ data, selected, parameters = [], setPoints = [
                 </div>
               )}
             </div>
-
-            {/* Time Window Summary */}
             <div className="rounded border border-border bg-secondary px-2 py-1.5">
               <div className="flex items-center gap-1.5 flex-wrap">
                 <span className="text-[10px] font-semibold uppercase" style={{ color: 'hsl(217 91% 60%)' }}>
@@ -133,8 +137,6 @@ function ConditionNodeComponent({ data, selected, parameters = [], setPoints = [
                 )}
               </div>
             </div>
-
-            {/* Validation warning */}
             {hasWarning && (
               <div className="flex items-start gap-1.5 rounded border border-accent/30 bg-accent/10 px-2 py-1.5">
                 <AlertTriangle className="mt-0.5 h-3 w-3 flex-shrink-0 text-accent" />
@@ -144,13 +146,55 @@ function ConditionNodeComponent({ data, selected, parameters = [], setPoints = [
               </div>
             )}
           </>
+        ) : isParameterStatus ? (
+          <>
+            <div className="space-y-2">
+              <div className="rounded border border-border bg-secondary px-2 py-2">
+                <div className="mb-1 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+                  Parameter
+                </div>
+                <div className="text-sm font-semibold text-foreground">
+                  {parameters.find((p) => p.id === data.statusSourceId)?.nama || 'Not set'}
+                </div>
+              </div>
+              <div className="rounded border border-border bg-secondary px-2 py-2">
+                <div className="mb-1 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+                  Expected Status
+                </div>
+                <div className="text-sm font-semibold text-foreground">
+                  {(data.statusValue || 'Not set').toUpperCase()}
+                </div>
+              </div>
+            </div>
+            <div className="rounded border border-border bg-secondary px-2 py-2">
+              <div className="flex flex-wrap items-center gap-1.5">
+                <span className="text-[10px] font-semibold uppercase" style={{ color: 'hsl(217 91% 60%)' }}>
+                  IF
+                </span>
+                <span className="font-mono text-xs text-primary">{leftDisplay}</span>
+                <span
+                  className="rounded px-1.5 py-0.5 font-mono text-xs font-bold"
+                  style={{ color: 'hsl(217 91% 60%)', background: 'hsl(217 91% 60% / 0.2)' }}
+                >
+                  {opDisplay}
+                </span>
+                <span className="font-mono text-xs text-primary">{String(rightDisplay).toUpperCase()}</span>
+              </div>
+            </div>
+            {hasWarning && (
+              <div className="flex items-start gap-1.5 rounded border border-accent/30 bg-accent/10 px-2 py-1.5">
+                <AlertTriangle className="mt-0.5 h-3 w-3 flex-shrink-0 text-accent" />
+                <span className="text-[10px] leading-tight text-accent">
+                  Parameter dan status wajib diisi
+                </span>
+              </div>
+            )}
+          </>
         ) : (
           <>
-            {/* Comparison Condition Display */}
             <div className="space-y-2">
-              {/* Left Source Display */}
               <div className="rounded border border-border bg-secondary px-2 py-2">
-                <div className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground mb-1">
+                <div className="mb-1 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
                   Left Source ({leftSourceType})
                 </div>
                 <div className="text-sm font-semibold text-foreground">
@@ -161,20 +205,16 @@ function ConditionNodeComponent({ data, selected, parameters = [], setPoints = [
                     : 'Not set'}
                 </div>
               </div>
-
-              {/* Operator Display */}
               <div className="rounded border border-border bg-secondary px-2 py-2">
-                <div className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground mb-1">
+                <div className="mb-1 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
                   Operator
                 </div>
                 <div className="text-sm font-semibold text-foreground">
                   {data.operator || '?'}
                 </div>
               </div>
-
-              {/* Right Value Display */}
               <div className="rounded border border-border bg-secondary px-2 py-2">
-                <div className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground mb-1">
+                <div className="mb-1 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
                   Right Value ({data.rightValueType || 'static'})
                 </div>
                 <div className="text-sm font-semibold text-foreground">
@@ -184,8 +224,6 @@ function ConditionNodeComponent({ data, selected, parameters = [], setPoints = [
                 </div>
               </div>
             </div>
-
-            {/* IF Summary display */}
             <div className="rounded border border-border bg-secondary px-2 py-1.5">
               <div className="flex items-center gap-1.5 flex-wrap">
                 <span className="text-[10px] font-semibold uppercase text-accent">IF</span>
@@ -196,8 +234,6 @@ function ConditionNodeComponent({ data, selected, parameters = [], setPoints = [
                 <span className="font-mono text-xs text-primary">{rightDisplay}</span>
               </div>
             </div>
-
-            {/* Validation warning */}
             {hasWarning && (
               <div className="flex items-start gap-1.5 rounded border border-accent/30 bg-accent/10 px-2 py-1.5">
                 <AlertTriangle className="mt-0.5 h-3 w-3 flex-shrink-0 text-accent" />
@@ -213,7 +249,6 @@ function ConditionNodeComponent({ data, selected, parameters = [], setPoints = [
           </>
         )}
 
-        {/* THEN / ELSE indicators */}
         <div className="flex items-center justify-between pt-1">
           <div className="flex items-center gap-1">
             <div className="h-2 w-2 rounded-full" style={{ background: 'hsl(142 71% 45%)' }} />
@@ -235,31 +270,20 @@ function ConditionNodeComponent({ data, selected, parameters = [], setPoints = [
         position={Position.Bottom}
         id="then"
         className="!h-3 !w-3 !rounded-full !border-2 !bg-background"
-        style={{ 
-          left: '30%', 
-          borderColor: conditionType === 'time_window' 
-            ? 'hsl(142 71% 45%)' 
-            : 'hsl(142 71% 45%)' 
-        }}
+        style={{ left: '30%', borderColor: 'hsl(142 71% 45%)' }}
       />
       <Handle
         type="source"
         position={Position.Bottom}
         id="else"
         className="!h-3 !w-3 !rounded-full !border-2 !bg-background"
-        style={{ 
-          left: '70%', 
-          borderColor: conditionType === 'time_window' 
-            ? 'hsl(0 72% 51%)' 
-            : 'hsl(0 72% 51%)' 
-        }}
+        style={{ left: '70%', borderColor: 'hsl(0 72% 51%)' }}
       />
     </div>
   )
 }
 
 export const ConditionNode = memo(ConditionNodeComponent, (prevProps, nextProps) => {
-  // Custom comparison: re-render if data changed (return false means props are different, need re-render)
   const prevData = prevProps.data
   const nextData = nextProps.data
   if (
@@ -269,11 +293,13 @@ export const ConditionNode = memo(ConditionNodeComponent, (prevProps, nextProps)
     prevData.operator !== nextData.operator ||
     prevData.rightValueType !== nextData.rightValueType ||
     prevData.rightValue !== nextData.rightValue ||
+    prevData.statusSourceId !== nextData.statusSourceId ||
+    prevData.statusValue !== nextData.statusValue ||
     JSON.stringify(prevData.timeWindow) !== JSON.stringify(nextData.timeWindow) ||
     prevData.enabled !== nextData.enabled ||
     prevProps.selected !== nextProps.selected
   ) {
-    return false // Props are different, need re-render
+    return false
   }
-  return true // Props are same, skip re-render
+  return true
 })

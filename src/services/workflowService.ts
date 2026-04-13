@@ -76,7 +76,7 @@ export interface TreeNode {
 }
 
 export interface Condition {
-  type?: 'comparison' | 'time_window' // Default: 'comparison'
+  type?: 'comparison' | 'time_window' | 'parameter_status' // Default: 'comparison'
   left?: ValueSource // For comparison condition
   operator?: '>' | '<' | '>=' | '<=' | '==' | '!=' // For comparison condition
   right?: ValueSource // For comparison condition
@@ -84,6 +84,10 @@ export interface Condition {
     start_time: string // Format: "HH:MM"
     end_time: string   // Format: "HH:MM"
     days?: string[]   // Optional: ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]
+  }
+  parameter_status?: { // For parameter status condition
+    source_id: number
+    status: 'online' | 'offline'
   }
 }
 

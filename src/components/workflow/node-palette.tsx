@@ -31,6 +31,13 @@ const NODE_PALETTE: NodePaletteItem[] = [
     icon: 'clock',
   },
   {
+    type: 'condition',
+    subType: 'parameter-status',
+    label: 'Parameter Status',
+    description: 'Check if parameter is online or offline',
+    icon: 'activity',
+  },
+  {
     type: 'action',
     subType: 'alarm-notification',
     label: 'Alarm Notification',

@@ -36,6 +36,13 @@ export function validateNodeData(nodes: Node[], edges: Edge[]): string[] {
         if (!conditionData.timeWindow?.startTime || !conditionData.timeWindow?.endTime) {
           errors.push(`Node "${nodeLabel}" (Condition): Waktu mulai atau waktu akhir belum diisi`)
         }
+      } else if (conditionData.conditionType === 'parameter_status') {
+        if (!conditionData.statusSourceId) {
+          errors.push(`Node "${nodeLabel}" (Condition): Parameter status belum dipilih`)
+        }
+        if (!conditionData.statusValue) {
+          errors.push(`Node "${nodeLabel}" (Condition): Status online/offline belum dipilih`)
+        }
       }
     } else if (node.type === 'action') {
       const actionData = node.data as ActionNodeData
@@ -354,6 +361,14 @@ function buildTreeNode(
           start_time: conditionData.timeWindow?.startTime || '08:00',
           end_time: conditionData.timeWindow?.endTime || '17:00',
           days: conditionData.timeWindow?.days || [],
+        },
+      }
+    } else if (conditionType === 'parameter_status') {
+      condition = {
+        type: 'parameter_status',
+        parameter_status: {
+          source_id: conditionData.statusSourceId || 0,
+          status: conditionData.statusValue || 'offline',
         },
       }
     } else {
@@ -677,6 +692,15 @@ function buildNodeFromTree(
           endTime: treeNode.condition?.time_window?.end_time || '17:00',
           days: treeNode.condition?.time_window?.days || [],
         },
+        enabled: true,
+      }
+    } else if (conditionType === 'parameter_status') {
+      nodeData = {
+        label: 'Parameter Status',
+        description: '',
+        conditionType: 'parameter_status',
+        statusSourceId: treeNode.condition?.parameter_status?.source_id,
+        statusValue: treeNode.condition?.parameter_status?.status || 'offline',
         enabled: true,
       }
     } else {

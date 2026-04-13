@@ -344,6 +344,15 @@ function WorkflowBuilderInner({ workflow, onCancel, onSuccess }: WorkflowBuilder
               },
               enabled: true,
             }
+          } else if (subType === 'parameter-status') {
+            data = {
+              label,
+              description,
+              conditionType: 'parameter_status',
+              statusSourceId: undefined,
+              statusValue: 'offline',
+              enabled: true,
+            }
           } else {
             data = {
               label,

@@ -316,6 +316,10 @@ export function PropertiesPanel({
                         endTime: '17:00',
                         days: [],
                       })
+                    } else if (val === 'parameter_status') {
+                      handleChange('conditionType', 'parameter_status')
+                      handleChange('statusSourceId', undefined)
+                      handleChange('statusValue', 'offline')
                     } else {
                       handleChange('conditionType', 'comparison')
                       handleChange('leftSourceType', 'parameter')
@@ -332,6 +336,7 @@ export function PropertiesPanel({
                   <SelectContent>
                     <SelectItem value="comparison">Parameter Comparison</SelectItem>
                     <SelectItem value="time_window">Time Window</SelectItem>
+                    <SelectItem value="parameter_status">Parameter Status</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -403,6 +408,52 @@ export function PropertiesPanel({
                     <p className="text-xs text-muted-foreground">
                       Leave empty to allow all days
                     </p>
+                  </div>
+                </>
+              ) : (data.conditionType as string) === 'parameter_status' ? (
+                <>
+                  <div className="space-y-2">
+                    <Label className="text-xs text-muted-foreground">Parameter</Label>
+                    <Select
+                      value={String((data.statusSourceId as number | undefined) || '')}
+                      onValueChange={(val) => {
+                        const sourceId = cleanParameters.find((p) => String(p.id) === val)?.id
+                        onNodeChange(selectedNode.id, {
+                          ...data,
+                          statusSourceId: sourceId,
+                        })
+                      }}
+                    >
+                      <SelectTrigger className="border-border bg-secondary text-foreground">
+                        <SelectValue placeholder="Select parameter..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {cleanParameters.length === 0 ? (
+                          <div className="px-2 py-1.5 text-sm text-muted-foreground">No parameters available</div>
+                        ) : (
+                          cleanParameters.map((p) => (
+                            <SelectItem key={p.id} value={String(p.id)}>
+                              {p.nama}
+                            </SelectItem>
+                          ))
+                        )}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-xs text-muted-foreground">Status</Label>
+                    <Select
+                      value={(data.statusValue as string) || 'offline'}
+                      onValueChange={(val) => handleChange('statusValue', val)}
+                    >
+                      <SelectTrigger className="border-border bg-secondary text-foreground">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="online">Online</SelectItem>
+                        <SelectItem value="offline">Offline</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
                 </>
               ) : (
