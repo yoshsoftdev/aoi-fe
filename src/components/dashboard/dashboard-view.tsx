@@ -11,7 +11,7 @@ import type { SavedDashboardData, MappedValue } from '@/types'
 import type { DashboardData } from '@/types/parameter'
 import { formatNumber } from '@/utils/formatters'
 import { parameterService } from '@/services/parameterService'
-import { thresholdService, type ThresholdType } from '@/services/thresholdService'
+import { thresholdService, type ThresholdType, type ThresholdLogItem } from '@/services/thresholdService'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -59,6 +59,12 @@ export function DashboardView({ savedData, onParameterUpdate }: DashboardViewPro
   const { data: selectedThresholdConfig } = useQuery({
     queryKey: ['threshold', selectedThresholdParamId],
     queryFn: () => thresholdService.getByParameterId(selectedThresholdParamId!),
+    enabled: thresholdDialogOpen && !!selectedThresholdParamId,
+  })
+
+  const { data: thresholdLogs, isLoading: isThresholdLogsLoading } = useQuery({
+    queryKey: ['threshold-logs', selectedThresholdParamId],
+    queryFn: () => thresholdService.getLogsByParameterId(selectedThresholdParamId!, 20),
     enabled: thresholdDialogOpen && !!selectedThresholdParamId,
   })
 
@@ -207,6 +213,16 @@ export function DashboardView({ savedData, onParameterUpdate }: DashboardViewPro
   )
   const totalValues = savedData.reduce((sum, data) => sum + data.mappedValues.length, 0)
   const successRate = totalValues > 0 ? (totalSuccessful / totalValues) * 100 : 0
+
+  const getAlarmBadgeVariant = (status: string): 'default' | 'destructive' | 'secondary' | 'outline' => {
+    if (status === 'critical_high' || status === 'critical_low') return 'destructive'
+    if (status === 'warning_high' || status === 'warning_low') return 'secondary'
+    return 'outline'
+  }
+
+  const formatAlarmStatus = (status: string): string => {
+    return status.replace(/_/g, ' ').toUpperCase()
+  }
 
   return (
     <div className="space-y-6">
@@ -491,142 +507,177 @@ export function DashboardView({ savedData, onParameterUpdate }: DashboardViewPro
 
       {/* Threshold Dialog */}
       <Dialog open={thresholdDialogOpen} onOpenChange={setThresholdDialogOpen}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="max-w-5xl">
           <DialogHeader>
             <DialogTitle>Atur Threshold</DialogTitle>
             <DialogDescription>
               Atur batas alarm untuk parameter yang dipilih pada card dashboard.
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-4 py-2">
-            <div className="space-y-2">
-              <Label>Parameter</Label>
-              <Input value={selectedThresholdParamName || '-'} readOnly />
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-2 col-span-2">
-                <Label>Tipe Threshold</Label>
-                <Select
-                  value={thresholdFormData.threshold_type}
-                  onValueChange={(v: string) =>
-                    setThresholdFormData((prev) => ({ ...prev, threshold_type: v as ThresholdType }))
-                  }
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="max">max</SelectItem>
-                    <SelectItem value="min">min</SelectItem>
-                    <SelectItem value="min-max">min-max</SelectItem>
-                  </SelectContent>
-                </Select>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 py-2">
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label>Parameter</Label>
+                <Input value={selectedThresholdParamName || '-'} readOnly />
               </div>
 
-              {(thresholdFormData.threshold_type === 'max' ||
-                thresholdFormData.threshold_type === 'min' ||
-                thresholdFormData.threshold_type === 'min-max') && (
-                <>
-                  <div className="space-y-2">
-                    <Label>Min Value</Label>
-                    <Input
-                      type="number"
-                      value={thresholdFormData.min_value}
-                      onChange={(e) =>
-                        setThresholdFormData((prev) => ({
-                          ...prev,
-                          min_value: Number(e.target.value),
-                        }))
-                      }
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Max Value</Label>
-                    <Input
-                      type="number"
-                      value={thresholdFormData.max_value}
-                      onChange={(e) =>
-                        setThresholdFormData((prev) => ({
-                          ...prev,
-                          max_value: Number(e.target.value),
-                        }))
-                      }
-                    />
-                  </div>
-                </>
-              )}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-2 col-span-2">
+                  <Label>Tipe Threshold</Label>
+                  <Select
+                    value={thresholdFormData.threshold_type}
+                    onValueChange={(v: string) =>
+                      setThresholdFormData((prev) => ({ ...prev, threshold_type: v as ThresholdType }))
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="max">max</SelectItem>
+                      <SelectItem value="min">min</SelectItem>
+                      <SelectItem value="min-max">min-max</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
 
-              {(thresholdFormData.threshold_type === 'min' ||
-                thresholdFormData.threshold_type === 'min-max') && (
-                <>
-                  <div className="space-y-2">
-                    <Label>Warning Low</Label>
-                    <Input
-                      type="number"
-                      value={thresholdFormData.warning_low}
-                      onChange={(e) =>
-                        setThresholdFormData((prev) => ({
-                          ...prev,
-                          warning_low: Number(e.target.value),
-                        }))
-                      }
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Critical Low</Label>
-                    <Input
-                      type="number"
-                      value={thresholdFormData.critical_low}
-                      onChange={(e) =>
-                        setThresholdFormData((prev) => ({
-                          ...prev,
-                          critical_low: Number(e.target.value),
-                        }))
-                      }
-                    />
-                  </div>
-                </>
-              )}
+                {(thresholdFormData.threshold_type === 'max' ||
+                  thresholdFormData.threshold_type === 'min' ||
+                  thresholdFormData.threshold_type === 'min-max') && (
+                  <>
+                    <div className="space-y-2">
+                      <Label>Min Value</Label>
+                      <Input
+                        type="number"
+                        value={thresholdFormData.min_value}
+                        onChange={(e) =>
+                          setThresholdFormData((prev) => ({
+                            ...prev,
+                            min_value: Number(e.target.value),
+                          }))
+                        }
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Max Value</Label>
+                      <Input
+                        type="number"
+                        value={thresholdFormData.max_value}
+                        onChange={(e) =>
+                          setThresholdFormData((prev) => ({
+                            ...prev,
+                            max_value: Number(e.target.value),
+                          }))
+                        }
+                      />
+                    </div>
+                  </>
+                )}
 
-              {(thresholdFormData.threshold_type === 'max' ||
-                thresholdFormData.threshold_type === 'min-max') && (
-                <>
-                  <div className="space-y-2">
-                    <Label>Warning High</Label>
-                    <Input
-                      type="number"
-                      value={thresholdFormData.warning_high}
-                      onChange={(e) =>
-                        setThresholdFormData((prev) => ({
-                          ...prev,
-                          warning_high: Number(e.target.value),
-                        }))
-                      }
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Critical High</Label>
-                    <Input
-                      type="number"
-                      value={thresholdFormData.critical_high}
-                      onChange={(e) =>
-                        setThresholdFormData((prev) => ({
-                          ...prev,
-                          critical_high: Number(e.target.value),
-                        }))
-                      }
-                    />
-                  </div>
-                </>
+                {(thresholdFormData.threshold_type === 'min' ||
+                  thresholdFormData.threshold_type === 'min-max') && (
+                  <>
+                    <div className="space-y-2">
+                      <Label>Warning Low</Label>
+                      <Input
+                        type="number"
+                        value={thresholdFormData.warning_low}
+                        onChange={(e) =>
+                          setThresholdFormData((prev) => ({
+                            ...prev,
+                            warning_low: Number(e.target.value),
+                          }))
+                        }
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Critical Low</Label>
+                      <Input
+                        type="number"
+                        value={thresholdFormData.critical_low}
+                        onChange={(e) =>
+                          setThresholdFormData((prev) => ({
+                            ...prev,
+                            critical_low: Number(e.target.value),
+                          }))
+                        }
+                      />
+                    </div>
+                  </>
+                )}
+
+                {(thresholdFormData.threshold_type === 'max' ||
+                  thresholdFormData.threshold_type === 'min-max') && (
+                  <>
+                    <div className="space-y-2">
+                      <Label>Warning High</Label>
+                      <Input
+                        type="number"
+                        value={thresholdFormData.warning_high}
+                        onChange={(e) =>
+                          setThresholdFormData((prev) => ({
+                            ...prev,
+                            warning_high: Number(e.target.value),
+                          }))
+                        }
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Critical High</Label>
+                      <Input
+                        type="number"
+                        value={thresholdFormData.critical_high}
+                        onChange={(e) =>
+                          setThresholdFormData((prev) => ({
+                            ...prev,
+                            critical_high: Number(e.target.value),
+                          }))
+                        }
+                      />
+                    </div>
+                  </>
+                )}
+              </div>
+
+              {saveThresholdMutation.isError && (
+                <p className="text-sm text-destructive">
+                  {(saveThresholdMutation.error as any)?.message || 'Gagal menyimpan threshold'}
+                </p>
               )}
             </div>
 
-            {saveThresholdMutation.isError && (
-              <p className="text-sm text-destructive">
-                {(saveThresholdMutation.error as any)?.message || 'Gagal menyimpan threshold'}
-              </p>
-            )}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <Label>Log Threshold</Label>
+                <span className="text-xs text-muted-foreground">20 log terakhir</span>
+              </div>
+              <div className="border rounded-md p-3 h-[360px] overflow-y-auto space-y-3">
+                {isThresholdLogsLoading ? (
+                  <p className="text-sm text-muted-foreground">Memuat log threshold...</p>
+                ) : !thresholdLogs || thresholdLogs.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">Belum ada log threshold.</p>
+                ) : (
+                  (thresholdLogs as ThresholdLogItem[]).map((log) => (
+                    <div key={log.id} className="border rounded-md p-3 space-y-2">
+                      <div className="flex items-center justify-between gap-2">
+                        <Badge variant={getAlarmBadgeVariant(log.alarm_status)}>
+                          {formatAlarmStatus(log.alarm_status)}
+                        </Badge>
+                        <span className="text-xs text-muted-foreground">
+                          {new Date(log.trigger_at).toLocaleString()}
+                        </span>
+                      </div>
+                      <p className="text-sm font-medium">Nilai: {formatNumber(log.value, 2)}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {log.resolve_at
+                          ? `Resolved: ${new Date(log.resolve_at).toLocaleString()}`
+                          : 'Status: aktif'}
+                      </p>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setThresholdDialogOpen(false)}>

@@ -30,6 +30,19 @@ export interface SaveThresholdPayload {
   warning_high: number;
 }
 
+export interface ThresholdLogItem {
+  id: number;
+  parameter_id: number;
+  threshold_id?: number;
+  threshold_type: string;
+  value: number;
+  alarm_status: string;
+  message: string;
+  trigger_at: string;
+  resolve_at?: string;
+  created_at: string;
+}
+
 export const thresholdService = {
   getAll: async (): Promise<ThresholdConfig[]> => {
     const response = await api.get("/tracehold");
@@ -48,6 +61,11 @@ export const thresholdService = {
   save: async (payload: SaveThresholdPayload): Promise<ThresholdConfig> => {
     const response = await api.post("/tracehold", payload);
     return response.data.data;
+  },
+
+  getLogsByParameterId: async (parameterId: number, limit = 20): Promise<ThresholdLogItem[]> => {
+    const response = await api.get(`/threshold-logs/parameter/${parameterId}?limit=${limit}`);
+    return response.data.data || [];
   },
 };
 
