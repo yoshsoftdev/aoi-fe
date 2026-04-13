@@ -38,7 +38,11 @@ function getValidationWarnings(data: ActionNodeData): string[] {
       if (!data.alarmMessage) warnings.push('Message required')
       break
     case 'write-dynamic':
-      if (!data.targetParameter) warnings.push('Target required')
+      if ((data.targetType || 'parameter') === 'setpoint') {
+        if (!data.targetSetPoint) warnings.push('Target required')
+      } else if (!data.targetParameter) {
+        warnings.push('Target required')
+      }
       if (!data.valueSource) warnings.push('Source required')
       if (data.valueSource === 'static' && !data.staticValue) warnings.push('Value required')
       if (data.valueSource === 'setpoint' && !data.sourceSetpoint) warnings.push('Set-point required')
@@ -145,13 +149,15 @@ function ActionNodeComponent({ data, selected, parameters = [], setPoints = [] }
         {/* Write Dynamic Value Display */}
         {data.actionType === 'write-dynamic' && (
           <div className="space-y-2">
-            {data.targetParameter && (
+            {((data.targetType || 'parameter') === 'setpoint' ? data.targetSetPoint : data.targetParameter) && (
               <div className="rounded border border-border bg-secondary px-2 py-2">
                 <div className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground mb-1">
-                  Target Parameter
+                  {(data.targetType || 'parameter') === 'setpoint' ? 'Target Set-Point' : 'Target Parameter'}
                 </div>
                 <div className="text-sm font-semibold text-foreground">
-                  {parameters.find((p) => String(p.id) === data.targetParameter)?.nama || data.targetParameter}
+                  {(data.targetType || 'parameter') === 'setpoint'
+                    ? (setPoints.find((sp) => String(sp.id) === data.targetSetPoint)?.name || data.targetSetPoint)
+                    : (parameters.find((p) => String(p.id) === data.targetParameter)?.nama || data.targetParameter)}
                 </div>
               </div>
             )}
@@ -224,7 +230,9 @@ export const ActionNode = memo(ActionNodeComponent, (prevProps, nextProps) => {
     prevData.alarmTitle !== nextData.alarmTitle ||
     prevData.alarmSeverity !== nextData.alarmSeverity ||
     prevData.alarmMessage !== nextData.alarmMessage ||
+    prevData.targetType !== nextData.targetType ||
     prevData.targetParameter !== nextData.targetParameter ||
+    prevData.targetSetPoint !== nextData.targetSetPoint ||
     prevData.valueSource !== nextData.valueSource ||
     prevData.staticValue !== nextData.staticValue ||
     prevData.sourceSetpoint !== nextData.sourceSetpoint ||

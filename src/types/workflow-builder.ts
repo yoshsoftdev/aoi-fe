@@ -50,8 +50,11 @@ export type ActionNodeData = {
   alarmSeverity?: 'info' | 'warning' | 'critical'
   alarmMessage?: string
   // Write Dynamic Value fields
+  targetType?: 'parameter' | 'setpoint'
   targetParameter?: string
-  targetId?: number // parameter_id
+  targetSetPoint?: string
+  targetId?: number // parameter_id or setpoint_id (depends on targetType)
+  targetSetPointId?: number // setpoint_id
   valueSource?: 'static' | 'setpoint'
   staticValue?: string
   sourceSetpoint?: string

@@ -110,7 +110,10 @@ export function PropertiesPanel({
       alarmSeverity: undefined,
       alarmMessage: '',
       targetParameter: '',
+      targetType: 'parameter',
+      targetSetPoint: '',
       targetId: undefined,
+      targetSetPointId: undefined,
       valueSource: undefined,
       staticValue: '',
       sourceSetpoint: '',
@@ -186,6 +189,7 @@ export function PropertiesPanel({
 
   const leftSourceType = (data.leftSourceType as string) || 'parameter'
   const rightValueType = (data.rightValueType as string) || 'static'
+  const actionTargetType = (data.targetType as string) || 'parameter'
 
   const leftItems = leftSourceType === 'parameter' ? cleanParameters : setPoints
   const rightItems = setPoints
@@ -614,31 +618,81 @@ export function PropertiesPanel({
               {(data.actionType as string) === 'write-dynamic' && (
                 <>
                   <div className="space-y-2">
-                    <Label className="text-xs text-muted-foreground">Target Parameter</Label>
+                    <Label className="text-xs text-muted-foreground">Target Type</Label>
                     <Select
-                      value={String((data.targetParameter as string) || '')}
+                      value={actionTargetType}
                       onValueChange={(val) => {
-                        const targetId = writeParameters.find((p) => String(p.id) === val)?.id
-                        // Update both fields in a single call
                         onNodeChange(selectedNode.id, {
                           ...data,
-                          targetParameter: val,
-                          targetId: targetId,
+                          targetType: val,
+                          targetParameter: '',
+                          targetSetPoint: '',
+                          targetId: undefined,
+                          targetSetPointId: undefined,
                         })
+                      }}
+                    >
+                      <SelectTrigger className="border-border bg-secondary text-foreground">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="parameter">Parameter</SelectItem>
+                        <SelectItem value="setpoint">Set-Point</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label className="text-xs text-muted-foreground">
+                      {actionTargetType === 'setpoint' ? 'Target Set-Point' : 'Target Parameter'}
+                    </Label>
+                    <Select
+                      value={String(
+                        actionTargetType === 'setpoint'
+                          ? ((data.targetSetPoint as string) || '')
+                          : ((data.targetParameter as string) || '')
+                      )}
+                      onValueChange={(val) => {
+                        if (actionTargetType === 'setpoint') {
+                          const targetSetPointId = setPoints.find((sp) => String(sp.id) === val)?.id
+                          onNodeChange(selectedNode.id, {
+                            ...data,
+                            targetSetPoint: val,
+                            targetSetPointId,
+                            targetId: targetSetPointId,
+                          })
+                        } else {
+                          const targetId = writeParameters.find((p) => String(p.id) === val)?.id
+                          onNodeChange(selectedNode.id, {
+                            ...data,
+                            targetParameter: val,
+                            targetId,
+                          })
+                        }
                       }}
                     >
                       <SelectTrigger className="border-border bg-secondary text-foreground">
                         <SelectValue placeholder="Select target..." />
                       </SelectTrigger>
                       <SelectContent>
-                        {writeParameters.length === 0 ? (
-                          <div className="px-2 py-1.5 text-sm text-muted-foreground">No write parameters available</div>
+                        {(actionTargetType === 'setpoint' ? setPoints.length : writeParameters.length) === 0 ? (
+                          <div className="px-2 py-1.5 text-sm text-muted-foreground">
+                            {actionTargetType === 'setpoint'
+                              ? 'No set-points available'
+                              : 'No write parameters available'}
+                          </div>
                         ) : (
-                          writeParameters.map((p) => (
-                            <SelectItem key={p.id} value={String(p.id)}>
-                              {p.nama} {p.unit && `(${p.unit})`}
-                            </SelectItem>
-                          ))
+                          actionTargetType === 'setpoint'
+                            ? setPoints.map((sp) => (
+                                <SelectItem key={sp.id} value={String(sp.id)}>
+                                  {sp.name} {sp.unit && `(${sp.unit})`}
+                                </SelectItem>
+                              ))
+                            : writeParameters.map((p) => (
+                                <SelectItem key={p.id} value={String(p.id)}>
+                                  {p.nama} {p.unit && `(${p.unit})`}
+                                </SelectItem>
+                              ))
                         )}
                       </SelectContent>
                     </Select>

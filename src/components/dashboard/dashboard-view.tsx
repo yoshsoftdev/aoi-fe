@@ -5,14 +5,16 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from '@/components/ui/dialog'
 import { DeleteConfirmationDialog } from '@/components/ui/delete-confirmation-dialog'
-import { Activity, TrendingUp, Zap, Database, Network, Edit, Trash2, LineChart, AlertCircle } from 'lucide-react'
+import { Activity, TrendingUp, Zap, Database, Network, Edit, Trash2, LineChart, AlertCircle, SlidersHorizontal } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import type { SavedDashboardData, MappedValue } from '@/types'
 import type { DashboardData } from '@/types/parameter'
 import { formatNumber } from '@/utils/formatters'
 import { parameterService } from '@/services/parameterService'
+import { thresholdService, type ThresholdType } from '@/services/thresholdService'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useAuth } from '@/contexts/AuthContext'
 import { ParameterChartDialog } from './parameter-chart-dialog'
 
@@ -33,12 +35,31 @@ export function DashboardView({ savedData, onParameterUpdate }: DashboardViewPro
   const [deleteError, setDeleteError] = useState<string | null>(null)
   const [chartDialogOpen, setChartDialogOpen] = useState(false)
   const [selectedChartParameter, setSelectedChartParameter] = useState<DashboardData | null>(null)
+  const [thresholdDialogOpen, setThresholdDialogOpen] = useState(false)
+  const [selectedThresholdParamId, setSelectedThresholdParamId] = useState<number | null>(null)
+  const [selectedThresholdParamName, setSelectedThresholdParamName] = useState<string>('')
+  const [thresholdFormData, setThresholdFormData] = useState({
+    id: undefined as number | undefined,
+    threshold_type: 'max' as ThresholdType,
+    min_value: 0,
+    max_value: 100,
+    critical_low: 0,
+    critical_high: 100,
+    warning_low: 0,
+    warning_high: 100,
+  })
 
   // Fetch parameter details for editing
   const { data: parameterDetails } = useQuery({
     queryKey: ['parameter', selectedParameter?.parameterId],
     queryFn: () => parameterService.getById(selectedParameter?.parameterId!),
     enabled: !!selectedParameter?.parameterId && editDialogOpen,
+  })
+
+  const { data: selectedThresholdConfig } = useQuery({
+    queryKey: ['threshold', selectedThresholdParamId],
+    queryFn: () => thresholdService.getByParameterId(selectedThresholdParamId!),
+    enabled: thresholdDialogOpen && !!selectedThresholdParamId,
   })
 
   const updateMutation = useMutation({
@@ -69,6 +90,29 @@ export function DashboardView({ savedData, onParameterUpdate }: DashboardViewPro
       } else {
         setDeleteError(error?.message || 'Failed to delete parameter')
       }
+    },
+  })
+
+  const saveThresholdMutation = useMutation({
+    mutationFn: () => {
+      if (!selectedThresholdParamId) {
+        throw new Error('Parameter belum dipilih')
+      }
+      return thresholdService.save({
+        id: thresholdFormData.id,
+        id_param: selectedThresholdParamId,
+        threshold_type: thresholdFormData.threshold_type,
+        min_value: thresholdFormData.min_value,
+        max_value: thresholdFormData.max_value,
+        critical_low: thresholdFormData.critical_low,
+        critical_high: thresholdFormData.critical_high,
+        warning_low: thresholdFormData.warning_low,
+        warning_high: thresholdFormData.warning_high,
+      })
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['threshold', selectedThresholdParamId] })
+      setThresholdDialogOpen(false)
     },
   })
 
@@ -108,6 +152,39 @@ export function DashboardView({ savedData, onParameterUpdate }: DashboardViewPro
     if (!selectedParameter?.parameterId) return
     deleteMutation.mutate(selectedParameter.parameterId)
   }
+
+  React.useEffect(() => {
+    if (!thresholdDialogOpen) return
+    if (!selectedThresholdParamId) return
+
+    if (!selectedThresholdConfig) {
+      setThresholdFormData({
+        id: undefined,
+        threshold_type: 'max',
+        min_value: 0,
+        max_value: 100,
+        critical_low: 0,
+        critical_high: 100,
+        warning_low: 0,
+        warning_high: 100,
+      })
+      return
+    }
+
+    setThresholdFormData({
+      id: selectedThresholdConfig.id,
+      threshold_type:
+        selectedThresholdConfig.threshold_type === 'abnormal'
+          ? 'max'
+          : selectedThresholdConfig.threshold_type,
+      min_value: selectedThresholdConfig.min_value,
+      max_value: selectedThresholdConfig.max_value,
+      critical_low: selectedThresholdConfig.critical_low,
+      critical_high: selectedThresholdConfig.critical_high,
+      warning_low: selectedThresholdConfig.warning_low,
+      warning_high: selectedThresholdConfig.warning_high,
+    })
+  }, [thresholdDialogOpen, selectedThresholdParamId, selectedThresholdConfig])
   const groupedByConnection = savedData.reduce(
     (acc, data) => {
       if (!acc[data.connectionId]) {
@@ -282,6 +359,19 @@ export function DashboardView({ savedData, onParameterUpdate }: DashboardViewPro
                                       variant="ghost"
                                       size="icon"
                                       className="h-8 w-8"
+                                      onClick={() => {
+                                        setSelectedThresholdParamId(value.parameterId!)
+                                        setSelectedThresholdParamName(value.outputName)
+                                        setThresholdDialogOpen(true)
+                                      }}
+                                      title="Atur threshold"
+                                    >
+                                      <SlidersHorizontal className="h-4 w-4" />
+                                    </Button>
+                                    <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      className="h-8 w-8"
                                       onClick={() => handleEdit(value)}
                                       title="Edit parameter"
                                     >
@@ -398,6 +488,159 @@ export function DashboardView({ savedData, onParameterUpdate }: DashboardViewPro
         onOpenChange={setChartDialogOpen}
         parameter={selectedChartParameter}
       />
+
+      {/* Threshold Dialog */}
+      <Dialog open={thresholdDialogOpen} onOpenChange={setThresholdDialogOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Atur Threshold</DialogTitle>
+            <DialogDescription>
+              Atur batas alarm untuk parameter yang dipilih pada card dashboard.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-2">
+              <Label>Parameter</Label>
+              <Input value={selectedThresholdParamName || '-'} readOnly />
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2 col-span-2">
+                <Label>Tipe Threshold</Label>
+                <Select
+                  value={thresholdFormData.threshold_type}
+                  onValueChange={(v: string) =>
+                    setThresholdFormData((prev) => ({ ...prev, threshold_type: v as ThresholdType }))
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="max">max</SelectItem>
+                    <SelectItem value="min">min</SelectItem>
+                    <SelectItem value="min-max">min-max</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {(thresholdFormData.threshold_type === 'max' ||
+                thresholdFormData.threshold_type === 'min' ||
+                thresholdFormData.threshold_type === 'min-max') && (
+                <>
+                  <div className="space-y-2">
+                    <Label>Min Value</Label>
+                    <Input
+                      type="number"
+                      value={thresholdFormData.min_value}
+                      onChange={(e) =>
+                        setThresholdFormData((prev) => ({
+                          ...prev,
+                          min_value: Number(e.target.value),
+                        }))
+                      }
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Max Value</Label>
+                    <Input
+                      type="number"
+                      value={thresholdFormData.max_value}
+                      onChange={(e) =>
+                        setThresholdFormData((prev) => ({
+                          ...prev,
+                          max_value: Number(e.target.value),
+                        }))
+                      }
+                    />
+                  </div>
+                </>
+              )}
+
+              {(thresholdFormData.threshold_type === 'min' ||
+                thresholdFormData.threshold_type === 'min-max') && (
+                <>
+                  <div className="space-y-2">
+                    <Label>Warning Low</Label>
+                    <Input
+                      type="number"
+                      value={thresholdFormData.warning_low}
+                      onChange={(e) =>
+                        setThresholdFormData((prev) => ({
+                          ...prev,
+                          warning_low: Number(e.target.value),
+                        }))
+                      }
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Critical Low</Label>
+                    <Input
+                      type="number"
+                      value={thresholdFormData.critical_low}
+                      onChange={(e) =>
+                        setThresholdFormData((prev) => ({
+                          ...prev,
+                          critical_low: Number(e.target.value),
+                        }))
+                      }
+                    />
+                  </div>
+                </>
+              )}
+
+              {(thresholdFormData.threshold_type === 'max' ||
+                thresholdFormData.threshold_type === 'min-max') && (
+                <>
+                  <div className="space-y-2">
+                    <Label>Warning High</Label>
+                    <Input
+                      type="number"
+                      value={thresholdFormData.warning_high}
+                      onChange={(e) =>
+                        setThresholdFormData((prev) => ({
+                          ...prev,
+                          warning_high: Number(e.target.value),
+                        }))
+                      }
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Critical High</Label>
+                    <Input
+                      type="number"
+                      value={thresholdFormData.critical_high}
+                      onChange={(e) =>
+                        setThresholdFormData((prev) => ({
+                          ...prev,
+                          critical_high: Number(e.target.value),
+                        }))
+                      }
+                    />
+                  </div>
+                </>
+              )}
+            </div>
+
+            {saveThresholdMutation.isError && (
+              <p className="text-sm text-destructive">
+                {(saveThresholdMutation.error as any)?.message || 'Gagal menyimpan threshold'}
+              </p>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setThresholdDialogOpen(false)}>
+              Batal
+            </Button>
+            <Button
+              onClick={() => saveThresholdMutation.mutate()}
+              disabled={saveThresholdMutation.isPending || !selectedThresholdParamId}
+            >
+              {saveThresholdMutation.isPending ? 'Menyimpan...' : 'Simpan Threshold'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

@@ -368,6 +368,8 @@ function WorkflowBuilderInner({ workflow, onCancel, onSuccess }: WorkflowBuilder
             alarmSeverity: undefined,
             alarmMessage: '',
             targetParameter: '',
+            targetType: 'parameter',
+            targetSetPoint: '',
             valueSource: undefined,
             staticValue: '',
             sourceSetpoint: '',

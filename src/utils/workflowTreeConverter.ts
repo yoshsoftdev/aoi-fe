@@ -50,7 +50,11 @@ export function validateNodeData(nodes: Node[], edges: Edge[]): string[] {
           errors.push(`Node "${nodeLabel}" (Action): Tingkat keparahan alarm belum dipilih`)
         }
       } else if (actionData.actionType === 'write-dynamic') {
-        if (!actionData.targetId && !actionData.targetParameter) {
+        if ((actionData.targetType || "parameter") === "setpoint") {
+          if (!actionData.targetSetPointId && !actionData.targetSetPoint) {
+            errors.push(`Node "${nodeLabel}" (Action): Target set-point belum dipilih`)
+          }
+        } else if (!actionData.targetId && !actionData.targetParameter) {
           errors.push(`Node "${nodeLabel}" (Action): Target parameter belum dipilih`)
         }
         if (!actionData.valueSource) {
@@ -283,7 +287,11 @@ function buildTreeNode(
         break
 
       case 'write-dynamic':
-        actionDataMap.target_id = actionData.targetId || 0
+        actionDataMap.target_type = actionData.targetType || "parameter"
+        actionDataMap.target_id =
+          actionData.targetType === "setpoint"
+            ? (actionData.targetSetPointId || actionData.targetId || 0)
+            : (actionData.targetId || 0)
         if (actionData.valueSource === 'static') {
           actionDataMap.value = parseFloat(actionData.staticValue || '0')
         } else if (actionData.valueSource === 'setpoint') {
@@ -584,8 +592,15 @@ function buildNodeFromTree(
       nodeData.alarmSeverity = actionData.severity || 'info'
       nodeData.alarmMessage = actionData.message || ''
     } else if (actionType === 'WRITE_DYNAMIC') {
-      nodeData.targetParameter = String(actionData.target_id || '')
+      const targetType = actionData.target_type === "setpoint" ? "setpoint" : "parameter"
+      nodeData.targetType = targetType
       nodeData.targetId = actionData.target_id
+      if (targetType === "setpoint") {
+        nodeData.targetSetPoint = String(actionData.target_id || '')
+        nodeData.targetSetPointId = actionData.target_id
+      } else {
+        nodeData.targetParameter = String(actionData.target_id || '')
+      }
       // Check for value_source field (from saved data) or value/setpoint_id (legacy)
       if (actionData.value_source === 'setpoint' || actionData.setpoint_id) {
         nodeData.valueSource = 'setpoint'
