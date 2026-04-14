@@ -2,6 +2,8 @@ import type { Node, Edge } from 'reactflow'
 import type { WorkflowTree, TreeNode, TriggerNode, Condition, ValueSource } from '@/services/workflowService'
 import type { TriggerNodeData, ConditionNodeData, ActionNodeData, TimerNodeData } from '@/types/workflow-builder'
 
+const WORKFLOW_MAX_DEPTH = 20
+
 /**
  * Validates node data completeness
  * Returns array of validation errors (empty if valid)
@@ -272,7 +274,7 @@ function buildTreeNode(
   visited: Set<string>,
   depth: number
 ): TreeNode {
-  if (depth > 10) {
+  if (depth > WORKFLOW_MAX_DEPTH) {
     throw new Error('Max depth exceeded')
   }
 
