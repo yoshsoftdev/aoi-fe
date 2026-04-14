@@ -56,7 +56,7 @@ export interface WorkflowTree {
 }
 
 export interface TriggerNode {
-  type: 'PARAMETER_CHANGED' | 'SETPOINT_CHANGED'
+  type: 'START' | 'PARAMETER_CHANGED' | 'SETPOINT_CHANGED'
   source_id: number
   parameter?: string
 }

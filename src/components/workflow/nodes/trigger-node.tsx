@@ -12,11 +12,12 @@ interface TriggerNodeComponentProps extends NodeProps {
 }
 
 function TriggerNodeComponent({ data, selected, parameters = [], setPoints = [] }: TriggerNodeComponentProps) {
-  const Icon = data.triggerType === 'parameter-changed' ? Activity : Target
+  const isStartTrigger = data.triggerType === 'start'
+  const Icon = isStartTrigger || data.triggerType === 'parameter-changed' ? Activity : Target
 
   const isParameterTrigger = data.triggerType === 'parameter-changed'
   const selectedSource = isParameterTrigger ? data.parameter : data.setpoint
-  const hasWarning = !selectedSource
+  const hasWarning = !isStartTrigger && !selectedSource
 
   return (
     <div
@@ -54,27 +55,38 @@ function TriggerNodeComponent({ data, selected, parameters = [], setPoints = [] 
           <div className="flex items-center gap-2">
             <Icon className="h-3.5 w-3.5" style={{ color: 'hsl(207 90% 54%)' }} />
             <div className="text-sm font-semibold text-foreground">
-              {data.triggerType === 'parameter-changed' ? 'Parameter Changed' : 'Set-Point Changed'}
+              {data.triggerType === 'start'
+                ? 'Start'
+                : data.triggerType === 'parameter-changed'
+                  ? 'Parameter Changed'
+                  : 'Set-Point Changed'}
             </div>
           </div>
         </div>
 
         {/* Source Display */}
-        <div className="rounded border border-border bg-secondary px-2 py-2">
-          <div className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground mb-1">
-            {isParameterTrigger ? 'Parameter' : 'Set-Point'}
+        {!isStartTrigger && (
+          <div className="rounded border border-border bg-secondary px-2 py-2">
+            <div className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground mb-1">
+              {isParameterTrigger ? 'Parameter' : 'Set-Point'}
+            </div>
+            <div className="text-sm font-semibold text-foreground">
+              {selectedSource
+                ? isParameterTrigger
+                  ? parameters.find((p) => String(p.id) === selectedSource)?.nama || selectedSource
+                  : setPoints.find((sp) => String(sp.id) === selectedSource)?.name || selectedSource
+                : 'Not set'}
+            </div>
           </div>
-          <div className="text-sm font-semibold text-foreground">
-            {selectedSource
-              ? isParameterTrigger
-                ? parameters.find((p) => String(p.id) === selectedSource)?.nama || selectedSource
-                : setPoints.find((sp) => String(sp.id) === selectedSource)?.name || selectedSource
-              : 'Not set'}
-          </div>
-        </div>
+        )}
 
         {/* Preview */}
-        {selectedSource && (
+        {isStartTrigger && (
+          <div className="rounded border border-border bg-secondary px-2 py-1.5">
+            <span className="font-mono text-xs font-medium text-primary">Runs continuously while workflow is active</span>
+          </div>
+        )}
+        {!isStartTrigger && selectedSource && (
           <div className="rounded border border-border bg-secondary px-2 py-1.5">
             <span className="font-mono text-[10px] text-muted-foreground">
               {isParameterTrigger ? 'When ' : 'When SP '}

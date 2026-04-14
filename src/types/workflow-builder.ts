@@ -1,7 +1,7 @@
 // Types for React Flow workflow builder
 import type { Node, Edge } from 'reactflow'
 
-export type TriggerType = 'parameter-changed' | 'setpoint-changed'
+export type TriggerType = 'start' | 'parameter-changed' | 'setpoint-changed'
 
 export type TriggerNodeData = {
   label: string
@@ -65,6 +65,12 @@ export type ActionNodeData = {
   // Trigger Preset fields
   presetName?: string
   presetId?: number // parameter_id with PRESET mode
+  /** Extra attempts after first failure (0–20). Backend caps at 20. */
+  retry_count?: number
+  /** Seconds to wait before each retry (after first failure). */
+  retry_delay_seconds?: number
+  /** On each retry, re-run the immediate predecessor if it is an Action (action chain only). */
+  retry_rerun_previous?: boolean
 }
 
 export type TimerUnit = 'seconds' | 'minutes' | 'hours'

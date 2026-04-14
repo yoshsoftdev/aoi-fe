@@ -4,6 +4,13 @@ import type { NodePaletteItem } from '@/types/workflow-builder'
 const NODE_PALETTE: NodePaletteItem[] = [
   {
     type: 'trigger',
+    subType: 'start',
+    label: 'Start',
+    description: 'Runs continuously after workflow is loaded',
+    icon: 'activity',
+  },
+  {
+    type: 'trigger',
     subType: 'parameter-changed',
     label: 'Parameter Changed',
     description: 'Fires when a parameter value changes',

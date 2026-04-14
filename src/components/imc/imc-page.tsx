@@ -123,12 +123,15 @@ export function ImcPage() {
     queryFn: () => parameterService.getAll(),
   });
 
-  // Filter only READ parameters with clean data (DIRECT, CLEAN, FORMULA)
+  // Filter parameters that can be read in IMC page: READ and READ_WRITE
   // Exclude RAW, SOURCE, and parameters without valid parameter_mode
   const readParameters = useMemo(() => {
     return parameters.filter((p) => {
-      const isRead = p.direction === 'READ' || (p.direction === undefined && !p.read_write);
-      if (!isRead) return false;
+      const isReadableByDirection = p.direction === 'READ' || p.direction === 'READ_WRITE';
+      const isReadableLegacy =
+        p.direction === undefined &&
+        (p.read_write === false || p.read_write === 0 || p.read_write === 2);
+      if (!isReadableByDirection && !isReadableLegacy) return false;
       
       const mode = p.parameter_mode || '';
       // Only include DIRECT, CLEAN, FORMULA - explicitly exclude RAW, SOURCE, and empty

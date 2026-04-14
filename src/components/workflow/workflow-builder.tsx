@@ -326,8 +326,9 @@ function WorkflowBuilderInner({ workflow, onCancel, onSuccess }: WorkflowBuilder
             label,
             description,
             triggerType: subType,
-            parameter: '',
-            setpoint: '',
+            parameter: subType === 'start' ? undefined : '',
+            setpoint: subType === 'start' ? undefined : '',
+            source_id: subType === 'start' ? 0 : undefined,
             enabled: true,
           }
           break
@@ -383,6 +384,9 @@ function WorkflowBuilderInner({ workflow, onCancel, onSuccess }: WorkflowBuilder
             staticValue: '',
             sourceSetpoint: '',
             presetName: '',
+            retry_count: 0,
+            retry_delay_seconds: 0,
+            retry_rerun_previous: false,
           }
           break
         case 'timer':

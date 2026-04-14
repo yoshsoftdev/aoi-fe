@@ -16,7 +16,7 @@ export function validateNodeData(nodes: Node[], edges: Edge[]): string[] {
 
     if (node.type === 'trigger') {
       const triggerData = node.data as TriggerNodeData
-      if (!triggerData.source_id && !triggerData.parameter && !triggerData.setpoint) {
+      if (triggerData.triggerType !== 'start' && !triggerData.source_id && !triggerData.parameter && !triggerData.setpoint) {
         errors.push(`Node "${nodeLabel}" (Trigger): Parameter atau Set-point belum dipilih`)
       }
     } else if (node.type === 'condition') {
@@ -136,11 +136,12 @@ export function validateWorkflowGraph(nodes: Node[], edges: Edge[]): string[] {
     errors.push('At least 1 Action node required')
   }
 
-  // Check for Trigger -> Action direct connections (warn only)
+  // Check for Trigger -> Action direct connections (warn only for non-START triggers)
   for (const edge of edges) {
     const sourceNode = nodes.find((n) => n.id === edge.source)
     const targetNode = nodes.find((n) => n.id === edge.target)
-    if (sourceNode?.type === 'trigger' && targetNode?.type === 'action') {
+    const triggerType = (sourceNode?.data as TriggerNodeData | undefined)?.triggerType
+    if (sourceNode?.type === 'trigger' && triggerType !== 'start' && targetNode?.type === 'action') {
       errors.push('Trigger connected directly to Action (should have IF in between)')
       break
     }
@@ -189,8 +190,8 @@ export function validateWorkflowGraph(nodes: Node[], edges: Edge[]): string[] {
       const currentId = queue.shift()!
       const currentDepth = depthMap.get(currentId) || 0
 
-      if (currentDepth > 10) {
-        errors.push(`Max depth exceeded: ${currentDepth} (max: 10)`)
+      if (currentDepth > WORKFLOW_MAX_DEPTH) {
+        errors.push(`Max depth exceeded: ${currentDepth} (max: ${WORKFLOW_MAX_DEPTH})`)
         break
       }
 
@@ -224,8 +225,14 @@ export function convertNodesToTree(
   const triggerData = triggerNode.data as TriggerNodeData
 
   // Build trigger
+  const triggerType =
+    triggerData.triggerType === 'start'
+      ? 'START'
+      : triggerData.triggerType === 'parameter-changed'
+        ? 'PARAMETER_CHANGED'
+        : 'SETPOINT_CHANGED'
   const trigger: TriggerNode = {
-    type: triggerData.triggerType === 'parameter-changed' ? 'PARAMETER_CHANGED' : 'SETPOINT_CHANGED',
+    type: triggerType,
     source_id: triggerData.source_id || 0,
     parameter: triggerData.parameter,
   }
@@ -314,6 +321,18 @@ function buildTreeNode(
       case 'trigger-preset':
         actionDataMap.target_id = actionData.presetId || 0
         break
+    }
+
+    const rc = Math.min(20, Math.max(0, Math.floor(Number(actionData.retry_count) || 0)))
+    if (rc > 0) {
+      actionDataMap.retry_count = rc
+    }
+    const rd = Math.min(600, Math.max(0, Math.floor(Number(actionData.retry_delay_seconds) || 0)))
+    if (rd > 0) {
+      actionDataMap.retry_delay_seconds = rd
+    }
+    if (actionData.retry_rerun_previous) {
+      actionDataMap.retry_rerun_previous = true
     }
 
     // Check for outgoing edges (action chaining)
@@ -498,6 +517,7 @@ export function convertTreeToNodes(tree: WorkflowTree): { nodes: Node[]; edges: 
 
   // Create trigger node
   const triggerId = getId()
+  const isStartTrigger = tree.trigger.type === 'START'
   const isParameterTrigger = tree.trigger.type === 'PARAMETER_CHANGED'
   
   // Use saved position if available, otherwise use default
@@ -510,14 +530,16 @@ export function convertTreeToNodes(tree: WorkflowTree): { nodes: Node[]; edges: 
     type: 'trigger',
     position: triggerPosition,
     data: {
-      label: isParameterTrigger ? 'Parameter Changed' : 'Set-Point Changed',
-      description: isParameterTrigger
-        ? 'Fires when a parameter value changes'
-        : 'Fires when a set-point is modified',
-      triggerType: isParameterTrigger ? 'parameter-changed' : 'setpoint-changed',
+      label: isStartTrigger ? 'Start' : isParameterTrigger ? 'Parameter Changed' : 'Set-Point Changed',
+      description: isStartTrigger
+        ? 'Runs continuously after workflow is loaded'
+        : isParameterTrigger
+          ? 'Fires when a parameter value changes'
+          : 'Fires when a set-point is modified',
+      triggerType: isStartTrigger ? 'start' : isParameterTrigger ? 'parameter-changed' : 'setpoint-changed',
       source_id: tree.trigger.source_id,
       parameter: isParameterTrigger ? String(tree.trigger.source_id) : undefined,
-      setpoint: !isParameterTrigger ? String(tree.trigger.source_id) : undefined,
+      setpoint: !isStartTrigger && !isParameterTrigger ? String(tree.trigger.source_id) : undefined,
       enabled: true,
     },
   }
@@ -634,6 +656,19 @@ function buildNodeFromTree(
     } else if (actionType === 'WRITE_PRESET') {
       nodeData.presetName = String(actionData.target_id || '')
       nodeData.presetId = actionData.target_id
+    }
+
+    if (actionData.retry_count !== undefined && actionData.retry_count !== null) {
+      nodeData.retry_count = Math.min(20, Math.max(0, Math.floor(Number(actionData.retry_count))))
+    }
+    if (actionData.retry_delay_seconds !== undefined && actionData.retry_delay_seconds !== null) {
+      nodeData.retry_delay_seconds = Math.min(600, Math.max(0, Math.floor(Number(actionData.retry_delay_seconds))))
+    } else if (actionData.retry_delay_ms !== undefined && actionData.retry_delay_ms !== null) {
+      // Backward compatibility with older saved workflow data (ms -> seconds)
+      nodeData.retry_delay_seconds = Math.min(600, Math.max(0, Math.floor(Number(actionData.retry_delay_ms) / 1000)))
+    }
+    if (actionData.retry_rerun_previous === true) {
+      nodeData.retry_rerun_previous = true
     }
 
     const actionNode: Node = {

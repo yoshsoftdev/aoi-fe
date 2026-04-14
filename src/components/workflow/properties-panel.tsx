@@ -58,17 +58,20 @@ export function PropertiesPanel({
   }
 
   const handleTriggerTypeChange = (val: string) => {
+    const isStartTrigger = val === 'start'
     onNodeChange(selectedNode.id, {
       ...data,
       triggerType: val,
-      label: val === 'parameter-changed' ? 'Parameter Changed' : 'Set-Point Changed',
+      label: val === 'start' ? 'Start' : val === 'parameter-changed' ? 'Parameter Changed' : 'Set-Point Changed',
       description:
-        val === 'parameter-changed'
+        val === 'start'
+          ? 'Runs continuously after workflow is loaded'
+          : val === 'parameter-changed'
           ? 'Fires when a parameter value changes'
           : 'Fires when a set-point is modified',
-      parameter: '',
-      setpoint: '',
-      source_id: undefined,
+      parameter: isStartTrigger ? undefined : '',
+      setpoint: isStartTrigger ? undefined : '',
+      source_id: isStartTrigger ? 0 : undefined,
     })
   }
 
@@ -150,7 +153,7 @@ export function PropertiesPanel({
     trigger: {
       color: 'hsl(207 90% 54%)',
       icon:
-        (data.triggerType as string) === 'parameter-changed' ? (
+        (data.triggerType as string) === 'start' || (data.triggerType as string) === 'parameter-changed' ? (
           <Activity className="h-4 w-4" />
         ) : (
           <Target className="h-4 w-4" />
@@ -185,6 +188,7 @@ export function PropertiesPanel({
   const header = headerConfig[nodeType] || headerConfig.trigger
 
   const triggerType = (data.triggerType as string) || 'parameter-changed'
+  const isStartTrigger = triggerType === 'start'
   const isParameterTrigger = triggerType === 'parameter-changed'
 
   const leftSourceType = (data.leftSourceType as string) || 'parameter'
@@ -252,51 +256,54 @@ export function PropertiesPanel({
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
+                    <SelectItem value="start">Start</SelectItem>
                     <SelectItem value="parameter-changed">Parameter Changed</SelectItem>
                     <SelectItem value="setpoint-changed">Set-Point Changed</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
-              <div className="space-y-2">
-                <Label className="text-xs text-muted-foreground">
-                  {isParameterTrigger ? 'Parameter' : 'Set-Point'}
-                </Label>
-                <Select
-                  value={
-                    isParameterTrigger
-                      ? String((data.parameter as string) || '')
-                      : String((data.setpoint as string) || '')
-                  }
-                  onValueChange={(val) => {
-                    const sourceId = isParameterTrigger
-                      ? cleanParameters.find((p) => String(p.id) === val)?.id
-                      : setPoints.find((sp) => String(sp.id) === val)?.id
+              {!isStartTrigger && (
+                <div className="space-y-2">
+                  <Label className="text-xs text-muted-foreground">
+                    {isParameterTrigger ? 'Parameter' : 'Set-Point'}
+                  </Label>
+                  <Select
+                    value={
+                      isParameterTrigger
+                        ? String((data.parameter as string) || '')
+                        : String((data.setpoint as string) || '')
+                    }
+                    onValueChange={(val) => {
+                      const sourceId = isParameterTrigger
+                        ? cleanParameters.find((p) => String(p.id) === val)?.id
+                        : setPoints.find((sp) => String(sp.id) === val)?.id
 
-                    // Update both fields in a single call
-                    onNodeChange(selectedNode.id, {
-                      ...data,
-                      [isParameterTrigger ? 'parameter' : 'setpoint']: val,
-                      source_id: sourceId,
-                    })
-                  }}
-                >
-                  <SelectTrigger className="border-border bg-secondary text-foreground">
-                    <SelectValue
-                      placeholder={`Select ${isParameterTrigger ? 'parameter' : 'set-point'}...`}
-                    />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {(isParameterTrigger ? cleanParameters : setPoints).map((item) => (
-                      <SelectItem key={item.id} value={String(item.id)}>
-                        {isParameterTrigger
-                          ? (item as Parameter).nama
-                          : (item as SetPoint).name}
-                        {isParameterTrigger && (item as Parameter).unit && ` (${(item as Parameter).unit})`}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+                      // Update both fields in a single call
+                      onNodeChange(selectedNode.id, {
+                        ...data,
+                        [isParameterTrigger ? 'parameter' : 'setpoint']: val,
+                        source_id: sourceId,
+                      })
+                    }}
+                  >
+                    <SelectTrigger className="border-border bg-secondary text-foreground">
+                      <SelectValue
+                        placeholder={`Select ${isParameterTrigger ? 'parameter' : 'set-point'}...`}
+                      />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {(isParameterTrigger ? cleanParameters : setPoints).map((item) => (
+                        <SelectItem key={item.id} value={String(item.id)}>
+                          {isParameterTrigger
+                            ? (item as Parameter).nama
+                            : (item as SetPoint).name}
+                          {isParameterTrigger && (item as Parameter).unit && ` (${(item as Parameter).unit})`}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
             </>
           )}
 
@@ -848,6 +855,58 @@ export function PropertiesPanel({
                   </div>
                 </>
               )}
+
+              <div className="h-px bg-border" />
+              <div className="space-y-2">
+                <Label className="text-xs font-medium text-foreground">Retry jika gagal</Label>
+                <p className="text-[11px] text-muted-foreground leading-snug">
+                  Tambahan percobaan setelah kegagalan pertama. &quot;Jalankan action di atas lagi&quot; hanya berlaku jika node ini
+                  terhubung langsung di bawah Action lain (rantai THEN), bukan di bawah IF/Timer.
+                </p>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="retry-count" className="text-xs text-muted-foreground">
+                  Percobaan tambahan (0–20)
+                </Label>
+                <Input
+                  id="retry-count"
+                  type="number"
+                  min={0}
+                  max={20}
+                  value={Number((data.retry_count as number) ?? 0)}
+                  onChange={(e) => {
+                    const n = Math.min(20, Math.max(0, parseInt(e.target.value, 10) || 0))
+                    handleChange('retry_count', n)
+                  }}
+                  className="border-border bg-secondary text-foreground"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="retry-delay" className="text-xs text-muted-foreground">
+                  Jeda antar percobaan (detik)
+                </Label>
+                <Input
+                  id="retry-delay"
+                  type="number"
+                  min={0}
+                  value={Number((data.retry_delay_seconds as number) ?? 0)}
+                  onChange={(e) => {
+                    const n = Math.max(0, parseInt(e.target.value, 10) || 0)
+                    handleChange('retry_delay_seconds', n)
+                  }}
+                  className="border-border bg-secondary text-foreground"
+                />
+              </div>
+              <div className="flex items-center justify-between gap-2">
+                <div>
+                  <Label className="text-xs text-foreground">Jalankan action di atas lagi</Label>
+                  <p className="text-[11px] text-muted-foreground">Sebelum tiap percobaan ulang</p>
+                </div>
+                <Switch
+                  checked={Boolean(data.retry_rerun_previous)}
+                  onCheckedChange={(val) => handleChange('retry_rerun_previous', val)}
+                />
+              </div>
             </>
           )}
 

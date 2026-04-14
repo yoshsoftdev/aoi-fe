@@ -24,3 +24,5 @@ dist-ssr
 *.sw?
 cum
 fe.tar
+.gomodcache/*
+.gomodcache
