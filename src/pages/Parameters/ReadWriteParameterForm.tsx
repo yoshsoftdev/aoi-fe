@@ -79,6 +79,7 @@ export default function ReadWriteParameterForm({
   })
 
   const [readValue, setReadValue] = useState<number | null>(null)
+  const [writeValue, setWriteValue] = useState<string>('')
 
   // Fetch devices
   const { data: devices } = useQuery({
@@ -218,6 +219,9 @@ export default function ReadWriteParameterForm({
       if (result.connected && result.raw_value !== undefined) {
         const value = typeof result.raw_value === 'number' ? result.raw_value : parseFloat(result.raw_value)
         setReadValue(value)
+        if (!Number.isNaN(value)) {
+          setWriteValue(String(value))
+        }
         setTestSteps(prev => ({
           ...prev,
           read: { 
@@ -240,10 +244,19 @@ export default function ReadWriteParameterForm({
     }
   }
 
-  // Test write step (using value from read)
+  // Test write step (using user input value)
   const handleTestWrite = async () => {
-    if (testSteps.read.status !== 'success' || readValue === null) {
+    if (testSteps.read.status !== 'success') {
       alert('Please test read first')
+      return
+    }
+    if (!writeValue.trim()) {
+      alert('Please enter write value first')
+      return
+    }
+    const parsedWriteValue = parseFloat(writeValue)
+    if (Number.isNaN(parsedWriteValue)) {
+      alert('Write value must be a valid number')
       return
     }
 
@@ -273,7 +286,7 @@ export default function ReadWriteParameterForm({
         quantity: configData.quantity || 1,
         data_type: configData.data_type || 'uint16',
         byte_order: configData.byte_order || 'ABCD',
-        register_values: [Math.round(readValue)], // Use read value for write test
+        register_values: [Math.round(parsedWriteValue)],
       })
 
       if (result.success) {
@@ -667,16 +680,26 @@ export default function ReadWriteParameterForm({
                 {testSteps.write.status === 'testing' && <Loader className="h-5 w-5 animate-spin" />}
                 {testSteps.write.status === 'pending' && <div className="h-5 w-5 rounded-full border-2 border-gray-300" />}
                 <div>
-                  <div className="font-medium">3. Test Write (using read value)</div>
+                  <div className="font-medium">3. Test Write</div>
                   {testSteps.write.message && (
                     <div className="text-sm text-muted-foreground">{testSteps.write.message}</div>
                   )}
+                  <div className="mt-2 max-w-xs">
+                    <Label htmlFor="write-value-input">Write Value</Label>
+                    <Input
+                      id="write-value-input"
+                      type="number"
+                      value={writeValue}
+                      onChange={(e) => setWriteValue(e.target.value)}
+                      placeholder="Enter value to write"
+                    />
+                  </div>
                 </div>
               </div>
               <Button
                 type="button"
                 onClick={handleTestWrite}
-                disabled={testSteps.read.status !== 'success' || testSteps.write.status === 'testing'}
+                disabled={testSteps.read.status !== 'success' || testSteps.write.status === 'testing' || !writeValue.trim()}
                 variant={testSteps.write.status === 'success' ? 'outline' : 'default'}
               >
                 {testSteps.write.status === 'testing' ? 'Testing...' : 'Test Write'}

@@ -279,6 +279,13 @@ export function ImcPage() {
               <div>
                 <img src="/img/humid.png" alt="" width={150} />
               </div>
+              <div className="mt-2 font-bold text-[clamp(24px,4vw,42px)]">
+                {(() => {
+                  const paramId = configMap.get("humidity");
+                  const value = getParameterValue(paramId);
+                  return value !== null ? `${value.toFixed(2)}%` : "0.00%";
+                })()}
+              </div>
               {isAdmin && (
                 <Button
                   variant="ghost"
@@ -295,6 +302,13 @@ export function ImcPage() {
               <div className="font-bold">Suhu Ambien</div>
               <div>
                 <img src="/img/temp.png" alt="" width={150} />
+              </div>
+              <div className="mt-2 font-bold text-[clamp(24px,4vw,42px)]">
+                {(() => {
+                  const paramId = configMap.get("ambient_temp");
+                  const value = getParameterValue(paramId);
+                  return value !== null ? `${value.toFixed(1)}°C` : "0.0°C";
+                })()}
               </div>
               {isAdmin && (
                 <Button

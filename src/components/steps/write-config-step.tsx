@@ -64,6 +64,8 @@ export function WriteConfigStep({ activeConnection, addLog, onParameterCreated }
   } | null>(null)
   const [isTestingWrite, setIsTestingWrite] = useState(false)
   const [testWritePassed, setTestWritePassed] = useState(false)
+  const [dynamicWriteValues, setDynamicWriteValues] = useState<Record<number, string>>({})
+  const [executingParamId, setExecutingParamId] = useState<number | null>(null)
 
   // Fetch existing parameters
   const { data: allParameters = [], refetch: refetchParameters } = useQuery({
@@ -539,29 +541,63 @@ export function WriteConfigStep({ activeConnection, addLog, onParameterCreated }
       return
     }
 
+    setExecutingParamId(param.id)
+
     // Determine register values based on parameter configuration
     let registerValues: number[] = []
+    const isDynamicMode = (param.parameter as any).write_mode === 'DYNAMIC'
     
-    // Check if parameter has preset_value
-    const presetValue = (param.parameter as any).preset_value
-    if (presetValue) {
-      try {
-        // Try to parse preset_value as JSON
-        const parsed = JSON.parse(presetValue)
-        if (parsed.register_values && Array.isArray(parsed.register_values)) {
-          registerValues = parsed.register_values.map((v: any) => Math.max(0, Math.min(65535, Math.floor(Number(v)))))
-        } else if (parsed.value !== undefined) {
-          // Single scalar value
-          registerValues = [Math.max(0, Math.min(65535, Math.floor(Number(parsed.value))))]
-        } else {
-          // Fallback: use the value directly if it's a number
-          registerValues = [Math.max(0, Math.min(65535, Math.floor(Number(presetValue))))]
+    if (isDynamicMode) {
+      const rawInput = (dynamicWriteValues[param.id] || '').trim()
+      if (!rawInput) {
+        addLog(`Parameter ${param.parameter.nama}: masukkan nilai terlebih dahulu`, 'warning', activeConnection.id, param.slaveId)
+        setExecutingParamId(null)
+        return
+      }
+      if (param.quantity > 1) {
+        const values = rawInput.split(',').map(v => Number(v.trim()))
+        if (values.length !== param.quantity || values.some(v => Number.isNaN(v))) {
+          addLog(
+            `Parameter ${param.parameter.nama}: isi ${param.quantity} nilai angka dipisahkan koma`,
+            'error',
+            activeConnection.id,
+            param.slaveId,
+          )
+          setExecutingParamId(null)
+          return
         }
-      } catch {
-        // If not JSON, try to parse as number
-        const numValue = Number(presetValue)
-        if (!isNaN(numValue)) {
-          registerValues = [Math.max(0, Math.min(65535, Math.floor(numValue)))]
+        registerValues = values.map(v => Math.max(0, Math.min(65535, Math.floor(v))))
+      } else {
+        const value = Number(rawInput)
+        if (Number.isNaN(value)) {
+          addLog(`Parameter ${param.parameter.nama}: nilai tidak valid`, 'error', activeConnection.id, param.slaveId)
+          setExecutingParamId(null)
+          return
+        }
+        registerValues = [Math.max(0, Math.min(65535, Math.floor(value)))]
+      }
+    } else {
+      // Check if parameter has preset_value
+      const presetValue = (param.parameter as any).preset_value
+      if (presetValue) {
+        try {
+          // Try to parse preset_value as JSON
+          const parsed = JSON.parse(presetValue)
+          if (parsed.register_values && Array.isArray(parsed.register_values)) {
+            registerValues = parsed.register_values.map((v: any) => Math.max(0, Math.min(65535, Math.floor(Number(v)))))
+          } else if (parsed.value !== undefined) {
+            // Single scalar value
+            registerValues = [Math.max(0, Math.min(65535, Math.floor(Number(parsed.value))))]
+          } else {
+            // Fallback: use the value directly if it's a number
+            registerValues = [Math.max(0, Math.min(65535, Math.floor(Number(presetValue))))]
+          }
+        } catch {
+          // If not JSON, try to parse as number
+          const numValue = Number(presetValue)
+          if (!isNaN(numValue)) {
+            registerValues = [Math.max(0, Math.min(65535, Math.floor(numValue)))]
+          }
         }
       }
     }
@@ -608,6 +644,8 @@ export function WriteConfigStep({ activeConnection, addLog, onParameterCreated }
       }
     } catch (error: any) {
       addLog(`Tulis gagal: ${error.message}`, 'error', activeConnection.id, param.slaveId)
+    } finally {
+      setExecutingParamId(null)
     }
   }
 
@@ -1063,7 +1101,11 @@ export function WriteConfigStep({ activeConnection, addLog, onParameterCreated }
                   <div className="text-sm space-y-1">
                     <div className="flex justify-between">
                       <span className="text-muted-foreground">Nilai:</span>
-                      <span className="font-mono font-semibold">{param.value ?? 1}</span>
+                      <span className="font-mono font-semibold">
+                        {(param.parameter as any).write_mode === 'DYNAMIC'
+                          ? (dynamicWriteValues[param.id] || '-')
+                          : (param.value ?? 1)}
+                      </span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-muted-foreground">Tipe Data:</span>
@@ -1075,20 +1117,43 @@ export function WriteConfigStep({ activeConnection, addLog, onParameterCreated }
                     </div>
                   </div>
 
+                  {(param.parameter as any).write_mode === 'DYNAMIC' && (
+                    <div className="space-y-2">
+                      <Label htmlFor={`dynamic-value-${param.id}`} className="text-xs text-muted-foreground">
+                        Nilai Tulis (DYNAMIC)
+                      </Label>
+                      <Input
+                        id={`dynamic-value-${param.id}`}
+                        type={param.quantity > 1 ? 'text' : 'number'}
+                        value={dynamicWriteValues[param.id] || ''}
+                        onChange={(e) =>
+                          setDynamicWriteValues((prev) => ({
+                            ...prev,
+                            [param.id]: e.target.value,
+                          }))
+                        }
+                        placeholder={
+                          param.quantity > 1
+                            ? `contoh: 10,20${param.quantity > 2 ? ',...' : ''}`
+                            : 'contoh: 10'
+                        }
+                      />
+                    </div>
+                  )}
+
                   <div className="flex gap-2">
                     <Button
                       onClick={() => handleExecute(param)}
                       size="sm"
                       className="flex-1"
-                      disabled={(param.parameter as any).write_mode === 'DYNAMIC'}
-                      title={
-                        (param.parameter as any).write_mode === 'DYNAMIC'
-                          ? 'Parameter tulis DYNAMIC tidak dapat dieksekusi langsung. Gunakan alur kerja atau API tulis dengan nilai.'
-                          : 'Jalankan operasi tulis'
+                      disabled={
+                        executingParamId === param.id ||
+                        ((param.parameter as any).write_mode === 'DYNAMIC' && !(dynamicWriteValues[param.id] || '').trim())
                       }
+                      title="Jalankan operasi tulis"
                     >
                       <CheckCircle2 className="h-4 w-4 mr-2" />
-                      Jalankan
+                      {executingParamId === param.id ? 'Menjalankan...' : 'Jalankan'}
                     </Button>
                     <Button onClick={() => handleEdit(param)} variant="outline" size="sm">
                       <Edit className="h-4 w-4 mr-2" />
