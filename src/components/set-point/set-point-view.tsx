@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Separator } from '@/components/ui/separator'
+import { Switch } from '@/components/ui/switch'
 import { Trash2, Plus, Edit2, Save, X } from 'lucide-react'
 import { setPointService, type SetPoint, type CreateSetPointRequest } from '@/services/setPointService'
 
@@ -15,6 +16,7 @@ interface SetPointDraft {
   data_type: 'int' | 'float' | 'bool'
   min_value?: number
   max_value?: number
+  random_enabled?: boolean
   description?: string
 }
 
@@ -24,6 +26,7 @@ function createEmptyDraft(): SetPointDraft {
     unit: '',
     value: 0,
     data_type: 'float',
+    random_enabled: false,
   }
 }
 
@@ -80,6 +83,9 @@ export function SetPointView() {
     }
     if (newDraft.max_value != null) {
       payload.max_value = newDraft.max_value
+    }
+    if (newDraft.random_enabled != null) {
+      payload.random_enabled = newDraft.random_enabled
     }
     if (newDraft.description && newDraft.description.trim()) {
       payload.description = newDraft.description.trim()
@@ -159,6 +165,37 @@ export function SetPointView() {
                 onChange={(e) =>
                   setNewDraft((d) => ({ ...d, value: Number(e.target.value) || 0 }))
                 }
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Min</Label>
+              <Input
+                type="number"
+                step="any"
+                value={newDraft.min_value ?? ''}
+                onChange={(e) =>
+                  setNewDraft((d) => ({ ...d, min_value: e.target.value === '' ? undefined : Number(e.target.value) }))
+                }
+                placeholder="opsional"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Max</Label>
+              <Input
+                type="number"
+                step="any"
+                value={newDraft.max_value ?? ''}
+                onChange={(e) =>
+                  setNewDraft((d) => ({ ...d, max_value: e.target.value === '' ? undefined : Number(e.target.value) }))
+                }
+                placeholder="opsional"
+              />
+            </div>
+            <div className="flex items-center justify-between rounded-md border px-3 py-2">
+              <Label>Random</Label>
+              <Switch
+                checked={Boolean(newDraft.random_enabled)}
+                onCheckedChange={(val) => setNewDraft((d) => ({ ...d, random_enabled: val }))}
               />
             </div>
             <div className="flex items-end gap-2">
@@ -310,6 +347,18 @@ export function SetPointView() {
                       {sp.max_value != null ? sp.max_value : '-'}
                     </div>
                   </div>
+                </div>
+                <div className="flex items-center justify-between rounded-md border px-3 py-2">
+                  <span className="text-xs text-muted-foreground">Random</span>
+                  <Switch
+                    checked={Boolean(sp.random_enabled)}
+                    onCheckedChange={(val) =>
+                      updateMutation.mutate({
+                        id: sp.id,
+                        payload: { random_enabled: val },
+                      })
+                    }
+                  />
                 </div>
                 {sp.description && (
                   <p className="text-xs text-muted-foreground">{sp.description}</p>

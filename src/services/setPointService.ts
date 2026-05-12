@@ -8,6 +8,7 @@ export interface SetPoint {
   data_type: 'int' | 'float' | 'bool'
   min_value?: number | null
   max_value?: number | null
+  random_enabled?: boolean
   description?: string | null
   created_at?: string
   updated_at?: string
@@ -20,6 +21,7 @@ export interface CreateSetPointRequest {
   data_type?: 'int' | 'float' | 'bool'
   min_value?: number | null
   max_value?: number | null
+  random_enabled?: boolean
   description?: string | null
 }
 

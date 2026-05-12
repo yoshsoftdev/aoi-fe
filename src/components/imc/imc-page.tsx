@@ -12,6 +12,7 @@ import { useWebSocket } from "@/hooks/useWebSocket";
 import { useAuth } from "@/contexts/AuthContext";
 import { parameterService } from "@/services/parameterService";
 import { imcConfigService, type CreateOrUpdateIMCConfigRequest } from "@/services/imcConfigService";
+import { setPointService } from "@/services/setPointService";
 import type { DashboardData } from "@/types";
 
 interface StatusItem {
@@ -20,6 +21,8 @@ interface StatusItem {
   imageSrc: string;
   status: boolean;
   parameterId?: number; // ID parameter dari WebSocket
+  sourceType?: "parameter" | "set_point";
+  setPointId?: number;
   data: {
     setpoint: number;
     mode?: string;
@@ -49,12 +52,22 @@ export function ImcPage() {
     queryKey: ['imc-configs'],
     queryFn: () => imcConfigService.getAll(),
   });
+  const { data: setPoints = [] } = useQuery({
+    queryKey: ['set-points'],
+    queryFn: () => setPointService.getAll(),
+    refetchInterval: 1000,
+    refetchIntervalInBackground: true,
+  });
 
   // Create a map for quick lookup
   const configMap = useMemo(() => {
-    const map = new Map<string, number | undefined>();
+    const map = new Map<string, { sourceType: "parameter" | "set_point"; parameterId?: number; setPointId?: number }>();
     imcConfigs.forEach((config) => {
-      map.set(config.card_key, config.parameter_id);
+      map.set(config.card_key, {
+        sourceType: (config.source_type as "parameter" | "set_point") || "parameter",
+        parameterId: config.parameter_id,
+        setPointId: config.set_point_id,
+      });
     });
     return map;
   }, [imcConfigs]);
@@ -74,6 +87,21 @@ export function ImcPage() {
     const key = `param_${parameterId}`;
     const paramData = wsData.get(key);
     return paramData?.value ?? null;
+  };
+  const getSetPointValue = (setPointId?: number): number | null => {
+    if (!setPointId) return null;
+    const sp = setPoints.find((s) => s.id === setPointId);
+    return sp?.value ?? null;
+  };
+  const getConfiguredValue = (item: StatusItem): number => {
+    if ((item.sourceType || "parameter") === "set_point") {
+      const spValue = getSetPointValue(item.setPointId);
+      if (spValue !== null) return spValue;
+    } else {
+      const wsValue = getParameterValue(item.parameterId);
+      if (wsValue !== null) return wsValue;
+    }
+    return item.data?.setpoint ?? 0;
   };
 
   const [statusItems, setStatusItems] = useState<StatusItem[]>(() => [
@@ -142,7 +170,9 @@ export function ImcPage() {
   // Configuration for parameter IDs for each card
   const [configDialogOpen, setConfigDialogOpen] = useState(false);
   const [configItemKey, setConfigItemKey] = useState<string | null>(null);
+  const [configSourceType, setConfigSourceType] = useState<"parameter" | "set_point">("parameter");
   const [configParameterId, setConfigParameterId] = useState<string>("");
+  const [configSetPointId, setConfigSetPointId] = useState<string>("");
 
   // Load configuration from database
   useEffect(() => {
@@ -150,7 +180,9 @@ export function ImcPage() {
       setStatusItems((prev) =>
         prev.map((item) => ({
           ...item,
-          parameterId: configMap.get(item.key),
+          sourceType: configMap.get(item.key)?.sourceType || "parameter",
+          parameterId: configMap.get(item.key)?.parameterId,
+          setPointId: configMap.get(item.key)?.setPointId,
         }))
       );
     }
@@ -163,16 +195,19 @@ export function ImcPage() {
       return;
     }
     
-    // Convert configParameterId to number or undefined
-    // If empty string or "none", set to undefined (which will clear the config)
-    const parameterId = configParameterId && configParameterId !== "" && configParameterId !== "none" 
+    const parameterId = configSourceType === "parameter" && configParameterId && configParameterId !== "" && configParameterId !== "none" 
       ? Number(configParameterId) 
+      : undefined;
+    const setPointId = configSourceType === "set_point" && configSetPointId && configSetPointId !== "" && configSetPointId !== "none"
+      ? Number(configSetPointId)
       : undefined;
     
     // Prepare payload - always include parameter_id (null to clear, number to set)
     const payload: CreateOrUpdateIMCConfigRequest = {
       card_key: configItemKey,
-      parameter_id: parameterId ?? null, // Use null if undefined to explicitly clear the config
+      source_type: configSourceType,
+      parameter_id: parameterId ?? null,
+      set_point_id: setPointId ?? null,
     };
     
     console.log("Saving IMC config:", payload);
@@ -188,7 +223,7 @@ export function ImcPage() {
             setStatusItems((prev) =>
               prev.map((item) =>
                 item.key === configItemKey
-                  ? { ...item, parameterId: parameterId }
+                  ? { ...item, sourceType: configSourceType, parameterId: parameterId, setPointId: setPointId }
                   : item
               )
             );
@@ -196,7 +231,9 @@ export function ImcPage() {
           
           setConfigDialogOpen(false);
           setConfigItemKey(null);
+          setConfigSourceType("parameter");
           setConfigParameterId("");
+          setConfigSetPointId("");
         },
         onError: (error) => {
           console.error("Failed to save IMC config:", error);
@@ -210,9 +247,10 @@ export function ImcPage() {
   const handleOpenConfig = (key: string) => {
     setConfigItemKey(key);
     
-    // Get parameter ID from config map
-    const parameterId = configMap.get(key);
-    setConfigParameterId(parameterId ? String(parameterId) : "");
+    const cfg = configMap.get(key);
+    setConfigSourceType(cfg?.sourceType || "parameter");
+    setConfigParameterId(cfg?.parameterId ? String(cfg.parameterId) : "");
+    setConfigSetPointId(cfg?.setPointId ? String(cfg.setPointId) : "");
     
     setConfigDialogOpen(true);
   };
@@ -281,8 +319,10 @@ export function ImcPage() {
               </div>
               <div className="mt-2 font-bold text-[clamp(24px,4vw,42px)]">
                 {(() => {
-                  const paramId = configMap.get("humidity");
-                  const value = getParameterValue(paramId);
+                  const cfg = configMap.get("humidity");
+                  const value = cfg?.sourceType === "set_point"
+                    ? getSetPointValue(cfg.setPointId)
+                    : getParameterValue(cfg?.parameterId);
                   return value !== null ? `${value.toFixed(2)}%` : "0.00%";
                 })()}
               </div>
@@ -305,8 +345,10 @@ export function ImcPage() {
               </div>
               <div className="mt-2 font-bold text-[clamp(24px,4vw,42px)]">
                 {(() => {
-                  const paramId = configMap.get("ambient_temp");
-                  const value = getParameterValue(paramId);
+                  const cfg = configMap.get("ambient_temp");
+                  const value = cfg?.sourceType === "set_point"
+                    ? getSetPointValue(cfg.setPointId)
+                    : getParameterValue(cfg?.parameterId);
                   return value !== null ? `${value.toFixed(1)}°C` : "0.0°C";
                 })()}
               </div>
@@ -328,9 +370,7 @@ export function ImcPage() {
         <Card className="md:col-span-3 p-4">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
             {statusItems.map((item) => {
-              // Get real-time value from WebSocket if parameterId is configured
-              const wsValue = getParameterValue(item.parameterId);
-              const displayValue = wsValue !== null ? wsValue : (item.data?.setpoint ?? 0);
+              const displayValue = getConfiguredValue(item);
               
               return (
                 <div key={item.key} className="relative group">
@@ -360,11 +400,11 @@ export function ImcPage() {
                       <img src={item.imageSrc} alt={item.title} width={150} />
                       <div className="flex flex-col items-center">
                         <div className="font-bold text-[20px]">
-                          {wsValue !== null ? displayValue.toFixed(2) : String(displayValue)}%
+                          {displayValue.toFixed(2)}%
                         </div>
-                        {item.parameterId && (
+                        {(item.parameterId || item.setPointId) && (
                           <div className="text-xs text-muted-foreground mt-1">
-                            Param ID: {item.parameterId}
+                            {item.sourceType === "set_point" ? `Set-Point ID: ${item.setPointId}` : `Param ID: ${item.parameterId}`}
                           </div>
                         )}
                       </div>
@@ -406,8 +446,10 @@ export function ImcPage() {
                   </div>
                   <div className="mt-2 font-bold text-[clamp(32px,6vw,80px)]">
                     {(() => {
-                      const paramId = configMap.get("dielectric_temp");
-                      const value = getParameterValue(paramId);
+                      const cfg = configMap.get("dielectric_temp");
+                      const value = cfg?.sourceType === "set_point"
+                        ? getSetPointValue(cfg.setPointId)
+                        : getParameterValue(cfg?.parameterId);
                       return value !== null ? value.toFixed(1) : "34.5";
                     })()}
                   </div>
@@ -432,8 +474,10 @@ export function ImcPage() {
                   </div>
                   <div className="mt-2 font-bold text-[clamp(32px,6vw,80px)]">
                     {(() => {
-                      const paramId = configMap.get("dielectric_flow");
-                      const value = getParameterValue(paramId);
+                      const cfg = configMap.get("dielectric_flow");
+                      const value = cfg?.sourceType === "set_point"
+                        ? getSetPointValue(cfg.setPointId)
+                        : getParameterValue(cfg?.parameterId);
                       return value !== null ? value.toFixed(2) : "0.65";
                     })()}
                   </div>
@@ -458,8 +502,10 @@ export function ImcPage() {
                   </div>
                   <div className="mt-2 font-bold text-[clamp(32px,6vw,80px)]">
                     {(() => {
-                      const paramId = configMap.get("dielectric_pressure");
-                      const value = getParameterValue(paramId);
+                      const cfg = configMap.get("dielectric_pressure");
+                      const value = cfg?.sourceType === "set_point"
+                        ? getSetPointValue(cfg.setPointId)
+                        : getParameterValue(cfg?.parameterId);
                       return value !== null ? value.toFixed(2) : "0.84";
                     })()}
                   </div>
@@ -495,8 +541,10 @@ export function ImcPage() {
                   </div>
                   <div className="mt-2 font-bold text-[clamp(32px,6vw,80px)]">
                     {(() => {
-                      const paramId = configMap.get("h2o_temp");
-                      const value = getParameterValue(paramId);
+                      const cfg = configMap.get("h2o_temp");
+                      const value = cfg?.sourceType === "set_point"
+                        ? getSetPointValue(cfg.setPointId)
+                        : getParameterValue(cfg?.parameterId);
                       return value !== null ? value.toFixed(1) : "34.5";
                     })()}
                   </div>
@@ -521,8 +569,10 @@ export function ImcPage() {
                   </div>
                   <div className="mt-2 font-bold text-[clamp(32px,6vw,80px)]">
                     {(() => {
-                      const paramId = configMap.get("h2o_flow");
-                      const value = getParameterValue(paramId);
+                      const cfg = configMap.get("h2o_flow");
+                      const value = cfg?.sourceType === "set_point"
+                        ? getSetPointValue(cfg.setPointId)
+                        : getParameterValue(cfg?.parameterId);
                       return value !== null ? value.toFixed(2) : "0.65";
                     })()}
                   </div>
@@ -547,8 +597,10 @@ export function ImcPage() {
                   </div>
                   <div className="mt-2 font-bold text-[clamp(32px,6vw,80px)]">
                     {(() => {
-                      const paramId = configMap.get("h2o_pressure");
-                      const value = getParameterValue(paramId);
+                      const cfg = configMap.get("h2o_pressure");
+                      const value = cfg?.sourceType === "set_point"
+                        ? getSetPointValue(cfg.setPointId)
+                        : getParameterValue(cfg?.parameterId);
                       return value !== null ? value.toFixed(2) : "0.84";
                     })()}
                   </div>
@@ -855,32 +907,70 @@ export function ImcPage() {
       <Dialog open={configDialogOpen} onOpenChange={setConfigDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Configure Parameter</DialogTitle>
+            <DialogTitle>Configure Data Source</DialogTitle>
             <DialogDescription>
-              Select a parameter to display real-time data from WebSocket. Leave empty to use static value.
+              Pilih source type lalu parameter atau set-point untuk ditampilkan di card.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div>
-              <Label htmlFor="parameterSelect">Parameter</Label>
-              <Select
-                value={configParameterId ? String(configParameterId) : "none"}
-                onValueChange={(value) => {
-                  setConfigParameterId(value === "none" ? "" : value);
-                }}
-              >
-                <SelectTrigger id="parameterSelect">
-                  <SelectValue placeholder="Select a parameter" />
+              <Label htmlFor="sourceTypeSelect">Source Type</Label>
+              <Select value={configSourceType} onValueChange={(value) => setConfigSourceType(value as "parameter" | "set_point")}>
+                <SelectTrigger id="sourceTypeSelect">
+                  <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="none">None (Use static value)</SelectItem>
-                  {readParameters.map((param) => (
-                    <SelectItem key={param.id} value={String(param.id)}>
-                      {param.nama} {param.device ? `(${(param.device as any).nama || ''})` : ''}
-                    </SelectItem>
-                  ))}
+                  <SelectItem value="parameter">Parameter</SelectItem>
+                  <SelectItem value="set_point">Set-Point</SelectItem>
                 </SelectContent>
               </Select>
+            </div>
+            <div>
+              {configSourceType === "parameter" ? (
+                <>
+                  <Label htmlFor="parameterSelect">Parameter</Label>
+                  <Select
+                    value={configParameterId ? String(configParameterId) : "none"}
+                    onValueChange={(value) => {
+                      setConfigParameterId(value === "none" ? "" : value);
+                    }}
+                  >
+                    <SelectTrigger id="parameterSelect">
+                      <SelectValue placeholder="Select a parameter" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">None (Use static value)</SelectItem>
+                      {readParameters.map((param) => (
+                        <SelectItem key={param.id} value={String(param.id)}>
+                          {param.nama} {param.device ? `(${(param.device as any).nama || ''})` : ''}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </>
+              ) : (
+                <>
+                  <Label htmlFor="setPointSelect">Set-Point</Label>
+                  <Select
+                    value={configSetPointId ? String(configSetPointId) : "none"}
+                    onValueChange={(value) => {
+                      setConfigSetPointId(value === "none" ? "" : value);
+                    }}
+                  >
+                    <SelectTrigger id="setPointSelect">
+                      <SelectValue placeholder="Select a set-point" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">None (Use static value)</SelectItem>
+                      {setPoints.map((sp) => (
+                        <SelectItem key={sp.id} value={String(sp.id)}>
+                          {sp.name} {sp.unit ? `(${sp.unit})` : ''}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </>
+              )}
             </div>
           </div>
           <DialogFooter>

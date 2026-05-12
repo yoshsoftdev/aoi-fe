@@ -3,18 +3,26 @@ import api from './api'
 export interface IMCParameterConfig {
   id: number
   card_key: string
+  source_type?: 'parameter' | 'set_point'
   parameter_id?: number
+  set_point_id?: number
   created_at: string
   updated_at: string
   parameter?: {
     id: number
     nama: string
   }
+  set_point?: {
+    id: number
+    name: string
+  }
 }
 
 export interface CreateOrUpdateIMCConfigRequest {
   card_key: string
+  source_type?: 'parameter' | 'set_point'
   parameter_id?: number | null | undefined
+  set_point_id?: number | null | undefined
 }
 
 export const imcConfigService = {
